@@ -1,0 +1,4 @@
+If GitHub won't upload hidden .github folders from your iPhone, create the file path:
+.github/workflows/build.yml
+
+Then copy the exact YAML from .github/workflows/build.yml in the downloaded starter package.
