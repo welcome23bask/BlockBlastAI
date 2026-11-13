@@ -1,3 +1,31 @@
+# BlockBlastAI v0.6 — Playable simulator + live overlay fixes
+
+**Play/test in a browser:** [Simulator source](simulator/index.html) • [Simulator instructions](simulator/README.md)  
+**Standalone simulator download:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.6/BlockBlastAI_Simulator.html  
+**Updated iPhone tweak (device-test beta):** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.6/BlockBlastAI.dylib
+
+## What changed
+
+- Created a **playable 8×8 Block Blast-style simulator** with tray pieces, legal placement, clearing rows and columns, heuristic move suggestions, and a draggable/resizable assistant.
+- Added **fault injection** for capture interruptions, obscured screen, phantom board cells, fake tray pieces, and vertically flipped images.
+- Added a **virtual 60-minute scanner test** and automated browser-engine tests in GitHub Actions, which pass.
+- Changed ReplayKit integration to **keep one stream running**, rather than asynchronously starting/stopping capture for every frame. This targets the observed phenomenon of scanning stopping after about a minute.
+- Updated the real overlay to **retry automatically after interrupted captures**, require three stable observations, and hide stale highlights when the board geometry or tray contents are untrustworthy.
+- Added purple piece detection and corresponding C vision regression tests.
+- Tested the local image-classifier logic against the user's own screenshot references: one board with 12 occupied squares and all 3 pieces, one board with 13 occupied squares and only 2 pieces, plus an occluded screenshot that should be rejected. User screenshots are **not** included in this public repository.
+
+## Validation and honest limitations
+
+GitHub Actions has passed the C solver tests, vision regression tests (including vertical orientation and purple piece recognition), Node simulator tests, and ARM64 iOS compilation. The **simulator itself was also opened, clicked and inspected in a mobile-sized headless browser**.
+
+**v0.6 has NOT yet been run inside the real Block Blast iPhone installation**. It is a testing build, not a proven final injection. Simulator tests do not guarantee ReplayKit and game-integrated overlay behavior. Continue using a backed-up v0.1/v0.4 installation if reliability is critical; don't combine multiple dylib versions in one IPA.
+
+### iPhone web access
+
+GitHub Pages is not automatically enabled by merely committing an HTML file. As repository owner, open **Settings → Pages → Build and deployment → Deploy from a branch → main → / (root)**. When GitHub finishes publishing, the simulator should appear at **https://welcome23bask.github.io/BlockBlastAI/simulator/**. Don't rely on that URL until Pages reports it is published.
+
+---
+
 # BlockBlastAI v0.5 — Orientation and highlight fix
 
 **Direct iPhone download:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.5/BlockBlastAI.dylib  
