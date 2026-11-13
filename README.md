@@ -1,3 +1,35 @@
+# BlockBlastAI v0.5 — Orientation and highlight fix
+
+**Direct iPhone download:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.5/BlockBlastAI.dylib  
+**All releases / rollback:** https://github.com/welcome23bask/BlockBlastAI/releases  
+**Most recent tested-on-the-user's-iPhone version:** v0.4 loaded but showed an upside-down grid and misplaced highlights. Earlier v0.1 showed a working manual overlay. **v0.5 has passed automated tests but is not yet verified inside a real iPhone game.**
+
+## What's fixed
+
+- **Vertical orientation:** the local C vision detector evaluates upright and vertically flipped bitmap rows and selects the orientation with a valid board and colored tray pieces. Avoids the previously upside-down 8×8 board and mirrored highlights.
+- **Grid geometry:** dark grid edges anchor a nearly square board, and cell centers are defined as \`left + (column + 0.5) * pitch\`, \`top + (row + 0.5) * pitch\`. On the user's example screenshot at 430×932 logical resolution, first and last cell centers should be approximately (47,240) and (384,577).
+- **Block colors:** detect bright blue, cyan, orange, red, green and yellow blocks without treating the lighter blue sky as occupied.
+- **Tray piece detection:** checks all three tray thirds using smaller piece pitch. Missing pieces are allowed after moves.
+- **Safer live capture:** hides the floating bubble and guide highlights while ReplayKit captures a video frame to avoid self-detection and wrong geometry.
+- **Safer failed scans:** removes stale highlights when detection is uncertain; waits for two matching valid frames before showing another recommendation.
+- **Controls:** automatic mode remains enabled by default; draggable bubble, movable and resizable panel, and manual editor are preserved. Nothing automatically places a piece.
+
+## Verification
+
+- GitHub macOS CI passed: C solver tests, synthetic vision regression tests (including vertically mirrored screenshots), iOS ARM64 dylib compilation and release upload.
+- Independent screenshot analysis of the full, unobstructed game reference identified exactly **12 occupied squares and three tray shapes (3×2, 1×3 and 2×3)**, in correct orientation.
+- These are not the same as on-device testing. ReplayKit, code injection, changing game skins, and a moving overlay may still cause problems. Keep your old IPA backed up.
+
+### Safe test
+
+1. Use a clean, compatible game IPA in KSign and inject **only** the v0.5 dylib. Don't combine it with v0.4.
+2. Sign/install and open the game. If iOS asks to permit screen recording, allow only if you want live recognition.
+3. Play a noncritical game. With the panel closed, wait several seconds for the P1/P2/P3 bubble and **gold outlined placement squares**.
+4. Open the panel: the preview grid should be oriented with row 1 at the top of the actual game and match the occupied squares.
+5. If the gold outline is off-grid, or if a colored cell is wrongly shown, **do not make that move**. Tap the AUTO SCAN control to pause and use the earlier working v0.1 version or send a screenshot for correction.
+
+---
+
 # BlockBlastAI v0.4 — Automatic gameplay move assistant (BETA)
 
 **iPhone direct download:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.4/BlockBlastAI.dylib  
