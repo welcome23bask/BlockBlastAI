@@ -1,3 +1,27 @@
+# BlockBlastAI v0.2 — Movable overlay and beta screen scan
+
+**New version:** [Download v0.2 iPhone ARM64 dylib](https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.2/BlockBlastAI.dylib)  
+**Working fallback:** [Download v0.1 dylib](https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.1/BlockBlastAI.dylib)
+
+v0.2 builds successfully on GitHub's macOS runner. It **has not yet been tested on an iPhone**; v0.1 was confirmed working inside Block Blast on an iPhone. Keep the old v0.1 IPA backed up.
+
+## What's new in v0.2
+- **Move the panel:** drag its top bar labelled “Drag panel.”
+- **Resize the panel:** drag the **↘** handle in its bottom-right corner. The inside content scales to fit and scrolls vertically. Panel position and size are saved on the device.
+- **Calibrate board coordinates:** tap **📍 Calibrate** and tap the centers of the top-left and bottom-right board squares on the exposed game. Recalibrate if the game's layout or screen orientation changes.
+- **Beta automatic board recognition:** tap **📷 Scan board**. The panel hides temporarily, ReplayKit captures a video frame, and an on-device brightness classifier estimates which 8×8 squares are occupied. Screen capture may ask for permission and may fail inside some games. **Always verify and correct the detected grid before solving.**
+- **Overlay the suggested move over the game:** once you've entered all three pieces and solved, tap **🎯 On game**. Gold outlined cells show the current suggested placement directly on the game grid without blocking gameplay. Tap the floating 🧩 AI bubble to reopen the panel; use Previous/Next to change which move is highlighted.
+- The solver remains local and heuristic. It does not move blocks automatically or transmit screen images.
+
+## Still manual / experimental
+- Piece-shape recognition is **not implemented in v0.2**. Draw all three piece shapes in the existing editors.
+- Brightness-based detection may misread animated themes, special tiles, board effects, or fully empty/filled boards.
+- UI capture and visual alignment have not been verified on the user's specific Block Blast installation.
+- A successful compilation does not guarantee that modified game clients will run.
+- Neither v0.1 nor v0.2 is an official Block Blast feature.
+
+---
+
 # BlockBlastAI Overlay — iPhone-only development starter (v0.1)
 
 This is **source code**, not a finished `.dylib` or IPA. The target is a floating AI move assistant **inside a compatible, signed copy of Block Blast** on an iPhone. It is experimental and has not been tested inside Block Blast.
