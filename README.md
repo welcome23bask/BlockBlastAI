@@ -1,3 +1,32 @@
+# BlockBlastAI v0.4 — Automatic gameplay move assistant (BETA)
+
+**iPhone direct download:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.4/BlockBlastAI.dylib  
+**Current releases:** https://github.com/welcome23bask/BlockBlastAI/releases  
+**Known working on the user's iPhone:** v0.1 was observed running. v0.4 has **only passed a GitHub macOS build and C solver tests**, not a device run.
+
+## Automatic v0.4 features
+
+- **Automatic board calibration:** finds the dark 8×8 square grid in a captured game frame.
+- **Automatic board recognition:** estimates occupied versus empty grid cells.
+- **Automatic 3-piece recognition:** finds the red/orange/green or similarly bright colored tiles in the three piece-tray thirds below the board.
+- **Automatic solving:** uses the local beam-search C solver to plan placements without an internet AI account. Handles 1, 2 or 3 pieces still remaining in the tray.
+- **Automatic on-board highlights:** gold outlines indicate the suggested squares. The floating bubble says \`P1 ↓\`, \`P2 ↓\`, etc. to identify which tray piece to use.
+- **Automatic refresh:** while the panel is closed and the game is visible, ReplayKit attempts a screenshot every ~1.8 seconds. It waits for two matching observations before changing its suggestion.
+- **Movable/resizable settings UI:** existing drag header and ↘ corner remain.
+
+### Test on a non-critical game save
+
+1. Back up your currently working game IPA. In KSign, inject **v0.4 only**, not v0.1/0.2/0.3 alongside it.
+2. Sign and install the compatible IPA.
+3. Open Block Blast. After a few seconds, iOS may prompt for screen capture permission.
+4. **No calibration or manual piece entry should be required.** The bubble should eventually read \`P1 ↓\` / \`P2 ↓\` / \`P3 ↓\` and outlined squares should appear directly over the game grid.
+5. If there are no highlights or the tiles are misplaced, tap the bubble. The status field will report if ReplayKit is unavailable or the game frame is unrecognized. If needed, tap **Auto scan** to retry; manual mode remains available as a fallback.
+6. Send a screenshot with the actual game and highlights visible for debugging before trusting live recommendations.
+
+**Important limitations:** This is an experimental color/geometry detector tuned using a single user-supplied full-screen screenshot, not a trained vision model and not guaranteed to work across Block Blast skins, animations, ad overlays, device orientations, or layouts. Capturing may be unavailable in some signed/injected builds. Auto is initially ON; tapping the AUTO SCAN control pauses/resumes it. On a scan error it may pause to avoid repeated permission prompts. It never presses, drags, or places a game piece itself. The solver is heuristic and may choose a non-optimal move. Nothing is sent to an external server.
+
+---
+
 # BlockBlastAI v0.3 — Scanner alignment fix and grid preview
 
 **Download v0.3 beta:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.3/BlockBlastAI.dylib  
