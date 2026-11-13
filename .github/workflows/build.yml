@@ -24,7 +24,7 @@ jobs:
             -O2 -fobjc-arc -std=gnu11 \
             -dynamiclib \
             -install_name @rpath/BlockBlastAI.dylib \
-            -framework Foundation -framework UIKit \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
             src/BlockBlastOverlay.m src/BlockBlastSolver.c \
             -o dist/BlockBlastAI.dylib
           file dist/BlockBlastAI.dylib
