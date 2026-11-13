@@ -19,6 +19,11 @@ static BOOL sShouldRun=NO, sRestartAfterStart=NO, sWatchdogArmed=NO;
 static unsigned long sGeneration=0, sFrameTicket=0;
 static CFAbsoluteTime sLastFrameAt=0;
 static CIContext *sSharedCIContext;
+// Frame identity: every decoded frame gets a monotonically increasing counter
+// and a capture timestamp; restarts bump sRestartCount so callers can drop
+// any cached detections.
+static unsigned long sFrameCounter=0, sRestartCount=0;
+static CFAbsoluteTime sPendingSince=0;
 
 static NSError *BLError(NSInteger code, NSString *reason) {
     return [NSError errorWithDomain:@"BlockBlastAI" code:code
@@ -37,14 +42,17 @@ static void BLRecycleStream(void);
 static void BLWatchdog(void) {
     if(!sShouldRun) {sWatchdogArmed=NO;return;}
     RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
-    CFAbsoluteTime last;
-    @synchronized(rec) {last=sLastFrameAt;}
-    if(!sStreamStopping && (sStreamStarted || sStreamStarting) &&
-       last>0 && CFAbsoluteTimeGetCurrent()-last>8.0) {
+    CFAbsoluteTime last; BOOL pending;
+    @synchronized(rec) {last=MAX(sLastFrameAt,sPendingSince); pending=(sPendingFrame!=nil);}
+    // ReplayKit only emits frames when pixels change, so a quiet screen is NOT
+    // a stall. Treat it as stalled only while a caller is waiting on a frame
+    // (the overlay forces a pixel change before each request).
+    if(!sStreamStopping && pending && (sStreamStarted || sStreamStarting) &&
+       last>0 && CFAbsoluteTimeGetCurrent()-last>2.5) {
         BLDeliverPending(nil,BLError(7,@"ReplayKit stopped sending video frames. Restarting."));
         BLRecycleStream();
     }
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(2*NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(1*NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{BLWatchdog();});
 }
 static void BLArmWatchdog(void) {
@@ -59,11 +67,12 @@ static void BLRecycleStream(void) {
     if(sStreamStarting) {sRestartAfterStart=YES;return;}
     if(!sStreamStarted && !rec.isRecording) {
         sStreamStarted=NO;
+        @synchronized(rec) {++sRestartCount;}
         if(sShouldRun) BLStartStream();
         return;
     }
     sStreamStopping=YES;
-    @synchronized(rec) {++sGeneration;} // ignore old video callbacks
+    @synchronized(rec) {++sGeneration; ++sRestartCount;} // ignore old video callbacks
     [rec stopCaptureWithHandler:^(NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             sStreamStarted=NO;
@@ -97,6 +106,7 @@ static void BLStartStream(void) {
         @synchronized(rec) {
             if(generation==sGeneration) {
                 sLastFrameAt=CFAbsoluteTimeGetCurrent();
+                ++sFrameCounter;
                 callback=sPendingFrame;
                 sPendingFrame=nil;
             }
@@ -140,6 +150,19 @@ static void BLStartStream(void) {
     BLArmWatchdog();
 }
 
+unsigned long BLCaptureFrameCounter(void) {
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    unsigned long v; @synchronized(rec){v=sFrameCounter;} return v;
+}
+unsigned long BLCaptureRestartCount(void) {
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    unsigned long v; @synchronized(rec){v=sRestartCount;} return v;
+}
+CFAbsoluteTime BLCaptureLastFrameTime(void) {
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    CFAbsoluteTime v; @synchronized(rec){v=sLastFrameAt;} return v;
+}
+
 void BLCaptureScreen(BLScreenCaptureCompletion completion) {
     if(![NSThread isMainThread]) {
         dispatch_async(dispatch_get_main_queue(),^{BLCaptureScreen(completion);});
@@ -150,7 +173,7 @@ void BLCaptureScreen(BLScreenCaptureCompletion completion) {
     BOOL busy=NO;
     @synchronized(rec) {
         if(sPendingFrame)busy=YES;
-        else sPendingFrame=[completion copy];
+        else {sPendingFrame=[completion copy]; sPendingSince=CFAbsoluteTimeGetCurrent();}
     }
     if(busy) {
         completion(nil,BLError(5,@"Previous frame request still pending."));
@@ -160,10 +183,10 @@ void BLCaptureScreen(BLScreenCaptureCompletion completion) {
     unsigned long ticket=++sFrameTicket;
     BLStartStream();
     BLArmWatchdog();
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(6*NSEC_PER_SEC)),
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(3*NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         if(ticket!=sFrameTicket) return;
-        if(BLDeliverPending(nil,BLError(3,@"No video frame received within 6 seconds.")))
+        if(BLDeliverPending(nil,BLError(3,@"No video frame received within 3 seconds.")))
             BLRecycleStream();
     });
 }
