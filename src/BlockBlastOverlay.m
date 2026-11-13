@@ -226,6 +226,142 @@ static const CGFloat kPiecePitch=19.0;
     [self layoutPanel];
     [self refreshTiles];
 }
+
+#pragma mark - Resizable, movable panel
+- (void)layoutPanel {
+    CGFloat w=_panel.bounds.size.width,h=_panel.bounds.size.height;
+    _dragStrip.frame=CGRectMake(0,0,w,30);
+    _resizeGrip.frame=CGRectMake(w-40,h-40,40,40);
+    _scroll.frame=CGRectMake(0,30,w,h-30);
+    CGFloat ratio=w/_panelWidth;
+    _contentView.transform=CGAffineTransformMakeScale(ratio,ratio);
+    _scroll.contentSize=CGSizeMake(w,810*ratio);
+}
+- (void)savePanelFrame {
+    [[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGRect(_panel.frame) forKey:@"BLPanelFrameV2"];
+}
+- (void)dragPanel:(UIPanGestureRecognizer *)pan {
+    CGPoint d=[pan translationInView:self.view];
+    CGRect f=_panel.frame;
+    f.origin.x=MAX(0,MIN(self.view.bounds.size.width-f.size.width,f.origin.x+d.x));
+    f.origin.y=MAX(30,MIN(self.view.bounds.size.height-f.size.height-8,f.origin.y+d.y));
+    _panel.frame=f;
+    [pan setTranslation:CGPointZero inView:self.view];
+    if(pan.state==UIGestureRecognizerStateEnded) [self savePanelFrame];
+}
+- (void)resizePanel:(UIPanGestureRecognizer *)pan {
+    CGPoint d=[pan translationInView:self.view];
+    CGRect f=_panel.frame;
+    CGFloat maxW=MAX(305,self.view.bounds.size.width-f.origin.x-8);
+    CGFloat maxH=MAX(245,self.view.bounds.size.height-f.origin.y-8);
+    f.size.width=MAX(305,MIN(maxW,f.size.width+d.x));
+    f.size.height=MAX(245,MIN(maxH,f.size.height+d.y));
+    _panel.frame=f;
+    [pan setTranslation:CGPointZero inView:self.view];
+    [self layoutPanel];
+    if(pan.state==UIGestureRecognizerStateEnded) [self savePanelFrame];
+}
+#pragma mark - One-time board geometry calibration
+- (void)startCalibration {
+    _panel.hidden=YES;
+    _bubble.hidden=YES;
+    _guideLayer.hidden=YES;
+    _calibrationStage=0;
+    _calibrationLayer.hidden=NO;
+    _calibrationLabel.text=@"Tap the CENTER of the TOP-LEFT board cell.\n(1 of 2)";
+}
+- (void)tapCalibration:(UITapGestureRecognizer *)tap {
+    CGPoint point=[tap locationInView:self.view];
+    if(_calibrationStage==0) {
+        _calibrationFirst=point;
+        _calibrationStage=1;
+        _calibrationLabel.text=@"Now tap CENTER of BOTTOM-RIGHT board cell.\n(2 of 2)";
+        return;
+    }
+    _calibrationLayer.hidden=YES;
+    _panel.hidden=NO;
+    _bubble.hidden=NO;
+    if(point.x-_calibrationFirst.x<70||point.y-_calibrationFirst.y<70) {
+        _status.text=@"Calibration failed. Tap top-left, then bottom-right.";
+        return;
+    }
+    _gridFirst=_calibrationFirst;
+    _gridLast=point;
+    _calibrated=YES;
+    NSUserDefaults *prefs=[NSUserDefaults standardUserDefaults];
+    [prefs setBool:YES forKey:@"BLCalibratedV2"];
+    [prefs setDouble:_gridFirst.x forKey:@"BLFirstX"];
+    [prefs setDouble:_gridFirst.y forKey:@"BLFirstY"];
+    [prefs setDouble:_gridLast.x forKey:@"BLLastX"];
+    [prefs setDouble:_gridLast.y forKey:@"BLLastY"];
+    _status.text=@"Calibrated! Tap Scan board, then verify highlighted cells.";
+    [self refreshGuides];
+}
+- (void)scanBoard {
+    if(!_calibrated) {
+        _status.text=@"Tap Calibrate to mark the board before scanning.";
+        return;
+    }
+    _status.text=@"Scanning game screen…";
+    _panel.hidden=YES;
+    _bubble.hidden=YES;
+    _guideLayer.hidden=YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.35*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+        BLCaptureScreen(^(UIImage *image,NSError *error) {
+            self->_bubble.hidden=NO;
+            self->_panel.hidden=NO;
+            if(!image||error) {
+                self->_status.text=[NSString stringWithFormat:@"Screen capture unavailable: %@",
+                                     error.localizedDescription?:@"Enter board manually"];
+                [self refreshGuides];
+                return;
+            }
+            BOOL scanned[64]={0};
+            NSString *detail=nil;
+            if(BLDetectBoard(image,self->_gridFirst,self->_gridLast,
+                             self.view.bounds.size,scanned,&detail)) {
+                memcpy(self->_board,scanned,sizeof(scanned));
+                self->_previewing=NO;
+                self->_showGuides=NO;
+                self->_moveLabel.text=@"";
+                [self refreshTiles];
+            }
+            self->_status.text=detail?:@"Could not read screen. Enter board manually.";
+            [self refreshGuides];
+        });
+    });
+}
+#pragma mark - Pass-through highlights aligned to board
+- (void)showOnGame {
+    if(!_calibrated) { _status.text=@"Calibrate first to align the on-game highlights."; return; }
+    if(!_previewing) { _status.text=@"Enter 3 pieces and Solve before showing highlights."; return; }
+    _showGuides=YES;
+    [self refreshGuides];
+    _panel.hidden=YES;
+}
+- (void)refreshGuides {
+    for(UIView *v in [_guideLayer.subviews copy]) [v removeFromSuperview];
+    _guideLayer.frame=self.view.bounds;
+    _guideLayer.hidden=!(_calibrated&&_showGuides&&_previewing&&_solution.movesFound>0);
+    if(_guideLayer.hidden) return;
+    BLMove move=_solution.moves[_previewIndex];
+    BLPiece piece=_normalizedPieces[move.pieceIndex];
+    CGFloat dx=(_gridLast.x-_gridFirst.x)/7.0;
+    CGFloat dy=(_gridLast.y-_gridFirst.y)/7.0;
+    if(dx<=2||dy<=2) return;
+    for(int i=0;i<piece.count;++i) {
+        CGFloat x=_gridFirst.x+dx*(move.col+piece.x[i]);
+        CGFloat y=_gridFirst.y+dy*(move.row+piece.y[i]);
+        UIView *tile=[[UIView alloc] initWithFrame:CGRectMake(x-dx*.44,y-dy*.44,dx*.88,dy*.88)];
+        tile.backgroundColor=[UIColor colorWithRed:1 green:.71 blue:.17 alpha:.34];
+        tile.layer.borderWidth=2.2;
+        tile.layer.borderColor=UIColor.yellowColor.CGColor;
+        tile.layer.cornerRadius=4;
+        tile.userInteractionEnabled=NO;
+        [_guideLayer addSubview:tile];
+    }
+}
+
 - (void)togglePanel { _panel.hidden=!_panel.hidden; }
 - (void)dragBubble:(UIPanGestureRecognizer *)recognizer {
     CGPoint delta=[recognizer translationInView:self.view];
@@ -248,6 +384,8 @@ static const CGFloat kPiecePitch=19.0;
 }
 - (void)clearBoard {
     _previewing=NO; memset(_board,0,sizeof(_board));
+    _showGuides=NO;
+    [self refreshGuides];
     _status.text=@"Board cleared. Pieces are unchanged.";
     _moveLabel.text=@"";
     [self refreshTiles];
@@ -256,12 +394,16 @@ static const CGFloat kPiecePitch=19.0;
     _previewing=NO;
     memset(_board,0,sizeof(_board));
     memset(_pieces,0,sizeof(_pieces));
+    _showGuides=NO;
+    [self refreshGuides];
     _status.text=@"Everything cleared. Enter the new board and pieces.";
     _moveLabel.text=@"";
     [self refreshTiles];
 }
 - (void)editInputs {
     _previewing=NO;
+    _showGuides=NO;
+    [self refreshGuides];
     _status.text=@"Editing inputs. Tap Solve when you're ready.";
     _moveLabel.text=@"";
     [self refreshTiles];
@@ -296,6 +438,8 @@ static const CGFloat kPiecePitch=19.0;
 }
 - (void)solveBoard {
     _previewing=NO;
+    _showGuides=NO;
+    [self refreshGuides];
     if (![self readPieces]) return;
     _solution=BLSolve([self boardMask],_normalizedPieces);
     if (_solution.movesFound==0) {
@@ -314,6 +458,7 @@ static const CGFloat kPiecePitch=19.0;
     BLMove m=_solution.moves[_previewIndex];
     _moveLabel.text=[NSString stringWithFormat:@"Step %d/%d: PIECE %d → ROW %d, COLUMN %d\n(%d line(s) clear after this move)",_previewIndex+1,_solution.movesFound,m.pieceIndex+1,m.row+1,m.col+1,m.linesCleared];
     [self refreshTiles];
+    [self refreshGuides];
 }
 - (void)nextMove {
     if (!_previewing) return;
