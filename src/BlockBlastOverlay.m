@@ -4,6 +4,8 @@
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
 #import "BlockBlastSolver.h"
+#import "BLScreenScan.h"
+#include <math.h>
 #include <stdint.h>
 
 static UIColor *BLColor(CGFloat r, CGFloat g, CGFloat b) {
@@ -28,6 +30,15 @@ static const CGFloat kPiecePitch=19.0;
     UIButton *_bubble;
     UIView *_panel;
     UIScrollView *_scroll;
+    UIView *_contentView;
+    UIView *_dragStrip;
+    UILabel *_resizeGrip;
+    UIView *_guideLayer;
+    UIView *_calibrationLayer;
+    UILabel *_calibrationLabel;
+    CGPoint _gridFirst, _gridLast, _calibrationFirst;
+    BOOL _calibrated, _showGuides;
+    int _calibrationStage;
     UILabel *_status;
     UILabel *_moveLabel;
     UILabel *_info;
@@ -61,7 +72,7 @@ static const CGFloat kPiecePitch=19.0;
     label.adjustsFontSizeToFitWidth=YES;
     label.minimumScaleFactor=0.65;
     label.numberOfLines=2;
-    [_scroll addSubview:label];
+    [_contentView addSubview:label];
     return label;
 }
 - (void)viewDidLoad {
@@ -71,7 +82,7 @@ static const CGFloat kPiecePitch=19.0;
     CGFloat height=self.view.bounds.size.height;
     if (width<100) width=390;
     if (height<100) height=844;
-    _panelWidth=MIN(356, width-24);
+    _panelWidth=356;
 
     _bubble=[self roundedButton:@"🧩 AI" frame:CGRectMake(width-72,110,66,46) action:@selector(togglePanel)];
     _bubble.layer.cornerRadius=22;
@@ -83,7 +94,18 @@ static const CGFloat kPiecePitch=19.0;
     UIPanGestureRecognizer *pan=[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragBubble:)];
     [_bubble addGestureRecognizer:pan];
 
-    _panel=[[UIView alloc] initWithFrame:CGRectMake(12,65,_panelWidth,MIN(690,height-88))];
+    _panel=[[UIView alloc] initWithFrame:CGRectMake(12,65,MIN(356,width-24),MIN(690,height-88))];
+    NSString *saved=[[NSUserDefaults standardUserDefaults] stringForKey:@"BLPanelFrameV2"];
+    if(saved.length) {
+        CGRect f=CGRectFromString(saved);
+        if(isfinite(f.origin.x)&&isfinite(f.origin.y)&&isfinite(f.size.width)&&isfinite(f.size.height)) {
+            f.size.width=MAX(305,MIN(f.size.width,width-12));
+            f.size.height=MAX(245,MIN(f.size.height,height-64));
+            f.origin.x=MAX(0,MIN(f.origin.x,width-f.size.width));
+            f.origin.y=MAX(30,MIN(f.origin.y,height-f.size.height-8));
+            _panel.frame=f;
+        }
+    }
     _panel.layer.cornerRadius=16;
     _panel.layer.borderWidth=1;
     _panel.layer.borderColor=BLColor(63,84,106).CGColor;
@@ -92,14 +114,17 @@ static const CGFloat kPiecePitch=19.0;
     [self.view addSubview:_panel];
     _panel.hidden=YES;
 
-    _scroll=[[UIScrollView alloc] initWithFrame:_panel.bounds];
-    _scroll.contentSize=CGSizeMake(_panelWidth,745);
+    _scroll=[[UIScrollView alloc] initWithFrame:CGRectZero];
     _scroll.alwaysBounceVertical=YES;
     [_panel addSubview:_scroll];
+    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,810)];
+    _contentView.layer.anchorPoint=CGPointZero;
+    _contentView.layer.position=CGPointZero;
+    [_scroll addSubview:_contentView];
     UILabel *title=[self addLabel:@"BLOCK BLAST AI · MOVE ASSISTANT" y:13 height:24 font:16];
     title.font=[UIFont boldSystemFontOfSize:16];
     UIButton *close=[self roundedButton:@"×" frame:CGRectMake(_panelWidth-41,10,29,28) action:@selector(togglePanel)];
-    [_scroll addSubview:close];
+    [_contentView addSubview:close];
     [self addLabel:@"Tap each occupied square on your 8×8 board" y:42 height:22 font:12];
 
     CGFloat x0=(_panelWidth-8*kBoardPitch)/2;
@@ -108,15 +133,15 @@ static const CGFloat kPiecePitch=19.0;
         UIButton *tile=[self roundedButton:@"" frame:CGRectMake(x0+c*kBoardPitch,69+r*kBoardPitch,28,28) action:@selector(toggleBoardTile:)];
         tile.tag=idx;
         tile.layer.cornerRadius=4;
-        [_scroll addSubview:tile];
+        [_contentView addSubview:tile];
         _boardButtons[idx]=tile;
     }
     UIButton *clearBoard=[self roundedButton:@"Clear board" frame:CGRectMake(12,315,105,30) action:@selector(clearBoard)];
-    [_scroll addSubview:clearBoard];
+    [_contentView addSubview:clearBoard];
     UIButton *edit=[self roundedButton:@"Edit inputs" frame:CGRectMake(125,315,102,30) action:@selector(editInputs)];
-    [_scroll addSubview:edit];
+    [_contentView addSubview:edit];
     UIButton *clearAll=[self roundedButton:@"Reset all" frame:CGRectMake(235,315,_panelWidth-247,30) action:@selector(clearAll)];
-    [_scroll addSubview:clearAll];
+    [_contentView addSubview:clearAll];
     [self addLabel:@"Draw the 3 pieces in their current orientation:" y:357 height:19 font:12];
 
     CGFloat pieceGridWidth=5*kPiecePitch;
@@ -128,28 +153,77 @@ static const CGFloat kPiecePitch=19.0;
         pieceTitle.font=[UIFont boldSystemFontOfSize:11];
         pieceTitle.textAlignment=NSTextAlignmentCenter;
         pieceTitle.textColor=BLColor(164,190,213);
-        [_scroll addSubview:pieceTitle];
+        [_contentView addSubview:pieceTitle];
         for (int r=0;r<5;++r) for (int c=0;c<5;++c) {
             int index=r*5+c;
             UIButton *tile=[self roundedButton:@"" frame:CGRectMake(pieceX+c*kPiecePitch,403+r*kPiecePitch,17,17) action:@selector(togglePieceTile:)];
             tile.tag=p*25+index;
             tile.layer.cornerRadius=2;
-            [_scroll addSubview:tile];
+            [_contentView addSubview:tile];
             _pieceButtons[p][index]=tile;
         }
     }
     UIButton *solve=[self roundedButton:@"✨ SOLVE CURRENT THREE PIECES" frame:CGRectMake(12,510,_panelWidth-24,39) action:@selector(solveBoard)];
     solve.backgroundColor=BLColor(14,118,110);
     solve.titleLabel.font=[UIFont boldSystemFontOfSize:14];
-    [_scroll addSubview:solve];
-    _status=[self addLabel:@"Enter your board and all 3 pieces, then tap Solve." y:556 height:42 font:12];
-    _moveLabel=[self addLabel:@"" y:602 height:47 font:13];
+    [_contentView addSubview:solve];
+    UIButton *calibrate=[self roundedButton:@"📍 Calibrate" frame:CGRectMake(12,555,106,33) action:@selector(startCalibration)];
+    UIButton *scan=[self roundedButton:@"📷 Scan board" frame:CGRectMake(125,555,106,33) action:@selector(scanBoard)];
+    UIButton *guide=[self roundedButton:@"🎯 On game" frame:CGRectMake(238,555,_panelWidth-250,33) action:@selector(showOnGame)];
+    [_contentView addSubview:calibrate]; [_contentView addSubview:scan]; [_contentView addSubview:guide];
+    _status=[self addLabel:@"v0.2: Calibrate once, scan the board, then draw 3 pieces." y:596 height:52 font:12];
+    _moveLabel=[self addLabel:@"" y:650 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
-    UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,657,130,37) action:@selector(previousMove)];
-    UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,657,130,37) action:@selector(nextMove)];
-    [_scroll addSubview:prev]; [_scroll addSubview:next];
-    _info=[self addLabel:@"Manual preview only. Recommendations estimate survival; future pieces are unknown." y:707 height:32 font:10];
+    UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,711,130,37) action:@selector(previousMove)];
+    UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,711,130,37) action:@selector(nextMove)];
+    [_contentView addSubview:prev]; [_contentView addSubview:next];
+    _info=[self addLabel:@"BETA: Verify scanned cells. Piece shapes still require manual entry." y:760 height:42 font:10];
     _info.textColor=BLColor(146,168,191);
+    _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
+    _dragStrip.backgroundColor=BLColor(38,60,84);
+    UILabel *dragText=[[UILabel alloc] initWithFrame:CGRectMake(12,0,270,29)];
+    dragText.text=@"⠿ Drag panel     •     Resize from ↘";
+    dragText.textColor=UIColor.whiteColor;
+    dragText.font=[UIFont boldSystemFontOfSize:12];
+    [_dragStrip addSubview:dragText];
+    [_panel addSubview:_dragStrip];
+    [_dragStrip addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragPanel:)]];
+    _resizeGrip=[[UILabel alloc] initWithFrame:CGRectZero];
+    _resizeGrip.text=@"↘";
+    _resizeGrip.textAlignment=NSTextAlignmentCenter;
+    _resizeGrip.font=[UIFont boldSystemFontOfSize:27];
+    _resizeGrip.textColor=BLColor(84,225,193);
+    _resizeGrip.backgroundColor=BLColor(40,66,91);
+    _resizeGrip.layer.cornerRadius=8;
+    _resizeGrip.clipsToBounds=YES;
+    _resizeGrip.userInteractionEnabled=YES;
+    [_panel addSubview:_resizeGrip];
+    [_resizeGrip addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(resizePanel:)]];
+    _guideLayer=[[UIView alloc] initWithFrame:self.view.bounds];
+    _guideLayer.userInteractionEnabled=NO;
+    _guideLayer.backgroundColor=UIColor.clearColor;
+    [self.view insertSubview:_guideLayer belowSubview:_bubble];
+    _calibrationLayer=[[UIView alloc] initWithFrame:self.view.bounds];
+    _calibrationLayer.backgroundColor=[UIColor colorWithWhite:0 alpha:.06];
+    _calibrationLayer.hidden=YES;
+    _calibrationLabel=[[UILabel alloc] initWithFrame:CGRectMake(16,53,MAX(100,width-32),70)];
+    _calibrationLabel.backgroundColor=BLColor(17,31,51);
+    _calibrationLabel.layer.cornerRadius=12;
+    _calibrationLabel.clipsToBounds=YES;
+    _calibrationLabel.textColor=UIColor.whiteColor;
+    _calibrationLabel.font=[UIFont boldSystemFontOfSize:14];
+    _calibrationLabel.numberOfLines=3;
+    _calibrationLabel.textAlignment=NSTextAlignmentCenter;
+    [_calibrationLayer addSubview:_calibrationLabel];
+    [self.view addSubview:_calibrationLayer];
+    [_calibrationLayer addGestureRecognizer:[[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(tapCalibration:)]];
+    NSUserDefaults *prefs=[NSUserDefaults standardUserDefaults];
+    if([prefs boolForKey:@"BLCalibratedV2"]) {
+        _gridFirst=CGPointMake([prefs doubleForKey:@"BLFirstX"],[prefs doubleForKey:@"BLFirstY"]);
+        _gridLast=CGPointMake([prefs doubleForKey:@"BLLastX"],[prefs doubleForKey:@"BLLastY"]);
+        _calibrated=YES;
+    }
+    [self layoutPanel];
     [self refreshTiles];
 }
 - (void)togglePanel { _panel.hidden=!_panel.hidden; }
