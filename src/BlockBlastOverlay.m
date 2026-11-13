@@ -565,15 +565,12 @@ static uint64_t BLFrameHash(UIImage *image) {
         uint64_t frameHash=BLFrameHash(image);
         if(frameHash==self->_lastFrameHash) self->_frozenRepeats++;
         else {self->_lastFrameHash=frameHash; self->_frozenRepeats=0;}
-        if(self->_frozenRepeats>=kFrozenLimit) {
-            // The strip flips black/white every tick, so identical hashes mean the
-            // frames are not really changing: treat the stream as frozen.
-            self->_frozenRepeats=0;
-            self->_autoRetryAfter=CFAbsoluteTimeGetCurrent()+1.5;
-            [self invalidateDetection:@"AI paused — video frames frozen. Reconnecting…" bubble:@"AI …"];
-            BLStopScreenCapture();
-            return;
-        }
+        // A static puzzle board can produce identical image hashes even when
+        // ReplayKit delivers fresh frames. The 2pt nudge is too small to be
+        // reliably preserved in the 24x52 hash. Do not restart solely because
+        // hashes match: the monotonically increasing capture frame counter
+        // above and the request watchdog are the reliable freshness checks.
+        if(self->_frozenRepeats>=kFrozenLimit) self->_frozenRepeats=kFrozenLimit;
         self->_lastFreshAt=CFAbsoluteTimeGetCurrent();
         BOOL board[64]={0};
         BLPiece tray[3]={0};
