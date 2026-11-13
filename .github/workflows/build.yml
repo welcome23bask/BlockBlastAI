@@ -1,0 +1,35 @@
+name: Build iPhone Block Blast AI Dylib
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/build.yml'
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test standalone solver
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/blsolver-test
+          /tmp/blsolver-test
+      - name: Compile ARM64 iOS tweak
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang \
+            -target arm64-apple-ios15.0 \
+            -arch arm64 \
+            -O2 -fobjc-arc -std=gnu11 \
+            -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit \
+            src/BlockBlastOverlay.m src/BlockBlastSolver.c \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+      - name: Upload unsigned dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-iOS-arm64
+          path: dist/BlockBlastAI.dylib
