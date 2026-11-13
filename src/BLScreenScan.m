@@ -63,7 +63,7 @@ static void BLRecycleStream(void) {
         return;
     }
     sStreamStopping=YES;
-    ++sGeneration; // ignore callbacks still arriving from the old session
+    @synchronized(rec) {++sGeneration;} // ignore old video callbacks
     [rec stopCaptureWithHandler:^(NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             sStreamStarted=NO;
@@ -86,8 +86,11 @@ static void BLStartStream(void) {
         sSharedCIContext=[CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer:@NO}];
     });
     sStreamStarting=YES;
-    unsigned long generation=++sGeneration;
-    @synchronized(rec) {sLastFrameAt=CFAbsoluteTimeGetCurrent();}
+    unsigned long generation;
+    @synchronized(rec) {
+        generation=++sGeneration;
+        sLastFrameAt=CFAbsoluteTimeGetCurrent();
+    }
     [rec startCaptureWithHandler:^(CMSampleBufferRef buffer, RPSampleBufferType type, NSError *error) {
         if(type!=RPSampleBufferTypeVideo) return;
         BLScreenCaptureCompletion callback=nil;
