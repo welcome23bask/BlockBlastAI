@@ -19,7 +19,9 @@ static int block(const uint8_t *p) {
         || (b>171 && b-r>65)
         || (r>135 && r-g>35 && r-b>32)
         || (g>112 && g-r>30 && g-b>10)
-        || (r>154 && g>117 && r-b>52);
+        || (r>154 && g>117 && r-b>52)
+        // Purple blocks were missing from the initial screenshot palette.
+        || (b>125 && r>75 && b-g>36 && r-g>25 && b>r*.90);
 }
 static int block_center(const uint8_t *im,int w,int h,int x,int y,int flip) {
     if(x<3||y<3||x>=w-3||y>=h-3) return 0;
