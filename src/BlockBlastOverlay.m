@@ -37,7 +37,7 @@ static const CGFloat kPiecePitch=19.0;
     UIView *_calibrationLayer;
     UILabel *_calibrationLabel;
     CGPoint _gridFirst, _gridLast, _calibrationFirst;
-    BOOL _calibrated, _showGuides;
+    BOOL _calibrated, _showGuides, _showCalibrationGrid;
     int _calibrationStage;
     UILabel *_status;
     UILabel *_moveLabel;
@@ -117,7 +117,7 @@ static const CGFloat kPiecePitch=19.0;
     _scroll=[[UIScrollView alloc] initWithFrame:CGRectZero];
     _scroll.alwaysBounceVertical=YES;
     [_panel addSubview:_scroll];
-    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,810)];
+    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,868)];
     _contentView.layer.anchorPoint=CGPointZero;
     _contentView.layer.position=CGPointZero;
     [_scroll addSubview:_contentView];
@@ -171,13 +171,16 @@ static const CGFloat kPiecePitch=19.0;
     UIButton *scan=[self roundedButton:@"📷 Scan board" frame:CGRectMake(125,555,106,33) action:@selector(scanBoard)];
     UIButton *guide=[self roundedButton:@"🎯 On game" frame:CGRectMake(238,555,_panelWidth-250,33) action:@selector(showOnGame)];
     [_contentView addSubview:calibrate]; [_contentView addSubview:scan]; [_contentView addSubview:guide];
-    _status=[self addLabel:@"v0.2: Calibrate once, scan the board, then draw 3 pieces." y:596 height:52 font:12];
-    _moveLabel=[self addLabel:@"" y:650 height:50 font:13];
+    UIButton *check=[self roundedButton:@"🧭 Check board alignment (show grid)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(checkCalibration)];
+    check.backgroundColor=BLColor(32,79,112);
+    [_contentView addSubview:check];
+    _status=[self addLabel:@"v0.3: First verify board alignment, then scan." y:638 height:48 font:12];
+    _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
-    UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,711,130,37) action:@selector(previousMove)];
-    UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,711,130,37) action:@selector(nextMove)];
+    UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
+    UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,756,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"BETA: Verify scanned cells. Piece shapes still require manual entry." y:760 height:42 font:10];
+    _info=[self addLabel:@"If grid overlay doesn't sit exactly on 8×8 board, recalibrate. Scanning is experimental." y:805 height:47 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -235,7 +238,7 @@ static const CGFloat kPiecePitch=19.0;
     _scroll.frame=CGRectMake(0,30,w,h-30);
     CGFloat ratio=w/_panelWidth;
     _contentView.transform=CGAffineTransformMakeScale(ratio,ratio);
-    _scroll.contentSize=CGSizeMake(w,810*ratio);
+    _scroll.contentSize=CGSizeMake(w,868*ratio);
 }
 - (void)savePanelFrame {
     [[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGRect(_panel.frame) forKey:@"BLPanelFrameV2"];
@@ -263,6 +266,7 @@ static const CGFloat kPiecePitch=19.0;
 }
 #pragma mark - One-time board geometry calibration
 - (void)startCalibration {
+    _showCalibrationGrid=NO;
     _panel.hidden=YES;
     _bubble.hidden=YES;
     _guideLayer.hidden=YES;
@@ -279,9 +283,9 @@ static const CGFloat kPiecePitch=19.0;
         return;
     }
     _calibrationLayer.hidden=YES;
-    _panel.hidden=NO;
     _bubble.hidden=NO;
     if(point.x-_calibrationFirst.x<70||point.y-_calibrationFirst.y<70) {
+        _panel.hidden=NO;
         _status.text=@"Calibration failed. Tap top-left, then bottom-right.";
         return;
     }
@@ -294,8 +298,18 @@ static const CGFloat kPiecePitch=19.0;
     [prefs setDouble:_gridFirst.y forKey:@"BLFirstY"];
     [prefs setDouble:_gridLast.x forKey:@"BLLastX"];
     [prefs setDouble:_gridLast.y forKey:@"BLLastY"];
-    _status.text=@"Calibrated! Tap Scan board, then verify highlighted cells.";
+    _status.text=@"Calibration saved. Check grid overlay, then Scan board.";
+    _showCalibrationGrid=YES;
+    _panel.hidden=YES;
     [self refreshGuides];
+}
+- (void)checkCalibration {
+    if(!_calibrated) { _status.text=@"Calibrate the top-left and bottom-right square centers first."; return; }
+    _showCalibrationGrid=YES;
+    _showGuides=NO;
+    [self refreshGuides];
+    _panel.hidden=YES;
+    _bubble.hidden=NO;
 }
 - (void)scanBoard {
     if(!_calibrated) {
@@ -303,6 +317,7 @@ static const CGFloat kPiecePitch=19.0;
         return;
     }
     _status.text=@"Scanning game screen…";
+    _showCalibrationGrid=NO;
     _panel.hidden=YES;
     _bubble.hidden=YES;
     _guideLayer.hidden=YES;
@@ -333,6 +348,7 @@ static const CGFloat kPiecePitch=19.0;
 }
 #pragma mark - Pass-through highlights aligned to board
 - (void)showOnGame {
+    _showCalibrationGrid=NO;
     if(!_calibrated) { _status.text=@"Calibrate first to align the on-game highlights."; return; }
     if(!_previewing) { _status.text=@"Enter 3 pieces and Solve before showing highlights."; return; }
     _showGuides=YES;
@@ -342,13 +358,37 @@ static const CGFloat kPiecePitch=19.0;
 - (void)refreshGuides {
     for(UIView *v in [_guideLayer.subviews copy]) [v removeFromSuperview];
     _guideLayer.frame=self.view.bounds;
-    _guideLayer.hidden=!(_calibrated&&_showGuides&&_previewing&&_solution.movesFound>0);
+    BOOL showGrid=(_calibrated&&_showCalibrationGrid);
+    BOOL showMove=(_calibrated&&_showGuides&&_previewing&&_solution.movesFound>0);
+    _guideLayer.hidden=!(showGrid||showMove);
     if(_guideLayer.hidden) return;
-    BLMove move=_solution.moves[_previewIndex];
-    BLPiece piece=_normalizedPieces[move.pieceIndex];
     CGFloat dx=(_gridLast.x-_gridFirst.x)/7.0;
     CGFloat dy=(_gridLast.y-_gridFirst.y)/7.0;
-    if(dx<=2||dy<=2) return;
+    if(dx<=2||dy<=2) { _guideLayer.hidden=YES;return; }
+    if(showGrid) {
+        for(int row=0;row<8;++row) for(int col=0;col<8;++col) {
+            CGFloat x=_gridFirst.x+dx*col;
+            CGFloat y=_gridFirst.y+dy*row;
+            UIView *tile=[[UIView alloc] initWithFrame:CGRectMake(x-dx*.47,y-dy*.47,dx*.94,dy*.94)];
+            tile.backgroundColor=[UIColor colorWithRed:0 green:1 blue:.8 alpha:.06];
+            tile.layer.borderWidth=1.3;
+            tile.layer.borderColor=[UIColor colorWithRed:0 green:1 blue:.8 alpha:.88].CGColor;
+            tile.userInteractionEnabled=NO;
+            [_guideLayer addSubview:tile];
+            if((row==0&&col==0)||(row==7&&col==7)) {
+                UILabel *label=[[UILabel alloc] initWithFrame:tile.bounds];
+                label.text=(row==0?@"1":@"64");
+                label.textAlignment=NSTextAlignmentCenter;
+                label.font=[UIFont boldSystemFontOfSize:16];
+                label.textColor=UIColor.yellowColor;
+                label.userInteractionEnabled=NO;
+                [tile addSubview:label];
+            }
+        }
+        return;
+    }
+    BLMove move=_solution.moves[_previewIndex];
+    BLPiece piece=_normalizedPieces[move.pieceIndex];
     for(int i=0;i<piece.count;++i) {
         CGFloat x=_gridFirst.x+dx*(move.col+piece.x[i]);
         CGFloat y=_gridFirst.y+dy*(move.row+piece.y[i]);
@@ -362,7 +402,7 @@ static const CGFloat kPiecePitch=19.0;
     }
 }
 
-- (void)togglePanel { _panel.hidden=!_panel.hidden; }
+- (void)togglePanel { _panel.hidden=!_panel.hidden; if(!_panel.hidden && _showCalibrationGrid){ _showCalibrationGrid=NO; [self refreshGuides]; } }
 - (void)dragBubble:(UIPanGestureRecognizer *)recognizer {
     CGPoint delta=[recognizer translationInView:self.view];
     CGPoint center=_bubble.center;
