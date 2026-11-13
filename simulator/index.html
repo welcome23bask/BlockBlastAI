@@ -241,8 +241,9 @@ function makeMini(piece,i){const d=document.createElement('div');d.className='sh
 function scanStatus(){ $('scans').textContent=gate.scans.toLocaleString();$('accepted').textContent=gate.acceptedCount.toLocaleString();$('confidence').textContent=gate.status.toUpperCase();$('floatingStatus').textContent=gate.status.toUpperCase();}
 function render(){
  solver=active?E.solve(game.board,game.pieces):null;
+ const trusted=gate.status==='active';
  boardEl.textContent='';const suggested=new Set(),hovered=new Set();
- if(solver){const m=solver.moves[0],piece=game.pieces[m.piece];for(const [x,y] of piece)suggested.add((m.row+y)*8+m.col+x);}
+ if(solver&&trusted){const m=solver.moves[0],piece=game.pieces[m.piece];for(const [x,y] of piece)suggested.add((m.row+y)*8+m.col+x);}
  if(hover>=0&&game.pieces[chosen]){const r=Math.floor(hover/8),c=hover%8;if(E.canPlace(game.board,game.pieces[chosen],r,c))for(const [x,y] of game.pieces[chosen])hovered.add((r+y)*8+c+x);}
  const fragment=document.createDocumentFragment();for(let i=0;i<64;i++){const cell=document.createElement('button');cell.className='cell';cell.type='button';cell.setAttribute('role','gridcell');const r=Math.floor(i/8),c=i%8;cell.setAttribute('aria-label',`Row ${r+1}, column ${c+1}${game.board[i]?' occupied':''}`);
  if(game.board[i]){cell.classList.add('fill');let col=colors[game.colors[i]>=0?game.colors[i]:(r*3+c*2+1)%colors.length];cell.style.setProperty('--block',col[0]);cell.style.setProperty('--block-light',col[1]);cell.style.setProperty('--block-dark',col[2]);}
@@ -251,9 +252,9 @@ function render(){
  boardEl.append(fragment);
  trayEl.textContent='';for(let i=0;i<3;i++){const b=document.createElement('button');b.className='traybtn'+(i===chosen?' active':'');b.type='button';b.disabled=!game.pieces[i];b.setAttribute('aria-label',`Select piece ${i+1}${game.pieces[i]?'':' unavailable'}`);b.append(makeMini(game.pieces[i],i+1));const label=document.createElement('span');label.className='traylabel';label.textContent=`PIECE ${i+1}${game.pieces[i]?'':' • USED'}`;b.append(label);b.onclick=()=>{chosen=i;render();};trayEl.append(b);}
  $('score').textContent=game.score.toLocaleString();$('floatingTray').textContent=game.pieces.filter(Boolean).length;
- if(solver){const m=solver.moves[0];const text=`Piece ${m.piece+1} → row ${m.row+1}, column ${m.col+1}${m.lines?` • clears ${m.lines} line${m.lines>1?'s':''}`:''}`;$('hint').innerHTML=`<b>Suggested move:</b> ${text}`;$('floatingMove').textContent=text;$('openFloat').textContent=`🧩 P${m.piece+1} ↓`;}
- else{$('hint').textContent=active?'No legal moves for this tray. Try another board.':'Auto AI paused';$('floatingMove').textContent='—';$('openFloat').textContent='🧩 AI • PAUSED';}
- $('mode').textContent=active?'AUTO AI • READY':'AI PAUSED';scanStatus();
+ if(solver&&trusted){const m=solver.moves[0];const text=`Piece ${m.piece+1} → row ${m.row+1}, column ${m.col+1}${m.lines?` • clears ${m.lines} line${m.lines>1?'s':''}`:''}`;$('hint').innerHTML=`<b>Suggested move:</b> ${text}`;$('floatingMove').textContent=text;$('openFloat').textContent=`🧩 P${m.piece+1} ↓`;}
+ else{$('hint').textContent=!trusted?'Scanner confidence lost — hiding highlights until a stable board and tray return.':(active?'No legal moves for this tray. Try another board.':'Auto AI paused');$('floatingMove').textContent='—';$('openFloat').textContent='🧩 AI • PAUSED';}
+ $('mode').textContent=trusted?'AUTO AI • READY':'SCANNER • PAUSED';$('applyMove').disabled=!trusted||!solver;scanStatus();
 }
 function previewHover(){const buttons=boardEl.children;if(!buttons.length)return;for(const el of buttons)el.classList.remove('hovered');if(hover<0)return;let piece=game.pieces[chosen];if(!piece)return;const r=Math.floor(hover/8),c=hover%8;if(!E.canPlace(game.board,piece,r,c))return;for(const [x,y]of piece)buttons[(r+y)*8+c+x].classList.add('hovered');}
 function place(p,r,c){if(!game.move(p,r,c)){info(`Illegal placement: piece ${p+1}, row ${r+1}, col ${c+1}`,true);const el=boardEl.children[r*8+c];el?.classList.add('invalid');return;}moves++;info(`Move ${moves}: placed P${p+1} at (${r+1},${c+1}), lines cleared ${game.lastClear}`);chosen=game.pieces.findIndex(Boolean);if(chosen<0)chosen=0;gate.reset();for(let i=0;i<3;i++)gate.ingest(game.snapshot());render();}
@@ -270,7 +271,7 @@ $('scenario').onchange=()=>{game.load(Number($('scenario').value));gate.reset();
 $('newGame').onclick=()=>{game=new E.Game(seed++);game.load(0);$('scenario').value='0';gate.reset();moves=0;chosen=0;active=true;render();info('New simulator game');};
 $('reset').onclick=()=>{$('scenario').dispatchEvent(new Event('change'));};
 $('applyMove').onclick=()=>{if(!solver){info('No legal AI move currently available',true);return;}const m=solver.moves[0];place(m.piece,m.row,m.col);};
-$('scan').onclick=()=>{const kind=$('fault').value;for(let i=0;i<3;i++)simulateScan(kind);scanStatus();info(`Scan lab run finished (${kind}).`);};
+$('scan').onclick=()=>{const kind=$('fault').value;for(let i=0;i<3;i++)simulateScan(kind);render();info(`Scan lab run finished (${kind}).`);};
 $('clearFault').onclick=()=>{$('fault').value='none';gate.reset();for(let i=0;i<3;i++)gate.ingest(game.snapshot());render();info('Scanner reset; valid frames restored.');};
 $('stress').onclick=()=>{
  const temp=new E.ScanGuard(),g=new E.Game(27);let rejected=0,good=0,fail=0;
