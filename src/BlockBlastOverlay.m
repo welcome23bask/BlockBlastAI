@@ -441,10 +441,27 @@ static const CGFloat kPiecePitch=19.0;
     if(!_autoEnabled || _autoBusy || !_panel.hidden || !_calibrationLayer.hidden) return;
     if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) return;
     _autoBusy=YES;
-    BLCaptureScreen(^(UIImage *image,NSError *error) {
+    // Prevent captured AI text, buttons, and colored outlines from being
+    // misidentified as Block Blast pieces. Restore after one video frame.
+    _guideLayer.hidden=YES;
+    _bubble.hidden=YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.20*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+      if(!self->_autoEnabled || !self->_panel.hidden) {
+          self->_autoBusy=NO;
+          self->_bubble.hidden=NO;
+          [self refreshGuides];
+          return;
+      }
+      BLCaptureScreen(^(UIImage *image,NSError *error) {
         self->_autoBusy=NO;
-        if(!self->_autoEnabled || !self->_panel.hidden) return;
+        self->_bubble.hidden=NO;
+        if(!self->_autoEnabled || !self->_panel.hidden) {
+            [self refreshGuides];
+            return;
+        }
         if(!image || error) {
+            self->_showGuides=NO;
+            [self refreshGuides];
             self->_autoErrors++;
             if(self->_autoErrors>=3) {
                 self->_autoEnabled=NO;
@@ -461,6 +478,8 @@ static const CGFloat kPiecePitch=19.0;
         NSString *info=nil;
         if(!BLAutoDetect(image,self.view.bounds.size,board,tray,&first,&last,&info)) {
             self->_stableAutoFrames=0;
+            self->_showGuides=NO;
+            [self refreshGuides];
             self->_status.text=info?:@"Auto detection needs a clear screen.";
             return;
         }
@@ -479,7 +498,11 @@ static const CGFloat kPiecePitch=19.0;
             }
         }
         if(signature==self->_observedAutoHash) self->_stableAutoFrames++;
-        else {self->_observedAutoHash=signature;self->_stableAutoFrames=1;}
+        else {
+            self->_observedAutoHash=signature;
+            self->_stableAutoFrames=1;
+            self->_showGuides=NO;
+        }
         if(self->_stableAutoFrames<2) {
             [self refreshGuides];
             return;
@@ -517,6 +540,7 @@ static const CGFloat kPiecePitch=19.0;
         } else {
             [self refreshGuides]; // Handles geometry changes and screen resizes.
         }
+      });
     });
 }
 
