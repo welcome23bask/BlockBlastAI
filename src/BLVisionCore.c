@@ -131,13 +131,31 @@ static int scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *out) {
     *out=found;
     return 1;
 }
+// The real Block Blast board is centered around 44% of portrait screen height,
+// with the tray BELOW it. A vertically mirrored screenshot can also look like
+// a board: the real score/crown/header then appears in the fake "tray" region.
+// Never select the image orientation by counting apparent tray pieces: that
+// exact rule mirrored the board and turned a vertical 1x4 into a horizontal 4x1.
+// This anchor is intentionally conservative; if geometry is ambiguous, do not
+// suggest a placement instead of guessing and highlighting an illegal move.
+static float board_anchor_error(const BLVisionResult *v,int height) {
+    float center=(v->firstY+v->lastY)/(2.0f*(float)height);
+    return fabsf(center-0.44f);
+}
 int BLVisionAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResult *result) {
     if(!rgba||!result||width<240||height<350||width>1600||height>3000)return 0;
     BLVisionResult normal,upsideDown;
     int a=scan(rgba,width,height,0,&normal);
     int b=scan(rgba,width,height,1,&upsideDown);
     if(!a&&!b) return 0;
-    if(a&&(!b || normal.detectedPieces>=upsideDown.detectedPieces)) *result=normal;
-    else *result=upsideDown;
+    float errorA=a?board_anchor_error(&normal,height):1.0f;
+    float errorB=b?board_anchor_error(&upsideDown,height):1.0f;
+    // If both are plausible but indistinguishable, don't guess.
+    if(a&&b&&fabsf(errorA-errorB)<0.018f)return 0;
+    BLVisionResult *chosen=errorA<errorB?&normal:&upsideDown;
+    // Refuse screens whose detected board is too far from the actual game's
+    // portrait layout; a wrong orientation must never create a false highlight.
+    if(board_anchor_error(chosen,height)>0.085f)return 0;
+    *result=*chosen;
     return 1;
 }
