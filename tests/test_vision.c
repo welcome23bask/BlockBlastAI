@@ -77,7 +77,53 @@ int main(void){
     rect(0,0,W,H,57,85,148);
     BLVisionResult none;
     assert(!BLVisionAnalyzeRGBA(img,W,H,&none));
+    // Regression: real iPhone screenshot at score 109. Only a vertical red
+    // 1x4 remains in the tray; colored score/header UI must NOT be mistaken
+    // for extra pieces in an upside-down interpretation of the screen.
+    rect(0,0,W,H,57,85,148);
+    rect(23,216,408,601,33,44,90);
+    for(int r=0;r<2;++r)for(int c=0;c<2;++c)tile(r,c,28,178,223);
+    for(int c=1;c<=5;++c)tile(3,c,35,178,41);
+    tile(3,7,49,100,222);
+    tile(5,1,237,118,39);
+    tile(5,5,237,118,39);
+    tray(0,4,1,208,45,53);
+    // Score/crown and center blue decoration (outside the real tray).
+    rect(58,70,119,112,244,175,28);
+    rect(198,119,261,163,28,170,225);
+    uint64_t expected109=0;
+    for(int r=0;r<2;++r)for(int c=0;c<2;++c)
+        expected109|=UINT64_C(1)<<(r*8+c);
+    for(int c=1;c<=5;++c)expected109|=UINT64_C(1)<<(3*8+c);
+    expected109|=UINT64_C(1)<<(3*8+7);
+    expected109|=UINT64_C(1)<<(5*8+1);
+    expected109|=UINT64_C(1)<<(5*8+5);
+    BLVisionResult screenshot109;
+    assert(BLVisionAnalyzeRGBA(img,W,H,&screenshot109));
+    assert(screenshot109.board==expected109);
+    assert(screenshot109.flippedInput==0);
+    assert(screenshot109.detectedPieces==1);
+    assert(screenshot109.pieces[0].count==4);
+    assert(screenshot109.pieces[1].count==0&&screenshot109.pieces[2].count==0);
+    for(int i=0;i<4;++i) {
+        assert(screenshot109.pieces[0].x[i]==0);
+        assert(screenshot109.pieces[0].y[i]==i);
+    }
+    uint8_t *mirror109=malloc((size_t)W*H*4);assert(mirror109);
+    for(int y=0;y<H;++y)
+        memcpy(mirror109+4*(size_t)y*W,img+4*(size_t)(H-1-y)*W,(size_t)W*4);
+    BLVisionResult mirrored109;
+    assert(BLVisionAnalyzeRGBA(mirror109,W,H,&mirrored109));
+    assert(mirrored109.board==expected109);
+    assert(mirrored109.flippedInput==1);
+    assert(mirrored109.detectedPieces==1);
+    assert(mirrored109.pieces[0].count==4);
+    for(int i=0;i<4;++i) {
+        assert(mirrored109.pieces[0].x[i]==0);
+        assert(mirrored109.pieces[0].y[i]==i);
+    }
+    free(mirror109);
     free(img);
-    puts("vision tests passed: board orientation, colors, 3 tray pieces, geometry, no false scan");
+    puts("vision tests passed: board orientation, colors, 3 tray pieces, screenshot 109 regression, geometry, no false scan");
     return 0;
 }
