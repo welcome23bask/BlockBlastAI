@@ -6,6 +6,7 @@ on:
       - 'src/**'
       - 'tests/**'
       - 'simulator/**'
+      - 'benchmark/**'
       - '.github/workflows/build.yml'
 permissions:
   contents: write
@@ -25,6 +26,12 @@ jobs:
       - name: Test browser simulator core
         run: |
           node simulator/test.js
+      - name: Benchmark 2000 paired seeded games (quality gate)
+        run: |
+          clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v06_solver.c -o /tmp/bl_old.o
+          clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/bl_new.o
+          clang -O3 -std=c11 benchmark/benchmark.c /tmp/bl_old.o /tmp/bl_new.o -o /tmp/bl_bench
+          /tmp/bl_bench 2000 120 | tee benchmark/results_2000.txt
       - name: Compile ARM64 iOS tweak
         run: |
           mkdir -p dist
@@ -39,6 +46,15 @@ jobs:
             -o dist/BlockBlastAI.dylib
           file dist/BlockBlastAI.dylib
           cp simulator/index.html dist/BlockBlastAI_Simulator.html
+      - name: Package complete replacement source files for iPhone upload
+        run: |
+          mkdir -p dist/replacements/src dist/replacements/tests dist/replacements/benchmark dist/replacements/.github/workflows
+          cp src/BLScreenScan.m src/BlockBlastOverlay.m src/BlockBlastSolver.c dist/replacements/src/
+          cp tests/test_solver.c dist/replacements/tests/
+          cp benchmark/v06_solver.c benchmark/benchmark.c benchmark/results_2000.txt dist/replacements/benchmark/
+          cp .github/workflows/build.yml dist/replacements/.github/workflows/
+          (cd dist/replacements && zip -qr ../BlockBlastAI_v0.7_Replacement_Files.zip .)
+
       - name: Upload unsigned dylib
         uses: actions/upload-artifact@v4
         with:
@@ -49,7 +65,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view v0.6 >/dev/null 2>&1; then
-            gh release create v0.6 --title "BlockBlastAI v0.6 (experimental)" --notes "Unsigned experimental v0.6 live overlay plus self-contained browser simulator. Persistent ReplayKit session prevents repeated start-stop races. Auto recovery and consistency checks reduce lost highlights and false tray pieces. Browser simulator tested with repeatable fault injection. On-device gameplay still requires verification."
+          if ! gh release view v0.7 >/dev/null 2>&1; then
+            gh release create v0.7 --title "BlockBlastAI v0.7 (experimental)" --notes "Experimental v0.7: shared Core Image context, capture watchdog and recovery, restored highlights after transient scans, deduplicated combo-aware solver benchmarked against original v0.6. Device operation unverified."
           fi
-          gh release upload v0.6 dist/BlockBlastAI.dylib dist/BlockBlastAI_Simulator.html --clobber
+          gh release upload v0.7 dist/BlockBlastAI.dylib dist/BlockBlastAI_Simulator.html dist/BlockBlastAI_v0.7_Replacement_Files.zip --clobber
