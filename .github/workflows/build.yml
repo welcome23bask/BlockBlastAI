@@ -6,6 +6,8 @@ on:
       - 'src/**'
       - 'tests/**'
       - '.github/workflows/build.yml'
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: macos-15
@@ -33,3 +35,12 @@ jobs:
         with:
           name: BlockBlastAI-iOS-arm64
           path: dist/BlockBlastAI.dylib
+
+      - name: Publish direct-download GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view v0.1 >/dev/null 2>&1; then
+            gh release create v0.1 --title "BlockBlastAI v0.1 (experimental)" --notes "Unsigned experimental iPhone ARM64 overlay library. Built in GitHub Actions. Not yet tested inside Block Blast."
+          fi
+          gh release upload v0.1 dist/BlockBlastAI.dylib --clobber
