@@ -523,14 +523,11 @@ static uint64_t BLFrameHash(UIImage *image) {
           [self refreshGuides];
           return;
       }
-      // ReplayKit only emits a frame when pixels change. Register the request FIRST
-      // and then flash a 2pt strip in the same run-loop turn, so a quiet screen
-      // still produces a frame that is guaranteed to be newer than this request.
-      self->_nudgeOn=!self->_nudgeOn;
-      self->_nudgeStrip.backgroundColor=self->_nudgeOn?[UIColor colorWithWhite:0 alpha:.5]
-                                                      :[UIColor colorWithWhite:1 alpha:.5];
-      self->_nudgeStrip.hidden=NO;
+      // Register the frame request FIRST. Only then change the strip to
+      // generate a new screen frame; do not nudge if registration fails.
+      __block BOOL callbackCompleted=NO;
       BLCaptureScreen(^(UIImage *image,NSError *error) {
+        callbackCompleted=YES;
         self->_nudgeStrip.hidden=YES;
         self->_autoBusy=NO;
         self->_bubble.hidden=NO;
@@ -684,6 +681,15 @@ static uint64_t BLFrameHash(UIImage *image) {
             [self refreshGuides];
         }
       });
+      // If the frame request was synchronously rejected (e.g. busy),
+      // its callback has already run and we must NOT leave the strip visible.
+      if(!callbackCompleted && self->_autoEnabled && self->_panel.hidden) {
+          self->_nudgeOn=!self->_nudgeOn;
+          self->_nudgeStrip.backgroundColor=self->_nudgeOn?
+              [UIColor colorWithWhite:0 alpha:.5]:
+              [UIColor colorWithWhite:1 alpha:.5];
+          self->_nudgeStrip.hidden=NO;
+      }
     });
 }
 
