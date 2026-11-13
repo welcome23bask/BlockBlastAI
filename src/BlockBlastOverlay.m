@@ -514,14 +514,18 @@ static const CGFloat kPiecePitch=19.0;
                fabs(last.x-self->_gridLast.x)>pitchX*.35 ||
                fabs(last.y-self->_gridLast.y)>pitchY*.35) goodGeom=NO;
         }
-        if(!goodGeom || (self->_solvedAutoHash!=0 && (sameTray != sameBoard))) {
+        BOOL transitional=(self->_solvedAutoHash!=0 && (sameTray != sameBoard));
+        if(!goodGeom) {
             self->_stableAutoFrames=0;
             self->_showGuides=NO;
             [self refreshGuides];
-            self->_status.text=goodGeom?@"Untrusted scan: board and tray changes disagree. Waiting for stable game data.":@"Untrusted scan: board geometry moved. Waiting for valid state.";
+            self->_status.text=@"Board coordinates changed unexpectedly. Waiting for a stable capture.";
             [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
             return;
         }
+        // A board and tray can update on different frames. Previously this
+        // returned before the stability gate, making recovery impossible.
+        // Require extra identical observations rather than permanently freezing.
         self->_calibrated=YES;
         self->_gridFirst=first;
         self->_gridLast=last;
@@ -541,7 +545,8 @@ static const CGFloat kPiecePitch=19.0;
             self->_stableAutoFrames=1;
             self->_showGuides=NO;
         }
-        if(self->_stableAutoFrames<3) {
+        if(self->_stableAutoFrames<(transitional?6:3)) {
+            self->_showGuides=NO;
             [self refreshGuides];
             return;
         }
@@ -576,7 +581,16 @@ static const CGFloat kPiecePitch=19.0;
                 [self refreshGuides];
             }
         } else {
-            [self refreshGuides]; // Handles geometry changes and screen resizes.
+            // A temporary loss of confidence clears _showGuides; when the
+            // original valid state returns, restore it even if the hash is
+            // unchanged. This fixes permanently missing highlights.
+            self->_showGuides=self->_previewing;
+            if(self->_previewing && self->_solution.movesFound>0) {
+                BLMove move=self->_solution.moves[self->_previewIndex];
+                [self->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
+                               forState:UIControlStateNormal];
+            }
+            [self refreshGuides];
         }
       });
     });
