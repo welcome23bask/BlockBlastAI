@@ -40,7 +40,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view v0.2 >/dev/null 2>&1; then
-            gh release create v0.2 --title "BlockBlastAI v0.2 (experimental)" --notes "Unsigned v0.2 beta: draggable and resizable overlay, calibrated ReplayKit board scan, in-game placement highlights. Board recognition is experimental; piece shapes remain manual. Keep v0.1 as fallback."
+          if ! gh release view v0.3 >/dev/null 2>&1; then
+            gh release create v0.3 --title "BlockBlastAI v0.3 (experimental)" --notes "Unsigned v0.3 beta: calibrated board alignment grid preview, stricter occupied-tile detection, draggable resizable overlay, and game highlights. Scanner still requires manual verification; piece shapes remain manual. Keep v0.1 as fallback."
           fi
-          gh release upload v0.2 dist/BlockBlastAI.dylib --clobber
+          gh release upload v0.3 dist/BlockBlastAI.dylib --clobber
