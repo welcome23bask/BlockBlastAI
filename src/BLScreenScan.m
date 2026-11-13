@@ -9,49 +9,120 @@
 #include <stdlib.h>
 #include <string.h>
 
-void BLCaptureScreen(BLScreenCaptureCompletion completion) {
+// ReplayKit capture is deliberately long-lived. Repeated start/stop every 1.8s
+// was vulnerable to asynchronous stop/start races after a minute of gameplay.
+static BLScreenCaptureCompletion sPendingFrame;
+static BOOL sStreamStarted=NO;
+static BOOL sStreamStarting=NO;
+static BOOL sStreamStopping=NO;
+static NSUInteger sFrameTicket=0;
+
+static NSError *BLError(NSInteger code, NSString *reason) {
+    return [NSError errorWithDomain:@"BlockBlastAI" code:code
+        userInfo:@{NSLocalizedDescriptionKey:reason}];
+}
+static void BLDeliverPending(UIImage *image, NSError *error) {
     RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
-    if (!rec.isAvailable) {
-        if (completion) completion(nil,[NSError errorWithDomain:@"BlockBlastAI" code:1
-           userInfo:@{NSLocalizedDescriptionKey:@"ReplayKit capture unavailable; enter the board manually."}]);
+    BLScreenCaptureCompletion handler=nil;
+    @synchronized(rec) {
+        handler=sPendingFrame;
+        sPendingFrame=nil;
+    }
+    if(handler) dispatch_async(dispatch_get_main_queue(), ^{handler(image,error);});
+}
+static void BLStartStream(void) {
+    if(sStreamStarting||sStreamStarted||sStreamStopping) return;
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    if(!rec.available) {
+        BLDeliverPending(nil,BLError(1,@"ReplayKit video is unavailable."));
         return;
     }
-    __block BOOL finished=NO;
+    sStreamStarting=YES;
     [rec startCaptureWithHandler:^(CMSampleBufferRef buffer, RPSampleBufferType type, NSError *error) {
         if(type!=RPSampleBufferTypeVideo) return;
-        @synchronized(rec) { if(finished) return; finished=YES; }
+        BLScreenCaptureCompletion pending=nil;
+        @synchronized(rec) {
+            // Claim exactly one requested frame; never convert all 30/60 fps.
+            pending=sPendingFrame;
+            sPendingFrame=nil;
+        }
+        if(!pending) return;
+        if(error) {
+            dispatch_async(dispatch_get_main_queue(), ^{pending(nil,error);});
+            return;
+        }
         UIImage *image=nil;
-        if(!error) {
-            CVImageBufferRef pixelBuffer=CMSampleBufferGetImageBuffer(buffer);
-            if(pixelBuffer) {
-                CIImage *ci=[CIImage imageWithCVPixelBuffer:pixelBuffer];
-                CIContext *context=[CIContext contextWithOptions:nil];
-                CGImageRef cg=[context createCGImage:ci fromRect:ci.extent];
-                if(cg) { image=[UIImage imageWithCGImage:cg]; CGImageRelease(cg); }
+        CVImageBufferRef pixelBuffer=CMSampleBufferGetImageBuffer(buffer);
+        if(pixelBuffer) {
+            CIImage *ci=[CIImage imageWithCVPixelBuffer:pixelBuffer];
+            CIContext *context=[CIContext contextWithOptions:nil];
+            CGImageRef cg=[context createCGImage:ci fromRect:ci.extent];
+            if(cg) {
+                image=[UIImage imageWithCGImage:cg];
+                CGImageRelease(cg);
             }
         }
         UIImage *result=image;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [rec stopCaptureWithHandler:^(NSError * _Nullable stopError) {}];
-            if(completion) completion(result,error ?: (result?nil:
-               [NSError errorWithDomain:@"BlockBlastAI" code:2
-                  userInfo:@{NSLocalizedDescriptionKey:@"Screen capture frame was empty."}]));
+            pending(result,result ? nil : BLError(2,@"Video frame was empty."));
         });
     } completionHandler:^(NSError *error) {
-        if (!error) return;
-        @synchronized(rec) { if(finished) return; finished=YES; }
         dispatch_async(dispatch_get_main_queue(), ^{
-            if(completion) completion(nil,error);
+            sStreamStarting=NO;
+            sStreamStarted=(error==nil);
+            if(error) BLDeliverPending(nil,error);
         });
     }];
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(7*NSEC_PER_SEC)),dispatch_get_main_queue(), ^{
-        @synchronized(rec) { if(finished) return; finished=YES; }
-        [rec stopCaptureWithHandler:^(NSError * _Nullable stopError) {}];
-        if(completion) completion(nil,[NSError errorWithDomain:@"BlockBlastAI" code:3
-               userInfo:@{NSLocalizedDescriptionKey:@"Capture timed out. Enter board manually."}]);
+}
+void BLCaptureScreen(BLScreenCaptureCompletion completion) {
+    if(![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{BLCaptureScreen(completion);});
+        return;
+    }
+    if(!completion)return;
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    if(sStreamStopping) {
+        completion(nil,BLError(4,@"Screen capture is restarting."));
+        return;
+    }
+    BOOL busy=NO;
+    @synchronized(rec) {
+        if(sPendingFrame) busy=YES;
+        else sPendingFrame=[completion copy];
+    }
+    if(busy) {
+        completion(nil,BLError(5,@"Previous video request still in progress."));
+        return;
+    }
+    NSUInteger ticket=++sFrameTicket;
+    BLStartStream();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(6*NSEC_PER_SEC)),
+                   dispatch_get_main_queue(),^{
+        if(ticket!=sFrameTicket)return;
+        BLDeliverPending(nil,BLError(3,@"No video frame received within 6 seconds."));
+        // Keep the stream alive for the next request. Do NOT repeatedly
+        // start and stop it on every one-frame timeout.
     });
 }
-
+void BLStopScreenCapture(void) {
+    if(![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(), ^{BLStopScreenCapture();});
+        return;
+    }
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    ++sFrameTicket;
+    BLDeliverPending(nil,BLError(6,@"Capture paused."));
+    if(sStreamStopping)return;
+    if(!sStreamStarted&&!sStreamStarting&&!rec.isRecording)return;
+    sStreamStopping=YES;
+    [rec stopCaptureWithHandler:^(NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            sStreamStarted=NO;
+            sStreamStarting=NO;
+            sStreamStopping=NO;
+        });
+    }];
+}
 
 BOOL BLDetectBoard(UIImage *image, CGPoint firstCenter, CGPoint lastCenter,
                    CGSize screenSize, BOOL occupied[64], NSString **detail) {
