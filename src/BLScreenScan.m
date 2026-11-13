@@ -120,13 +120,15 @@ BOOL BLDetectBoard(UIImage *image, CGPoint a, CGPoint b, CGSize screenSize,
         if(!n0||!n1) break;
         c0=s0/n0;c1=s1/n1;
     }
-    double threshold=(c0+c1)/2;
+    // Avoid mistaking the bright blue sky/background outside the game grid for pieces.
+    // In the blue/cyan Block Blast theme, the empty grid is much darker than blocks.
+    double threshold=fmax(125.0,(c0+c1)/2);
     if(fabs(c1-c0)<24) {
         if(detail) *detail=@"Could not distinguish occupied and empty cells; try rescanning.";
         return NO;
     }
     int count=0;
     for(int i=0;i<64;++i){ occupied[i]=scores[i]>threshold; count+=occupied[i]; }
-    if(detail) *detail=[NSString stringWithFormat:@"Detected %d occupied cells (beta). Verify the grid and correct any mistakes.",count];
+    if(detail) *detail=[NSString stringWithFormat:@"Detected %d occupied cells (v0.3 color guard). Check board alignment before using suggestions.",count];
     return YES;
 }
