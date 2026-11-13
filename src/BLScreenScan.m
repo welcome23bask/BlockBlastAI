@@ -11,117 +11,162 @@
 
 // ReplayKit capture is deliberately long-lived. Repeated start/stop every 1.8s
 // was vulnerable to asynchronous stop/start races after a minute of gameplay.
+// All state transitions run on main; video callbacks claim pending requests
+// under @synchronized(recorder), avoiding double completion and start/stop races.
 static BLScreenCaptureCompletion sPendingFrame;
-static BOOL sStreamStarted=NO;
-static BOOL sStreamStarting=NO;
-static BOOL sStreamStopping=NO;
-static NSUInteger sFrameTicket=0;
+static BOOL sStreamStarted=NO, sStreamStarting=NO, sStreamStopping=NO;
+static BOOL sShouldRun=NO, sRestartAfterStart=NO, sWatchdogArmed=NO;
+static unsigned long sGeneration=0, sFrameTicket=0;
+static CFAbsoluteTime sLastFrameAt=0;
+static CIContext *sSharedCIContext;
 
 static NSError *BLError(NSInteger code, NSString *reason) {
     return [NSError errorWithDomain:@"BlockBlastAI" code:code
         userInfo:@{NSLocalizedDescriptionKey:reason}];
 }
-static void BLDeliverPending(UIImage *image, NSError *error) {
+static BOOL BLDeliverPending(UIImage *image, NSError *error) {
     RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
-    BLScreenCaptureCompletion handler=nil;
-    @synchronized(rec) {
-        handler=sPendingFrame;
-        sPendingFrame=nil;
-    }
-    if(handler) dispatch_async(dispatch_get_main_queue(), ^{handler(image,error);});
+    BLScreenCaptureCompletion callback=nil;
+    @synchronized(rec) { callback=sPendingFrame; sPendingFrame=nil; }
+    if (callback) dispatch_async(dispatch_get_main_queue(), ^{ callback(image,error); });
+    return callback!=nil;
 }
-static void BLStartStream(void) {
-    if(sStreamStarting||sStreamStarted||sStreamStopping) return;
+static void BLStartStream(void);
+static void BLRecycleStream(void);
+
+static void BLWatchdog(void) {
+    if(!sShouldRun) {sWatchdogArmed=NO;return;}
     RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
-    if(!rec.available) {
-        BLDeliverPending(nil,BLError(1,@"ReplayKit video is unavailable."));
-        return;
+    CFAbsoluteTime last;
+    @synchronized(rec) {last=sLastFrameAt;}
+    if(!sStreamStopping && (sStreamStarted || sStreamStarting) &&
+       last>0 && CFAbsoluteTimeGetCurrent()-last>8.0) {
+        BLDeliverPending(nil,BLError(7,@"ReplayKit stopped sending video frames. Restarting."));
+        BLRecycleStream();
     }
-    sStreamStarting=YES;
-    [rec startCaptureWithHandler:^(CMSampleBufferRef buffer, RPSampleBufferType type, NSError *error) {
-        if(type!=RPSampleBufferTypeVideo) return;
-        BLScreenCaptureCompletion pending=nil;
-        @synchronized(rec) {
-            // Claim exactly one requested frame; never convert all 30/60 fps.
-            pending=sPendingFrame;
-            sPendingFrame=nil;
-        }
-        if(!pending) return;
-        if(error) {
-            dispatch_async(dispatch_get_main_queue(), ^{pending(nil,error);});
-            return;
-        }
-        UIImage *image=nil;
-        CVImageBufferRef pixelBuffer=CMSampleBufferGetImageBuffer(buffer);
-        if(pixelBuffer) {
-            CIImage *ci=[CIImage imageWithCVPixelBuffer:pixelBuffer];
-            CIContext *context=[CIContext contextWithOptions:nil];
-            CGImageRef cg=[context createCGImage:ci fromRect:ci.extent];
-            if(cg) {
-                image=[UIImage imageWithCGImage:cg];
-                CGImageRelease(cg);
-            }
-        }
-        UIImage *result=image;
-        dispatch_async(dispatch_get_main_queue(), ^{
-            pending(result,result ? nil : BLError(2,@"Video frame was empty."));
-        });
-    } completionHandler:^(NSError *error) {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            sStreamStarting=NO;
-            sStreamStarted=(error==nil);
-            if(error) BLDeliverPending(nil,error);
-        });
-    }];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(2*NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{BLWatchdog();});
 }
-void BLCaptureScreen(BLScreenCaptureCompletion completion) {
-    if(![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{BLCaptureScreen(completion);});
-        return;
-    }
-    if(!completion)return;
-    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
-    if(sStreamStopping) {
-        completion(nil,BLError(4,@"Screen capture is restarting."));
-        return;
-    }
-    BOOL busy=NO;
-    @synchronized(rec) {
-        if(sPendingFrame) busy=YES;
-        else sPendingFrame=[completion copy];
-    }
-    if(busy) {
-        completion(nil,BLError(5,@"Previous video request still in progress."));
-        return;
-    }
-    NSUInteger ticket=++sFrameTicket;
-    BLStartStream();
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(6*NSEC_PER_SEC)),
-                   dispatch_get_main_queue(),^{
-        if(ticket!=sFrameTicket)return;
-        BLDeliverPending(nil,BLError(3,@"No video frame received within 6 seconds."));
-        // Keep the stream alive for the next request. Do NOT repeatedly
-        // start and stop it on every one-frame timeout.
-    });
+static void BLArmWatchdog(void) {
+    if(sWatchdogArmed)return;
+    sWatchdogArmed=YES;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(2*NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{BLWatchdog();});
 }
-void BLStopScreenCapture(void) {
-    if(![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{BLStopScreenCapture();});
-        return;
-    }
+static void BLRecycleStream(void) {
     RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
-    ++sFrameTicket;
-    BLDeliverPending(nil,BLError(6,@"Capture paused."));
     if(sStreamStopping)return;
-    if(!sStreamStarted&&!sStreamStarting&&!rec.isRecording)return;
+    if(sStreamStarting) {sRestartAfterStart=YES;return;}
+    if(!sStreamStarted && !rec.isRecording) {
+        sStreamStarted=NO;
+        if(sShouldRun) BLStartStream();
+        return;
+    }
     sStreamStopping=YES;
+    ++sGeneration; // ignore callbacks still arriving from the old session
     [rec stopCaptureWithHandler:^(NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
             sStreamStarted=NO;
             sStreamStarting=NO;
             sStreamStopping=NO;
+            sRestartAfterStart=NO;
+            if(sShouldRun) BLStartStream();
         });
     }];
+}
+static void BLStartStream(void) {
+    if(!sShouldRun || sStreamStarted || sStreamStarting || sStreamStopping) return;
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    if(!rec.available) {
+        BLDeliverPending(nil,BLError(1,@"ReplayKit recording unavailable."));
+        return;
+    }
+    static dispatch_once_t ciOnce;
+    dispatch_once(&ciOnce, ^{
+        sSharedCIContext=[CIContext contextWithOptions:@{kCIContextUseSoftwareRenderer:@NO}];
+    });
+    sStreamStarting=YES;
+    unsigned long generation=++sGeneration;
+    @synchronized(rec) {sLastFrameAt=CFAbsoluteTimeGetCurrent();}
+    [rec startCaptureWithHandler:^(CMSampleBufferRef buffer, RPSampleBufferType type, NSError *error) {
+        if(type!=RPSampleBufferTypeVideo) return;
+        BLScreenCaptureCompletion callback=nil;
+        @synchronized(rec) {
+            if(generation==sGeneration) {
+                sLastFrameAt=CFAbsoluteTimeGetCurrent();
+                callback=sPendingFrame;
+                sPendingFrame=nil;
+            }
+        }
+        if(!callback)return; // do not decode every 60fps video frame
+        UIImage *image=nil;
+        if(!error && CMSampleBufferIsValid(buffer)) {
+            CVImageBufferRef pixelBuffer=CMSampleBufferGetImageBuffer(buffer);
+            if(pixelBuffer) {
+                CIImage *ci=[CIImage imageWithCVPixelBuffer:pixelBuffer];
+                CGImageRef cg=[sSharedCIContext createCGImage:ci fromRect:ci.extent];
+                if(cg) { image=[UIImage imageWithCGImage:cg]; CGImageRelease(cg); }
+            }
+        }
+        UIImage *result=image;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            callback(result,error ?: (result ? nil : BLError(2,@"Video frame was empty.")));
+        });
+    } completionHandler:^(NSError *error) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if(generation!=sGeneration)return;
+            sStreamStarting=NO;
+            sStreamStarted=(error==nil);
+            if(error) BLDeliverPending(nil,error);
+            if(sRestartAfterStart || !sShouldRun) {
+                sRestartAfterStart=NO;
+                if(sStreamStarted) BLRecycleStream();
+            } else if(error && sShouldRun) {
+                // Back off to avoid hammering ReplayKit permission errors.
+                dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(3*NSEC_PER_SEC)),
+                               dispatch_get_main_queue(),^{BLStartStream();});
+            }
+        });
+    }];
+    BLArmWatchdog();
+}
+
+void BLCaptureScreen(BLScreenCaptureCompletion completion) {
+    if(![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(),^{BLCaptureScreen(completion);});
+        return;
+    }
+    if(!completion)return;
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    BOOL busy=NO;
+    @synchronized(rec) {
+        if(sPendingFrame)busy=YES;
+        else sPendingFrame=[completion copy];
+    }
+    if(busy) {
+        completion(nil,BLError(5,@"Previous frame request still pending."));
+        return;
+    }
+    sShouldRun=YES;
+    unsigned long ticket=++sFrameTicket;
+    BLStartStream();
+    BLArmWatchdog();
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(6*NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if(ticket!=sFrameTicket) return;
+        if(BLDeliverPending(nil,BLError(3,@"No video frame received within 6 seconds.")))
+            BLRecycleStream();
+    });
+}
+void BLStopScreenCapture(void) {
+    if(![NSThread isMainThread]) {
+        dispatch_async(dispatch_get_main_queue(),^{BLStopScreenCapture();});
+        return;
+    }
+    sShouldRun=NO;
+    ++sFrameTicket;
+    BLDeliverPending(nil,BLError(6,@"Screen capture paused."));
+    BLRecycleStream();
 }
 
 BOOL BLDetectBoard(UIImage *image, CGPoint firstCenter, CGPoint lastCenter,
