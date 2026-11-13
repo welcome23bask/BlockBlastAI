@@ -1,3 +1,21 @@
+# BlockBlastAI v0.3 — Scanner alignment fix and grid preview
+
+**Download v0.3 beta:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.3/BlockBlastAI.dylib  
+**Previous v0.2:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.2/BlockBlastAI.dylib  
+**First tested v0.1 fallback:** https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.1/BlockBlastAI.dylib
+
+v0.3 has **passed CI compilation and C solver tests but has not been tested inside the user's iPhone app**.
+
+- **Fix:** set a stricter scanner threshold to reduce mistaken "occupied" readings from the blue game background. This targets false-positive squares; it is not guaranteed to fix all themes or calibration errors.
+- **Verify alignment:** after **📍 Calibrate**, a turquoise 8×8 outline appears over the game. Each outlined square must fit an actual board square. The two corner squares are marked 1 and 64. Tap the **🧩 AI** bubble to return to the panel. If the outline is offset, tap **📍 Calibrate** again.
+- **Review on demand:** tap **🧭 Check board alignment (show grid)** to re-display the outline without changing calibration.
+- **📷 Scan board** now avoids treating moderately bright sky/background as filled blocks in the blue/cyan theme. **Always compare the scanned board with the actual game and correct mistakes by tapping the cells before Solving.**
+- **Piece shapes are still manual.** This version does not identify the tray pieces or automate play.
+
+Keep the original compatible IPA and working v0.1 backup. When replacing the dylib in KSign, inject **only one** version. The screenshot scanner can fail depending on ReplayKit availability and game visual style.
+
+---
+
 # BlockBlastAI v0.2 — Movable overlay and beta screen scan
 
 **New version:** [Download v0.2 iPhone ARM64 dylib](https://github.com/welcome23bask/BlockBlastAI/releases/download/v0.2/BlockBlastAI.dylib)  
