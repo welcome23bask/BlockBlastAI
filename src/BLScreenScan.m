@@ -1,19 +1,54 @@
 #import "BLScreenScan.h"
 #import <ReplayKit/ReplayKit.h>
 #import <CoreGraphics/CoreGraphics.h>
+#import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
+#import <CoreImage/CoreImage.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
 void BLCaptureScreen(BLScreenCaptureCompletion completion) {
-    if (![RPScreenRecorder sharedRecorder].available) {
+    RPScreenRecorder *rec=[RPScreenRecorder sharedRecorder];
+    if (!rec.isAvailable) {
         if (completion) completion(nil,[NSError errorWithDomain:@"BlockBlastAI" code:1
-            userInfo:@{NSLocalizedDescriptionKey:@"ReplayKit screen capture is unavailable on this device or inside this app."}]);
+           userInfo:@{NSLocalizedDescriptionKey:@"ReplayKit capture unavailable; enter the board manually."}]);
         return;
     }
-    [[RPScreenRecorder sharedRecorder] captureWithHandler:^(UIImage * _Nullable image, NSError * _Nullable error) {
-        if (completion) dispatch_async(dispatch_get_main_queue(), ^{ completion(image,error); });
+    __block BOOL finished=NO;
+    [rec startCaptureWithHandler:^(CMSampleBufferRef buffer, RPSampleBufferType type, NSError *error) {
+        if(type!=RPSampleBufferTypeVideo) return;
+        @synchronized(rec) { if(finished) return; finished=YES; }
+        UIImage *image=nil;
+        if(!error) {
+            CVImageBufferRef pixelBuffer=CMSampleBufferGetImageBuffer(buffer);
+            if(pixelBuffer) {
+                CIImage *ci=[CIImage imageWithCVPixelBuffer:pixelBuffer];
+                CIContext *context=[CIContext contextWithOptions:nil];
+                CGImageRef cg=[context createCGImage:ci fromRect:ci.extent];
+                if(cg) { image=[UIImage imageWithCGImage:cg]; CGImageRelease(cg); }
+            }
+        }
+        UIImage *result=image;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [rec stopCaptureWithHandler:^(NSError * _Nullable stopError) {}];
+            if(completion) completion(result,error ?: (result?nil:
+               [NSError errorWithDomain:@"BlockBlastAI" code:2
+                  userInfo:@{NSLocalizedDescriptionKey:@"Screen capture frame was empty."}]));
+        });
+    } completionHandler:^(NSError *error) {
+        if (!error) return;
+        @synchronized(rec) { if(finished) return; finished=YES; }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if(completion) completion(nil,error);
+        });
     }];
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(7*NSEC_PER_SEC)),dispatch_get_main_queue(), ^{
+        @synchronized(rec) { if(finished) return; finished=YES; }
+        [rec stopCaptureWithHandler:^(NSError * _Nullable stopError) {}];
+        if(completion) completion(nil,[NSError errorWithDomain:@"BlockBlastAI" code:3
+               userInfo:@{NSLocalizedDescriptionKey:@"Capture timed out. Enter board manually."}]);
+    });
 }
 
 static double BLScore(const uint8_t *data, size_t w, size_t h, CGFloat x, CGFloat y) {
