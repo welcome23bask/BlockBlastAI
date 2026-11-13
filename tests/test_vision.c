@@ -73,11 +73,55 @@ int main(void){
     assert(purple.detectedPieces==1);
     assert(purple.pieces[0].count==5);
     assert(purple.pieces[1].count==0&&purple.pieces[2].count==0);
+    // Regression based on the user's November 13 screenshots: 12 occupied
+    // cells, four blue top-left cells, a green row, two isolated orange cells,
+    // and ONLY ONE AVAILABLE RED VERTICAL 4-block tray piece.
+    // The old detector would sometimes choose the vertically reversed
+    // interpretation and invent 3 pieces from the original game board.
+    rect(0,0,W,H,57,85,148);
+    rect(23,216,408,601,33,44,90);
+    tile(0,0,28,175,223);tile(0,1,28,175,223);
+    tile(1,0,28,175,223);tile(1,1,28,175,223);
+    for(int c=1;c<=5;c++)tile(3,c,44,187,48);
+    tile(3,7,59,100,223);
+    tile(5,1,237,118,39);tile(5,5,237,118,39);
+    for(int y=0;y<4;y++)
+        rect(79,670+y*21,99,689+y*21,208,45,53);
+    uint64_t actual=0;
+    for(int row=0;row<=1;++row) for(int col=0;col<=1;++col)
+        actual|=UINT64_C(1)<<(row*8+col);
+    for(int col=1;col<=5;++col)actual|=UINT64_C(1)<<(3*8+col);
+    actual|=UINT64_C(1)<<(3*8+7);
+    actual|=UINT64_C(1)<<(5*8+1);
+    actual|=UINT64_C(1)<<(5*8+5);
+    assert(__builtin_popcountll(actual)==12);
+    BLVisionResult one;
+    assert(BLVisionAnalyzeRGBA(img,W,H,&one));
+    assert(one.board==actual);
+    assert(one.flippedInput==0);
+    assert(one.detectedPieces==1);
+    assert(one.pieces[0].count==4);
+    for(int i=0;i<4;++i) {
+        assert(one.pieces[0].x[i]==0);
+        assert(one.pieces[0].y[i]==i);
+    }
+    assert(one.pieces[1].count==0&&one.pieces[2].count==0);
+    uint8_t *mirror=malloc((size_t)W*H*4); assert(mirror);
+    for(int y=0;y<H;++y)
+        memcpy(mirror+4*(size_t)y*W,img+4*(size_t)(H-1-y)*W,(size_t)W*4);
+    BLVisionResult reversed;
+    assert(BLVisionAnalyzeRGBA(mirror,W,H,&reversed));
+    assert(reversed.flippedInput==1);
+    assert(reversed.board==actual);
+    assert(reversed.detectedPieces==1);
+    assert(reversed.pieces[0].count==4);
+    assert(reversed.pieces[0].x[0]==0 && reversed.pieces[0].y[3]==3);
+    free(mirror);
     // A loading screen must NOT produce fake move instructions.
     rect(0,0,W,H,57,85,148);
     BLVisionResult none;
     assert(!BLVisionAnalyzeRGBA(img,W,H,&none));
     free(img);
-    puts("vision tests passed: board orientation, colors, 3 tray pieces, geometry, no false scan");
+    puts("vision tests passed: real-board regression, 1 vertical tray piece, mirror orientation, colors and no false scan");
     return 0;
 }
