@@ -63,6 +63,16 @@ int main(void){
     assert(b.detectedPieces==3);
     assert(near(b.firstY,a.firstY) && near(b.lastY,a.lastY));
     free(flip);
+    // Purple is a common Block Blast tray color, and must never be mistaken
+    // for the light-blue background or ignored as a phantom piece.
+    rect(0,625,W,884,57,85,148);
+    for(int x=0;x<5;++x)
+        rect(20+x*21,665,39+x*21,684,144,76,195);
+    BLVisionResult purple;
+    assert(BLVisionAnalyzeRGBA(img,W,H,&purple));
+    assert(purple.detectedPieces==1);
+    assert(purple.pieces[0].count==5);
+    assert(purple.pieces[1].count==0&&purple.pieces[2].count==0);
     // A loading screen must NOT produce fake move instructions.
     rect(0,0,W,H,57,85,148);
     BLVisionResult none;
