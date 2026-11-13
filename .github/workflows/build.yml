@@ -17,6 +17,10 @@ jobs:
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/blsolver-test
           /tmp/blsolver-test
+      - name: Regression test board vision and orientation
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_vision.c src/BLVisionCore.c -lm -o /tmp/blvision-test
+          /tmp/blvision-test
       - name: Compile ARM64 iOS tweak
         run: |
           mkdir -p dist
@@ -27,7 +31,7 @@ jobs:
             -dynamiclib \
             -install_name @rpath/BlockBlastAI.dylib \
             -framework Foundation -framework UIKit -framework CoreGraphics -framework ReplayKit -framework CoreMedia -framework CoreVideo -framework CoreImage \
-            src/BlockBlastOverlay.m src/BLScreenScan.m src/BlockBlastSolver.c \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c src/BlockBlastSolver.c \
             -o dist/BlockBlastAI.dylib
           file dist/BlockBlastAI.dylib
       - name: Upload unsigned dylib
@@ -40,7 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view v0.4 >/dev/null 2>&1; then
-            gh release create v0.4 --title "BlockBlastAI v0.4 (experimental)" --notes "Unsigned v0.4 beta: automatic board location, three-piece tray detection, repeated screen scans, live move solving and highlights on the actual board. Experimental: trained on a sample Block Blast screenshot; not device-tested. Keep v0.1 as fallback."
+          if ! gh release view v0.5 >/dev/null 2>&1; then
+            gh release create v0.5 --title "BlockBlastAI v0.5 (experimental)" --notes "Unsigned v0.5 beta: fixes vertically flipped board, corrects UI placement geometry, rejects sky false positives, screens out unreliable frames and keeps overlay out of captures. Regression-tested but not yet verified inside your iPhone installation. Keep v0.1 backup."
           fi
-          gh release upload v0.4 dist/BlockBlastAI.dylib --clobber
+          gh release upload v0.5 dist/BlockBlastAI.dylib --clobber
