@@ -80,7 +80,12 @@ BLSolution BLSolve(uint64_t board, const BLPiece pieces[3]) {
     BLSolution sol;
     memset(&sol,0,sizeof(sol));
     sol.approximate=1;
-    for (int i=0; i<3; ++i) if (pieces[i].count<=0 || pieces[i].count>25) return sol;
+    int available=0;
+    for (int i=0; i<3; ++i) {
+        if (pieces[i].count<0 || pieces[i].count>25) return sol;
+        if (pieces[i].count>0) available++;
+    }
+    if(available==0) return sol;
 
     BLState beam[BEAM_WIDTH], next[BEAM_WIDTH], current;
     memset(&current,0,sizeof(current));
@@ -89,12 +94,12 @@ BLSolution BLSolve(uint64_t board, const BLPiece pieces[3]) {
     beam[0]=current;
     int beamCount=1;
     BLState best=current;
-    for (int depth=0; depth<3; ++depth) {
+    for (int depth=0; depth<available; ++depth) {
         int nextCount=0;
         for (int stateIndex=0; stateIndex<beamCount; ++stateIndex) {
             BLState prior=beam[stateIndex];
             for (int p=0; p<3; ++p) {
-                if ((prior.used>>p)&1) continue;
+                if ((prior.used>>p)&1 || pieces[p].count==0) continue;
                 int w=shape_width(&pieces[p]), h=shape_height(&pieces[p]);
                 if (w>8 || h>8) continue;
                 for (int r=0; r<=8-h; ++r) for (int c=0; c<=8-w; ++c) {
