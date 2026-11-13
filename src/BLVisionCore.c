@@ -65,6 +65,12 @@ static int locate(const uint8_t *im,int w,int h,int flip,int *left,int *top,int 
     int s=x1-x0+1;
     int t=first-2;
     if(t<0 || t+s>=h || s<(int)(w*.74)) return 0;
+    // This iPhone Block Blast layout places the board roughly in the
+    // upper-middle of the screen (top ~= 23%, bottom ~= 65% of height).
+    // A vertically reversed frame can also have a valid dark square grid,
+    // but its apparent board starts around 35%. Reject that candidate rather
+    // than reading the board as three imaginary tray pieces.
+    if(t<(int)(h*.17) || t>(int)(h*.315) || t+s>(int)(h*.725)) return 0;
     // A real grid must still have dark cells close to its lower edge;
     // a toolbar, dialog or loading screen should not pass this check.
     int lowerDark=0;
@@ -94,7 +100,9 @@ static int scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *out) {
     const double small=cell*.44;
     if(small<8.0||small>80.0)return 0;
     int trayTop=(int)(top+side+side*.07);
-    int trayBottom=(int)fmin(h*.95,top+side+side*.70);
+    // Limit the region to the actual three-piece tray, not the lower screen
+    // (which can contain icons, overlays or game effects).
+    int trayBottom=(int)fmin(h*.87,top+side+side*.54);
     if(trayTop<0||trayBottom<=trayTop+20||trayBottom>=h) return 0;
     for(int p=0;p<3;++p) {
         int xmin=w,xmax=-1,ymin=h,ymax=-1,n=0;
@@ -137,7 +145,18 @@ int BLVisionAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResult 
     int a=scan(rgba,width,height,0,&normal);
     int b=scan(rgba,width,height,1,&upsideDown);
     if(!a&&!b) return 0;
-    if(a&&(!b || normal.detectedPieces>=upsideDown.detectedPieces)) *result=normal;
+    if(a && b) {
+        // Never prefer an orientation merely because it hallucinated more
+        // pieces. Prefer the one whose board center matches the game's normal
+        // upper-middle board position; refuse essentially ambiguous results.
+        double normalCenter=(normal.firstY+normal.lastY)/(2.0*height);
+        double flippedCenter=(upsideDown.firstY+upsideDown.lastY)/(2.0*height);
+        double da=fabs(normalCenter-0.44),db=fabs(flippedCenter-0.44);
+        if(fabs(da-db)<.012 &&
+           (normal.board!=upsideDown.board ||
+            normal.detectedPieces!=upsideDown.detectedPieces)) return 0;
+        *result=da<db?normal:upsideDown;
+    } else if(a) *result=normal;
     else *result=upsideDown;
     return 1;
 }
