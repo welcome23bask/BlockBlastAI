@@ -53,6 +53,7 @@ static const CGFloat kPiecePitch=19.0;
     CGFloat _panelWidth;
     BOOL _autoEnabled, _autoBusy;
     NSInteger _autoErrors, _stableAutoFrames;
+    CFTimeInterval _autoRetryAfter;
     uint64_t _observedAutoHash, _solvedAutoHash;
     NSTimer *_autoTimer;
     UIButton *_autoButton;
@@ -427,6 +428,8 @@ static const CGFloat kPiecePitch=19.0;
 - (void)toggleAutomatic {
     _autoEnabled=!_autoEnabled;
     _stableAutoFrames=0;
+    if(!_autoEnabled) BLStopScreenCapture();
+    else _autoRetryAfter=0;
     _autoErrors=0;
     NSString *title=_autoEnabled?@"⚡ AUTO SCAN: ON (tap to pause)":@"⚡ AUTO SCAN: PAUSED (tap to resume)";
     [_autoButton setTitle:title forState:UIControlStateNormal];
@@ -439,6 +442,7 @@ static const CGFloat kPiecePitch=19.0;
 }
 - (void)autoTick {
     if(!_autoEnabled || _autoBusy || !_panel.hidden || !_calibrationLayer.hidden) return;
+    if(_autoRetryAfter>0 && CFAbsoluteTimeGetCurrent()<_autoRetryAfter) return;
     if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) return;
     _autoBusy=YES;
     // Prevent captured AI text, buttons, and colored outlines from being
@@ -464,11 +468,13 @@ static const CGFloat kPiecePitch=19.0;
             [self refreshGuides];
             self->_autoErrors++;
             if(self->_autoErrors>=3) {
-                self->_autoEnabled=NO;
-                self->_status.text=[NSString stringWithFormat:@"Automatic capture unavailable: %@. Open AI to retry.",
-                                    error.localizedDescription?:@"ReplayKit unavailable"];
-                [self->_autoButton setTitle:@"⚡ AUTO OFF (tap to retry)" forState:UIControlStateNormal];
-                [self->_bubble setTitle:@"AI !" forState:UIControlStateNormal];
+                self->_autoErrors=0;
+                self->_stableAutoFrames=0;
+                self->_autoRetryAfter=CFAbsoluteTimeGetCurrent()+9.0;
+                BLStopScreenCapture();
+                self->_status.text=[NSString stringWithFormat:@"Capture interrupted: %@. Auto-retrying shortly.",
+                                   error.localizedDescription?:@"ReplayKit interrupted"];
+                [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
             }
             return;
         }
@@ -481,9 +487,41 @@ static const CGFloat kPiecePitch=19.0;
             self->_showGuides=NO;
             [self refreshGuides];
             self->_status.text=info?:@"Auto detection needs a clear screen.";
+            [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
             return;
         }
         self->_autoErrors=0;
+        self->_autoRetryAfter=0;
+        // Reject anomalous geometry and sudden tray/board contradictions.
+        CGFloat pitchX=(last.x-first.x)/7.0, pitchY=(last.y-first.y)/7.0;
+        BOOL goodGeom=(pitchX>20 && pitchY>20 &&
+            fabs(pitchX-pitchY)<MAX(pitchX,pitchY)*.14 &&
+            first.x>0 && first.y>0 &&
+            last.x<self.view.bounds.size.width && last.y<self.view.bounds.size.height);
+        BOOL sameBoard=YES, sameTray=YES;
+        if(self->_solvedAutoHash!=0) {
+            for(int i=0;i<64;++i) if(board[i]!=self->_board[i]) {sameBoard=NO;break;}
+            for(int p=0;p<3 && sameTray;++p) {
+                if(tray[p].count!=self->_normalizedPieces[p].count) {sameTray=NO;break;}
+                for(int i=0;i<tray[p].count;++i)
+                    if(tray[p].x[i]!=self->_normalizedPieces[p].x[i] ||
+                       tray[p].y[i]!=self->_normalizedPieces[p].y[i]) {
+                        sameTray=NO;break;
+                    }
+            }
+            if(fabs(first.x-self->_gridFirst.x)>pitchX*.35 ||
+               fabs(first.y-self->_gridFirst.y)>pitchY*.35 ||
+               fabs(last.x-self->_gridLast.x)>pitchX*.35 ||
+               fabs(last.y-self->_gridLast.y)>pitchY*.35) goodGeom=NO;
+        }
+        if(!goodGeom || (self->_solvedAutoHash!=0 && sameTray && !sameBoard)) {
+            self->_stableAutoFrames=0;
+            self->_showGuides=NO;
+            [self refreshGuides];
+            self->_status.text=goodGeom?@"Untrusted scan: board changed but tray did not. Waiting for valid state.":@"Untrusted scan: board geometry moved. Waiting for valid state.";
+            [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
+            return;
+        }
         self->_calibrated=YES;
         self->_gridFirst=first;
         self->_gridLast=last;
@@ -503,7 +541,7 @@ static const CGFloat kPiecePitch=19.0;
             self->_stableAutoFrames=1;
             self->_showGuides=NO;
         }
-        if(self->_stableAutoFrames<2) {
+        if(self->_stableAutoFrames<3) {
             [self refreshGuides];
             return;
         }
