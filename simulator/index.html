@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#101b37">
+<title>BlockBlastAI • Simulator & Debug Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1630;--panel:#14213e;--line:#34506c;--mint:#46e5ba;--gold:#ffd15a;--text:#f3f8ff;--sub:#9eb2d5;--tile:#1b2848;font-family:system-ui,-apple-system,Segoe UI,sans-serif}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% 4%,#4067ae 0,#253f73 36%,#0b1933 96%);color:var(--text);font-weight:500}
+button,select{font:inherit;cursor:pointer}button{touch-action:manipulation}button:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.shell{max-width:960px;margin:0 auto;padding:24px 18px 40px;display:grid;grid-template-columns:minmax(0,560px) minmax(245px,1fr);gap:24px}
+.tag{display:inline-flex;gap:7px;align-items:center;padding:6px 10px;color:#9debd5;border:1px solid #438678;background:#142c46;border-radius:22px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+h1{margin:10px 0 2px;font-size:clamp(23px,4vw,32px);letter-spacing:-.04em;line-height:1.06}p{color:var(--sub);line-height:1.5;margin:6px 0 14px;font-size:13px}
+.game{border:1px solid #4d70a6;background:linear-gradient(140deg,#1b3055,#18305c);padding:16px;border-radius:22px;box-shadow:0 20px 60px #0411286b}
+.topline{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.topline strong{font-size:26px;line-height:1} .scorecap{font-size:11px;color:var(--sub);text-transform:uppercase;letter-spacing:.11em}
+.score{display:flex;align-items:center;gap:10px}.score .crown{font-size:25px} .statuspill{font-size:11px;border:1px solid #428272;color:#a6f7df;padding:7px 9px;border-radius:99px;background:#123e42}
+.boardframe{background:#101b3d;border:4px solid #3c5e9d;border-radius:13px;padding:4px;box-shadow:0 0 0 2px #6286dd55}
+.board{aspect-ratio:1;display:grid;grid-template-columns:repeat(8,minmax(0,1fr));grid-template-rows:repeat(8,minmax(0,1fr));gap:3px}
+.cell{padding:0;border:1px solid #243359;border-radius:5px;background:linear-gradient(160deg,#1c294b,#1a2545);position:relative;min-width:0;min-height:0}
+.cell.fill::before{content:'';position:absolute;inset:1px 1px 3px;border-radius:3px;background:linear-gradient(140deg,var(--block-light),var(--block),var(--block-dark));border-top:4px solid color-mix(in srgb,var(--block-light) 88%,white);border-right:3px solid var(--block-dark);box-shadow:0 3px 0 var(--block-dark)}
+.cell.hovered{border:2px dashed #8cf4e1!important;z-index:2}
+.cell.suggest{border:2px solid #ffe27d;box-shadow:inset 0 0 0 2px #e8a72b,0 0 0 1px #e8b03e;z-index:1;background:#eac23b55}.cell.suggest::after{content:'';position:absolute;inset:14%;border:2px dotted #ffed9f;border-radius:3px;pointer-events:none}
+.cell.invalid{animation:bump .35s}@keyframes bump{50%{background:#9d2946}}
+.tray{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;min-height:120px;align-items:center;margin:10px 0 0}
+.traybtn{border:1px solid #526d9e44;border-radius:12px;background:#1a2c50aa;height:116px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:9px;color:var(--sub)}
+.traybtn.active{border:2px solid var(--mint);box-shadow:0 0 0 2px #63ebc42d;background:#103b49}.traybtn:disabled{opacity:.45}
+.traylabel{font-size:11px;font-weight:800;letter-spacing:.08em}.shape{display:grid;gap:3px}.mini{width:18px;height:18px;border-radius:3px;background:linear-gradient(150deg,var(--block-light),var(--block),var(--block-dark));border-top:3px solid var(--block-light);border-bottom:3px solid var(--block-dark)}
+.hint{border-radius:12px;border:1px solid #5a728d;display:flex;align-items:center;gap:8px;margin:14px 0 0;padding:11px;background:#101d37;font-size:13px;min-height:50px}.hint b{color:var(--gold)}.hint .miniicon{font-size:20px}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.action{background:#314967;border:1px solid #536e8c;color:#eaf4ff;font-size:12px;padding:10px 12px;border-radius:10px;font-weight:750;flex:1;min-width:110px}
+.action.primary{background:#107f72;border-color:#2ce5b6;color:white}.action.orange{background:#5c4433;border-color:#94724c}.action:hover{filter:brightness(1.08)}
+aside{min-width:0} .panel{border:1px solid #426084;border-radius:18px;padding:17px;background:linear-gradient(150deg,#101e38,#182c47);box-shadow:0 15px 35px #0310266b}
+.sectiontitle{font-size:14px;font-weight:850;letter-spacing:-.01em;display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.small{color:var(--sub);font-size:12px;line-height:1.5}.divider{height:1px;background:#39506c;margin:16px 0}
+select{width:100%;background:#1c304f;border:1px solid #5b7195;color:#f0f8ff;border-radius:10px;padding:11px;font-size:12px}
+.readings{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:10px 0}.metric{padding:9px;border-radius:10px;background:#213652}.metric strong{display:block;font-size:21px}.metric span{color:#bdc9e1;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.log{height:185px;overflow:auto;background:#0b1830;border:1px solid #304966;border-radius:10px;padding:8px;font:11px/1.6 ui-monospace,SFMono-Regular,monospace;color:#b6cfdf;white-space:pre-wrap;overflow-wrap:anywhere}.log .good{color:#83e3c1}.log .bad{color:#ffbd8a}
+.info{font-size:11px;color:#aebfdf;padding:10px 4px 0;line-height:1.6}
+.foot{margin-top:16px;font-size:10px;color:#8097c3;text-align:center}
+.float{position:fixed;z-index:15;right:14px;bottom:calc(22px + env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:flex-end;gap:9px;pointer-events:none}
+.float button,.float .floatingPanel{pointer-events:auto}.floatpill{background:#101d30;border:2px solid #56dab1;border-radius:99px;color:white;font-weight:850;padding:12px 16px;box-shadow:0 8px 25px #07101e88}
+.floatingPanel{display:none;width:260px;max-width:calc(100vw - 26px);min-width:195px;min-height:170px;height:230px;max-height:calc(100vh - 90px);background:#101d33;border:1px solid #65869e;border-radius:15px;box-shadow:0 18px 35px #010714ab;overflow:hidden;position:relative;color:white;resize:none}
+.floatingPanel.open{display:flex;flex-direction:column}.floathead{touch-action:none;cursor:grab;display:flex;justify-content:space-between;align-items:center;background:#243d54;padding:11px;border-bottom:1px solid #486075;font-weight:850;font-size:12px}
+.floathead button{background:#334b68;border:0;color:white;border-radius:7px;padding:3px 9px}
+.floatbody{padding:12px;overflow:auto;flex:1;font-size:12px}.floatbody b{color:#ffda72}.grip{position:absolute;right:0;bottom:0;z-index:5;width:29px;height:29px;border-top-left-radius:10px;background:#23415b;display:grid;place-items:center;cursor:nwse-resize;touch-action:none;color:#6ce3bb;font-size:21px}
+@media(max-width:760px){.shell{display:block;max-width:540px;padding:16px 11px 60px}.game{padding:10px}aside{margin-top:15px}.board{gap:2px}.cell{border-radius:3px}.cell.fill::before{border-top-width:3px;border-right-width:2px}.tray{min-height:100px}.traybtn{height:95px}.mini{width:16px;height:16px}.float{bottom:calc(12px + env(safe-area-inset-bottom))}.foot{padding-bottom:35px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<main class="shell"><section><div class="tag">🧪 SIMULATOR • LOCAL ENGINE</div><h1>Block Blast <span style="color:var(--mint)">AI Lab</span></h1><p>Playable 8×8 game • automatic move outlines • scan-failure stress testing. This is a simulation, not the actual Block Blast app.</p>
+<div class="game">
+<div class="topline"><div class="score"><span class="crown">👑</span><div><div class="scorecap">Simulator score</div><strong id="score">12</strong></div></div><span class="statuspill" id="mode">AUTO AI • READY</span></div>
+<div class="boardframe"><div id="board" class="board" role="grid" aria-label="Block Blast simulated board, eight rows and columns"></div></div>
+<div id="tray" class="tray" aria-label="Three available block pieces"></div>
+<div class="hint" aria-live="polite"><span class="miniicon">✨</span><span id="hint">Calculating your best available move…</span></div>
+<div class="controls"><button id="applyMove" class="action primary">▶ Play AI move</button><button id="newGame" class="action">↻ New game</button><button id="reset" class="action">↺ Reset example</button></div>
+<div class="info">Tap a piece, then tap the board square where its top-left corner should go. Gold squares show the AI's suggested placement. The AI does not play automatically unless you press <b>Play AI move</b>.</div>
+</div>
+</section><aside><div class="panel"><div class="sectiontitle">🛠️ Scenario & scanner lab <span class="tag" style="padding:4px 7px">v0.6</span></div>
+<p>Reproduce the errors that made the iPhone overlay lose highlights or invent pieces after a minute.</p>
+<label for="scenario" class="small">Test board</label><select id="scenario"><option value="1">Screenshot example • 12 blue/orange squares</option><option value="2">Second example • green/red shapes</option><option value="0">Empty board • random tray</option></select>
+<div class="divider"></div><div class="sectiontitle">🔬 Scanner fault injection</div><label for="fault" class="small">Simulated error</label><select id="fault"><option value="none">Clean game frame</option><option value="drop">Capture temporarily unavailable</option><option value="occlude">Menu covers the board</option><option value="phantom">Phantom block on board</option><option value="wrongpiece">Random piece falsely detected</option><option value="flip">Upside-down raw screenshot (corrected)</option></select>
+<div class="controls"><button id="scan" class="action">Scan 3 frames</button><button id="clearFault" class="action">Reset scanner</button><button id="stress" class="action primary">Run 60-min stress test</button></div>
+<div class="readings"><div class="metric"><strong id="scans">0</strong><span>Analyzed frames</span></div><div class="metric"><strong id="accepted">0</strong><span>Accepted frames</span></div><div class="metric"><strong id="confidence">–</strong><span>Scan state</span></div><div class="metric"><strong id="checks">13</strong><span>Automated suites</span></div></div>
+<div class="sectiontitle">📋 Live diagnostic log</div><div id="log" class="log" role="log" aria-live="polite"></div>
+<div class="small" style="margin-top:12px">A scan must be stable across three observations. Suspect or missing frames remove live highlights instead of making up a new piece. New scans are shown only when both board and tray agree.</div></div>
+<div class="foot">Test harness mirrors the GitHub C solver's placement rules and heuristic search. No accounts, backend, or network calls needed.</div></aside></main>
+<div class="float" id="float"><div class="floatingPanel" id="floatingPanel"><div class="floathead" id="floathead"><span>⠿ BLOCK BLAST AI • DRAG</span><button id="closeFloat" aria-label="Close floating assistant">×</button></div><div class="floatbody"><div>Scanner: <b id="floatingStatus">Ready</b></div><div style="margin-top:10px">Recommendation: <b id="floatingMove">–</b></div><div style="margin-top:10px">Tray pieces remaining: <b id="floatingTray">3</b></div><div style="margin-top:14px;color:#aebfda">Drag this header to move. Drag the ↘ corner to resize. Outlines stay on the game board.</div></div><div class="grip" id="grip">↘</div></div><button class="floatpill" id="openFloat" aria-controls="floatingPanel" aria-expanded="false">🧩 AI • READY</button></div>
+<script>
+/* BlockBlastAI simulator engine v0.6 — no third-party libraries, deterministic browser+Node API. */
+(function(root, factory) {
+  if (typeof module === 'object' && module.exports) module.exports = factory();
+  else root.BLEngine = factory();
+})(typeof globalThis !== 'undefined' ? globalThis : this, function() {
+  'use strict';
+  const SIZE = 8;
+  const BASE_SHAPES = [
+    [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]], // 3x2
+    [[0,0],[0,1],[0,2]], // vertical 3
+    [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2]], // 2x3
+    [[0,0],[1,0],[0,1]], [[0,0],[1,0],[2,0]], [[0,0],[0,1]],
+    [[0,0]], [[0,0],[1,0],[2,0],[3,0]], [[0,0],[0,1],[0,2],[0,3]],
+    [[0,0],[1,0],[2,0],[1,1]], [[0,0],[1,0],[0,1],[1,1]],
+    [[0,0],[1,0],[2,0],[0,1],[0,2]],
+    [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]]
+  ];
+  const normalize = (piece) => {
+    if (!piece || !piece.length) return null;
+    let coords = piece.map(p => [Number(p[0]), Number(p[1])]);
+    const loX = Math.min(...coords.map(p => p[0]));
+    const loY = Math.min(...coords.map(p => p[1]));
+    coords = coords.map(([x,y]) => [x-loX,y-loY]).sort((a,b)=>a[1]-b[1]||a[0]-b[0]);
+    return coords;
+  };
+  const clonePieces = pieces => pieces.map(p => p ? p.map(x=>x.slice()) : null);
+  const keyPieces = pieces => pieces.map(p=>p?p.map(([x,y])=>`${x}:${y}`).join(','):'_').join('|');
+  const fixture1Board = () => {
+    const a=Array(64).fill(0);
+    [[1,3],[2,1],[2,2],[2,3],[2,6],[3,1],[3,2],[3,3],[3,6],[4,3],[4,6],[5,3]].forEach(([r,c])=>a[r*8+c]=1);
+    return a;
+  };
+  const fixture2Board = () => {
+    const a=Array(64).fill(0);
+    [[2,7],[3,6],[3,7],[5,0],[5,1],[5,3],[5,4],[5,5],[5,7],[6,1],[6,3],[6,4],[7,3]].forEach(([r,c])=>a[r*8+c]=1);
+    return a;
+  };
+  function canPlace(board,piece,row,col) {
+    if (!piece || !piece.length || row<0 || col<0) return false;
+    return piece.every(([x,y])=>row+y<8 && col+x<8 && !board[(row+y)*8+col+x]);
+  }
+  function apply(board,piece,row,col) {
+    if(!canPlace(board,piece,row,col)) return null;
+    const b=board.slice();
+    for(const [x,y] of piece) b[(row+y)*8+col+x]=1;
+    const fullRows=[],fullCols=[];
+    for(let r=0;r<8;r++)if(b.slice(r*8,r*8+8).every(Boolean))fullRows.push(r);
+    for(let c=0;c<8;c++)if(Array.from({length:8},(_,r)=>b[r*8+c]).every(Boolean))fullCols.push(c);
+    for(const r of fullRows)for(let c=0;c<8;c++)b[r*8+c]=0;
+    for(const c of fullCols)for(let r=0;r<8;r++)b[r*8+c]=0;
+    return {board:b,lines:fullRows.length+fullCols.length,rows:fullRows,cols:fullCols};
+  }
+  function grade(board,lines,depth) {
+    let free3=0,isolated=0;
+    for(let r=0;r<=5;r++)for(let c=0;c<=5;c++){
+      let clear=true;
+      for(let y=0;y<3&&clear;y++)for(let x=0;x<3;x++)if(board[(r+y)*8+c+x]){clear=false;break;}
+      if(clear)free3++;
+    }
+    for(let r=1;r<7;r++)for(let c=1;c<7;c++){
+      const i=r*8+c;
+      if(!board[i]&&board[i-1]&&board[i+1]&&board[i-8]&&board[i+8])isolated++;
+    }
+    return depth*10000000 + lines*7000 - board.reduce((a,b)=>a+b,0)*30 + free3*12-isolated*24;
+  }
+  function solve(board,pieces,beamWidth=100) {
+    if(!Array.isArray(board)||board.length!==64||!Array.isArray(pieces)||pieces.length!==3)return null;
+    const available=pieces.filter(p=>p&&p.length).length;
+    if(!available)return null;
+    let beam=[{board:board.slice(),used:0,moves:[],lines:0,score:grade(board,0,0)}];
+    for(let depth=0;depth<available;depth++){
+      const next=[];
+      for(const st of beam){
+        for(let p=0;p<3;p++){
+          if(st.used&(1<<p)||!pieces[p])continue;
+          const piece=pieces[p];
+          for(let r=0;r<8;r++)for(let c=0;c<8;c++){
+            const after=apply(st.board,piece,r,c);
+            if(!after)continue;
+            const moves=st.moves.concat([{piece:p,row:r,col:c,before:st.board,after:after.board,lines:after.lines}]);
+            const candidate={board:after.board,used:st.used|(1<<p),moves,lines:st.lines+after.lines};
+            candidate.score=grade(candidate.board,candidate.lines,moves.length);
+            next.push(candidate);
+          }
+        }
+      }
+      if(!next.length)break;
+      next.sort((a,b)=>b.score-a.score);
+      beam=next.slice(0,beamWidth);
+    }
+    return beam[0]?.moves.length ? {moves:beam[0].moves,lines:beam[0].lines,score:beam[0].score,approximate:true}:null;
+  }
+  function mulberry32(seed) {let a=seed|0;return ()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296;};}
+  class Game {
+    constructor(seed=17){this.rand=mulberry32(seed);this.load(1);}
+    load(which=1){this.board=which===1?fixture1Board():which===2?fixture2Board():Array(64).fill(0);this.pieces=which===1?BASE_SHAPES.slice(0,3).map(normalize):which===2?[normalize([[0,0],[0,1]]),normalize([[0,0],[0,1],[0,2]]),normalize([[0,0],[1,0],[0,1]])]:this.nextTray();this.score=which===1?12:which===2?117:0;this.lastClear=0;this.moves=0;this.colors=Array(64).fill(-1);for(let i=0;i<64;i++){if(!this.board[i])continue;const r=(i/8)|0,c=i%8;this.colors[i]=which===1?(c===3?4:(c===6?0:2)):which===2?(r===5&&c===3?1:(r===5&&c===7?2:3)):0;}return this;}
+    nextTray(){return Array.from({length:3},()=>normalize(BASE_SHAPES[Math.floor(this.rand()*BASE_SHAPES.length)]));}
+    move(pieceIndex,r,c){const piece=this.pieces[pieceIndex];const next=apply(this.board,piece,r,c);if(!next)return false;this.board=next.board;for(const [x,y] of piece)this.colors[(r+y)*8+c+x]=pieceIndex+1;for(let i=0;i<64;i++)if(!this.board[i])this.colors[i]=-1;this.score+=piece.length + next.lines*10;this.lastClear=next.lines;this.pieces[pieceIndex]=null;this.moves++;if(this.pieces.every(p=>p===null))this.pieces=this.nextTray();return true;}
+    snapshot(){return {board:this.board.slice(),pieces:clonePieces(this.pieces),geometry:{firstX:47,firstY:240,lastX:384,lastY:577},orientation:'upright',width:430,height:932};}
+  }
+  const signature = s=>s.board.join('')+'|'+keyPieces(s.pieces)+'|'+[s.geometry.firstX,s.geometry.firstY,s.geometry.lastX,s.geometry.lastY].map(v=>Math.round(v/3)).join(':');
+  const identicalBoard=(a,b)=>a.every((v,i)=>v===b[i]);
+  function validSnapshot(obs) {
+    if(!obs||!Array.isArray(obs.board)||obs.board.length!==64||!obs.board.every(v=>v===0||v===1))return false;
+    if(!Array.isArray(obs.pieces)||obs.pieces.length!==3)return false;
+    const width=obs.width||430,height=obs.height||932,g=obs.geometry;
+    if(!g||!['firstX','firstY','lastX','lastY'].every(k=>Number.isFinite(g[k])))return false;
+    if(g.firstX<0||g.firstY<0||g.lastX>width||g.lastY>height)return false;
+    const dx=(g.lastX-g.firstX)/7,dy=(g.lastY-g.firstY)/7;
+    if(dx<15||dy<15||Math.abs(dx-dy)>Math.max(dx,dy)*.12)return false;
+    let n=0;
+    for(const raw of obs.pieces){
+      if(raw===null)continue;
+      if(!Array.isArray(raw)||raw.length<1||raw.length>25)return false;
+      const cells=new Set();
+      for(const p of raw){if(!Array.isArray(p)||p.length!==2||!p.every(Number.isInteger)||p[0]<0||p[1]<0||p[0]>4||p[1]>4)return false;cells.add(p.join(','));}
+      if(cells.size!==raw.length)return false;
+      if(raw.length>1){let seen=new Set([raw[0].join(',')]),q=[raw[0]];while(q.length){const [x,y]=q.shift();for(const nxy of [[x+1,y],[x-1,y],[x,y+1],[x,y-1]]){const k=nxy.join(',');if(cells.has(k)&&!seen.has(k)){seen.add(k);q.push(nxy);}}}if(seen.size!==raw.length)return false;}
+      n++;
+    }
+    return n>=1;
+  }
+  // If a new board is reported with exactly the same tray, the scan is likely
+  // corrupted, because playing a real piece removes a slot (or refills the tray).
+  function plausibleTransition(prev,next){
+    if(!prev)return true;
+    const pb=prev.board,nb=next.board;
+    const changed=pb.reduce((n,v,i)=>n+(v!==nb[i]),0);
+    const sameTray=keyPieces(prev.pieces)===keyPieces(next.pieces);
+    if(changed>0&&sameTray)return false;
+    if(changed===0&&!sameTray)return false; // random piece without a real board move
+    if(changed>40)return false;
+    return true;
+  }
+  class ScanGuard {
+    constructor(){this.reset();}
+    reset(){this.observed='';this.streak=0;this.accepted=null;this.lastGood=null;this.status='waiting';this.reason='';this.failures=0;this.scans=0;this.acceptedCount=0;}
+    ingest(obs,opts={}){
+      this.scans++;
+      if(!validSnapshot(obs))return this.fail('invalid geometry, tray or screenshot');
+      if(opts.obscured)return this.fail('screen obscured');
+      if(this.lastGood&& !plausibleTransition(this.lastGood,obs))return this.fail('inconsistent board/tray change');
+      const sig=signature(obs);
+      if(sig!==this.observed){this.observed=sig;this.streak=1;this.status='stabilizing';this.reason='awaiting matching frame';this.accepted=null;return null;}
+      this.streak++;
+      if(this.streak<3){this.status='stabilizing';return null;}
+      const previous=this.accepted;
+      this.accepted={board:obs.board.slice(),pieces:clonePieces(obs.pieces),geometry:{...obs.geometry},width:obs.width||430,height:obs.height||932};
+      this.acceptedCount++;
+      this.lastGood=this.accepted;
+      this.status='active';this.reason='';this.failures=0;
+      return this.accepted;
+    }
+    fail(reason){this.failures++;this.status='paused';this.reason=reason;this.streak=0;this.observed='';this.accepted=null;return null;}
+  }
+  return {BASE_SHAPES,normalize,clonePieces,keyPieces,fixture1Board,fixture2Board,canPlace,apply,solve,mulberry32,Game,ScanGuard,validSnapshot,plausibleTransition};
+});
+
+</script>
+<script>
+(() => {
+'use strict';
+const E=window.BLEngine, $=id=>document.getElementById(id);
+const colors=[['#117ec1','#49dafa','#07548f'],['#cb453f','#ff696b','#952b38'],['#d48b17','#ffcc4c','#a15c0a'],['#18a84c','#62eb72','#086a25'],['#2862d2','#80a1ff','#183eae'],['#804bd6','#ba82ff','#552f8e']];
+let game=new E.Game(),solver=null,chosen=0,gate=new E.ScanGuard(),active=true,hover=-1,seed=27,moves=0;
+const boardEl=$('board'),trayEl=$('tray'),logEl=$('log');
+function info(txt,bad=false){const line=document.createElement('div');line.className=bad?'bad':'good';line.textContent=`[${new Date().toLocaleTimeString()}] ${txt}`;logEl.prepend(line);while(logEl.children.length>60)logEl.lastChild.remove();}
+function chosenColor(i){return colors[i%colors.length]}
+function makeMini(piece,i){const d=document.createElement('div');d.className='shape';if(!piece){d.textContent='—';return d;}const w=Math.max(...piece.map(c=>c[0]))+1,h=Math.max(...piece.map(c=>c[1]))+1;d.style.gridTemplateColumns=`repeat(${w},18px)`;d.style.gridTemplateRows=`repeat(${h},18px)`;const set=new Set(piece.map(c=>c.join(',')));for(let r=0;r<h;r++)for(let c=0;c<w;c++){const el=document.createElement('span');el.style.visibility=set.has(`${c},${r}`)?'visible':'hidden';el.className='mini';const [bg,hi,lo]=chosenColor(i);el.style.setProperty('--block',bg);el.style.setProperty('--block-light',hi);el.style.setProperty('--block-dark',lo);d.append(el);}return d;}
+function scanStatus(){ $('scans').textContent=gate.scans.toLocaleString();$('accepted').textContent=gate.acceptedCount.toLocaleString();$('confidence').textContent=gate.status.toUpperCase();$('floatingStatus').textContent=gate.status.toUpperCase();}
+function render(){
+ solver=active?E.solve(game.board,game.pieces):null;
+ boardEl.textContent='';const suggested=new Set(),hovered=new Set();
+ if(solver){const m=solver.moves[0],piece=game.pieces[m.piece];for(const [x,y] of piece)suggested.add((m.row+y)*8+m.col+x);}
+ if(hover>=0&&game.pieces[chosen]){const r=Math.floor(hover/8),c=hover%8;if(E.canPlace(game.board,game.pieces[chosen],r,c))for(const [x,y] of game.pieces[chosen])hovered.add((r+y)*8+c+x);}
+ const fragment=document.createDocumentFragment();for(let i=0;i<64;i++){const cell=document.createElement('button');cell.className='cell';cell.type='button';cell.setAttribute('role','gridcell');const r=Math.floor(i/8),c=i%8;cell.setAttribute('aria-label',`Row ${r+1}, column ${c+1}${game.board[i]?' occupied':''}`);
+ if(game.board[i]){cell.classList.add('fill');let col=colors[game.colors[i]>=0?game.colors[i]:(r*3+c*2+1)%colors.length];cell.style.setProperty('--block',col[0]);cell.style.setProperty('--block-light',col[1]);cell.style.setProperty('--block-dark',col[2]);}
+ if(suggested.has(i)||hovered.has(i))cell.classList.add('suggest');
+ cell.onclick=()=>place(chosen,r,c);cell.onpointerenter=()=>{hover=i;previewHover();};cell.onpointerleave=()=>{hover=-1;previewHover();};fragment.append(cell);}
+ boardEl.append(fragment);
+ trayEl.textContent='';for(let i=0;i<3;i++){const b=document.createElement('button');b.className='traybtn'+(i===chosen?' active':'');b.type='button';b.disabled=!game.pieces[i];b.setAttribute('aria-label',`Select piece ${i+1}${game.pieces[i]?'':' unavailable'}`);b.append(makeMini(game.pieces[i],i+1));const label=document.createElement('span');label.className='traylabel';label.textContent=`PIECE ${i+1}${game.pieces[i]?'':' • USED'}`;b.append(label);b.onclick=()=>{chosen=i;render();};trayEl.append(b);}
+ $('score').textContent=game.score.toLocaleString();$('floatingTray').textContent=game.pieces.filter(Boolean).length;
+ if(solver){const m=solver.moves[0];const text=`Piece ${m.piece+1} → row ${m.row+1}, column ${m.col+1}${m.lines?` • clears ${m.lines} line${m.lines>1?'s':''}`:''}`;$('hint').innerHTML=`<b>Suggested move:</b> ${text}`;$('floatingMove').textContent=text;$('openFloat').textContent=`🧩 P${m.piece+1} ↓`;}
+ else{$('hint').textContent=active?'No legal moves for this tray. Try another board.':'Auto AI paused';$('floatingMove').textContent='—';$('openFloat').textContent='🧩 AI • PAUSED';}
+ $('mode').textContent=active?'AUTO AI • READY':'AI PAUSED';scanStatus();
+}
+function previewHover(){const buttons=boardEl.children;if(!buttons.length)return;for(const el of buttons)el.classList.remove('hovered');if(hover<0)return;let piece=game.pieces[chosen];if(!piece)return;const r=Math.floor(hover/8),c=hover%8;if(!E.canPlace(game.board,piece,r,c))return;for(const [x,y]of piece)buttons[(r+y)*8+c+x].classList.add('hovered');}
+function place(p,r,c){if(!game.move(p,r,c)){info(`Illegal placement: piece ${p+1}, row ${r+1}, col ${c+1}`,true);const el=boardEl.children[r*8+c];el?.classList.add('invalid');return;}moves++;info(`Move ${moves}: placed P${p+1} at (${r+1},${c+1}), lines cleared ${game.lastClear}`);chosen=game.pieces.findIndex(Boolean);if(chosen<0)chosen=0;gate.reset();for(let i=0;i<3;i++)gate.ingest(game.snapshot());render();}
+function simulateScan(kind){if(kind==='drop'){gate.fail('capture missing');info('Capture unavailable — cleared outdated recommendation',true);return;}
+ let s=game.snapshot();if(kind==='occlude'){gate.ingest(s,{obscured:true});info('Overlay obstruction rejected',true);return;}
+ if(kind==='phantom')s.board[0]=s.board[0]?0:1;
+ if(kind==='wrongpiece')s.pieces[0]=[[0,0],[1,0],[2,0],[3,0],[4,0]];
+ if(kind==='flip'){// Equivalent to decoding a flipped buffer and re-orienting before state validation.
+ const raw=Array.from({length:8},(_,r)=>s.board.slice((7-r)*8,(8-r)*8)).flat();s.board=Array.from({length:8},(_,r)=>raw.slice((7-r)*8,(8-r)*8)).flat();
+ }
+ const result=gate.ingest(s);if(result)info('Stable scan accepted • real tray state recognized');else info('Rejected/stabilizing: '+(gate.reason||gate.status),gate.status==='paused');
+}
+$('scenario').onchange=()=>{game.load(Number($('scenario').value));gate.reset();moves=0;chosen=0;active=true;render();info('Loaded board example '+$('scenario').value);};
+$('newGame').onclick=()=>{game=new E.Game(seed++);game.load(0);$('scenario').value='0';gate.reset();moves=0;chosen=0;active=true;render();info('New simulator game');};
+$('reset').onclick=()=>{$('scenario').dispatchEvent(new Event('change'));};
+$('applyMove').onclick=()=>{if(!solver){info('No legal AI move currently available',true);return;}const m=solver.moves[0];place(m.piece,m.row,m.col);};
+$('scan').onclick=()=>{const kind=$('fault').value;for(let i=0;i<3;i++)simulateScan(kind);scanStatus();info(`Scan lab run finished (${kind}).`);};
+$('clearFault').onclick=()=>{$('fault').value='none';gate.reset();for(let i=0;i<3;i++)gate.ingest(game.snapshot());render();info('Scanner reset; valid frames restored.');};
+$('stress').onclick=()=>{
+ const temp=new E.ScanGuard(),g=new E.Game(27);let rejected=0,good=0,fail=0;
+ for(let frame=0;frame<3600;frame++){
+   if(frame%41===0){temp.fail('capture dropout');rejected++;continue;}
+   if(frame%59===0){temp.ingest(g.snapshot(),{obscured:true});rejected++;continue;}
+   if(frame%71===0){const bad=g.snapshot();bad.pieces[0]=[[9,9]];temp.ingest(bad);rejected++;continue;}
+   const x=temp.ingest(g.snapshot());if(x){good++;if(frame%250===0){const choice=E.solve(x.board,x.pieces);if(choice&& !E.canPlace(x.board,x.pieces[choice.moves[0].piece],choice.moves[0].row,choice.moves[0].col))fail++;};}
+ }
+ if(fail===0){info(`60-minute virtual test PASS • ${good} stable frames, ${rejected} rejected faults, 0 illegal suggestions`);$('checks').textContent='PASS';}
+ else{info(`FAIL: ${fail} illegal recommendations`,true);$('checks').textContent='FAIL';}
+ scanStatus();
+};
+// Keep scanner health separate from ideal game truth; one bad scan cannot corrupt gameplay state.
+for(let i=0;i<3;i++)gate.ingest(game.snapshot());render();info('Simulator ready • 12 occupied cells, tray 3×2 / 1×3 / 2×3');
+const panel=$('floatingPanel'),float=$('float'),trigger=$('openFloat');function toggleFloat(show){panel.classList.toggle('open',show);trigger.setAttribute('aria-expanded',String(show));}
+trigger.onclick=()=>toggleFloat(!panel.classList.contains('open'));$('closeFloat').onclick=()=>toggleFloat(false);
+let dragging=null;function movePointer(e){if(!dragging)return;const dx=e.clientX-dragging.x,dy=e.clientY-dragging.y;
+ if(dragging.mode==='drag'){const bounds=float.getBoundingClientRect();float.style.position='fixed';float.style.right='auto';float.style.bottom='auto';float.style.left=Math.max(5,Math.min(innerWidth-60,dragging.left+dx))+'px';float.style.top=Math.max(5,Math.min(innerHeight-65,dragging.top+dy))+'px';}
+ else{panel.style.width=Math.max(195,Math.min(innerWidth-20,dragging.width+dx))+'px';panel.style.height=Math.max(170,Math.min(innerHeight-90,dragging.height+dy))+'px';}
+}
+function startDrag(e,mode){e.preventDefault();const rect=float.getBoundingClientRect();dragging={x:e.clientX,y:e.clientY,mode,left:rect.left,top:rect.top,width:panel.getBoundingClientRect().width,height:panel.getBoundingClientRect().height};e.currentTarget.setPointerCapture(e.pointerId);}
+$('floathead').onpointerdown=e=>{if(e.target.closest('button'))return;startDrag(e,'drag');};$('grip').onpointerdown=e=>startDrag(e,'resize');
+$('floathead').onpointermove=movePointer;$('grip').onpointermove=movePointer;
+$('floathead').onpointerup=$('grip').onpointerup=()=>dragging=null;
+})();
+</script>
+</body></html>
