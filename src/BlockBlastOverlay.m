@@ -514,11 +514,11 @@ static const CGFloat kPiecePitch=19.0;
                fabs(last.x-self->_gridLast.x)>pitchX*.35 ||
                fabs(last.y-self->_gridLast.y)>pitchY*.35) goodGeom=NO;
         }
-        if(!goodGeom || (self->_solvedAutoHash!=0 && sameTray && !sameBoard)) {
+        if(!goodGeom || (self->_solvedAutoHash!=0 && (sameTray != sameBoard))) {
             self->_stableAutoFrames=0;
             self->_showGuides=NO;
             [self refreshGuides];
-            self->_status.text=goodGeom?@"Untrusted scan: board changed but tray did not. Waiting for valid state.":@"Untrusted scan: board geometry moved. Waiting for valid state.";
+            self->_status.text=goodGeom?@"Untrusted scan: board and tray changes disagree. Waiting for stable game data.":@"Untrusted scan: board geometry moved. Waiting for valid state.";
             [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
             return;
         }
