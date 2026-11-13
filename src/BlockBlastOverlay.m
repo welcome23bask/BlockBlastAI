@@ -1,5 +1,7 @@
-// BlockBlastAI v0.1 — an experimental, in-app, manually entered Block Blast solver overlay.
-// Built only with public UIKit APIs. No automated screen reading, touch automation, or game hooks.
+// BlockBlastAI v0.8 — experimental in-app Block Blast move-suggestion overlay.
+// Public UIKit/ReplayKit APIs only. Reads the screen to suggest moves; never touches or places pieces.
+// v0.8: stale-frame protection. Every detection must come from a fresh captured frame; capture
+// stalls/restarts clear the board, tray, solution, highlight and confirmation buffer.
 // Designed for injection into a compatible, properly signed iPhone app by its owner.
 #import <UIKit/UIKit.h>
 #import <Foundation/Foundation.h>
@@ -13,6 +15,24 @@ static UIColor *BLColor(CGFloat r, CGFloat g, CGFloat b) {
 }
 static const CGFloat kBoardPitch=30.0;
 static const CGFloat kPiecePitch=19.0;
+static const CFTimeInterval kStaleAfter=3.0;   // no fresh frame for this long => clear everything
+static const NSInteger kFrozenLimit=4;         // identical hashes despite a forced pixel change
+// Lightweight frame identity: FNV hash of a 24x52 downsample of the captured frame.
+static uint64_t BLFrameHash(UIImage *image) {
+    if(!image.CGImage) return 0;
+    enum {W=24,H=52};
+    uint8_t px[W*H*4]; memset(px,0,sizeof(px));
+    CGColorSpaceRef cs=CGColorSpaceCreateDeviceRGB();
+    CGContextRef ctx=CGBitmapContextCreate(px,W,H,8,W*4,cs,kCGImageAlphaPremultipliedLast|kCGBitmapByteOrder32Big);
+    CGColorSpaceRelease(cs);
+    if(!ctx) return 0;
+    CGContextSetInterpolationQuality(ctx,kCGInterpolationMedium);
+    CGContextDrawImage(ctx,CGRectMake(0,0,W,H),image.CGImage);
+    CGContextRelease(ctx);
+    uint64_t h=UINT64_C(1469598103934665603);
+    for(int i=0;i<W*H*4;++i) h=(h^(uint64_t)(px[i]>>2))*UINT64_C(1099511628211);
+    return h?h:1;
+}
 
 @interface BLPassThroughWindow : UIWindow
 @end
@@ -57,6 +77,13 @@ static const CGFloat kPiecePitch=19.0;
     uint64_t _observedAutoHash, _solvedAutoHash;
     NSTimer *_autoTimer;
     UIButton *_autoButton;
+    UILabel *_autoLabel;
+    UIView *_nudgeStrip;      // 2pt strip flashed for one frame so a quiet screen still yields a new frame
+    BOOL _nudgeOn;
+    unsigned long _lastFrameCounter, _lastRestartCount;
+    CFAbsoluteTime _lastFreshAt;
+    uint64_t _lastFrameHash;
+    NSInteger _frozenRepeats;
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -131,7 +158,7 @@ static const CGFloat kPiecePitch=19.0;
     title.font=[UIFont boldSystemFontOfSize:16];
     UIButton *close=[self roundedButton:@"×" frame:CGRectMake(_panelWidth-41,10,29,28) action:@selector(togglePanel)];
     [_contentView addSubview:close];
-    [self addLabel:@"AUTO: Board + pieces detected automatically (manual fallback below)" y:42 height:22 font:12];
+    _autoLabel=[self addLabel:@"AUTO: Board + pieces detected automatically (manual fallback below)" y:42 height:22 font:12];
 
     CGFloat x0=(_panelWidth-8*kBoardPitch)/2;
     for (int r=0;r<8;++r) for (int c=0;c<8;++c) {
@@ -180,7 +207,7 @@ static const CGFloat kPiecePitch=19.0;
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v0.4: Starting automatic board and piece detection…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v0.8: Starting automatic board and piece detection…" y:638 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
@@ -212,6 +239,11 @@ static const CGFloat kPiecePitch=19.0;
     _guideLayer.userInteractionEnabled=NO;
     _guideLayer.backgroundColor=UIColor.clearColor;
     [self.view insertSubview:_guideLayer belowSubview:_bubble];
+    _nudgeStrip=[[UIView alloc] initWithFrame:CGRectMake(0,0,width,2)];
+    _nudgeStrip.userInteractionEnabled=NO;
+    _nudgeStrip.hidden=YES;
+    _nudgeStrip.autoresizingMask=UIViewAutoresizingFlexibleWidth;
+    [self.view addSubview:_nudgeStrip];
     _calibrationLayer=[[UIView alloc] initWithFrame:self.view.bounds];
     _calibrationLayer.backgroundColor=[UIColor colorWithWhite:0 alpha:.06];
     _calibrationLayer.hidden=YES;
@@ -421,16 +453,39 @@ static const CGFloat kPiecePitch=19.0;
 - (void)startAutomatic {
     if(_autoTimer) return;
     _autoEnabled=YES;
-    _autoTimer=[NSTimer scheduledTimerWithTimeInterval:1.8
+    _lastRestartCount=BLCaptureRestartCount();
+    _lastFrameCounter=BLCaptureFrameCounter();
+    _autoTimer=[NSTimer scheduledTimerWithTimeInterval:1.2
         target:self selector:@selector(autoTick) userInfo:nil repeats:YES];
     [self autoTick];
+}
+// Drop EVERYTHING derived from earlier frames: board, tray, solution, highlight,
+// confirmation buffer and the "last solved" cache. Called on any error, restart,
+// uncertain vision result or stale frame so old answers are never repainted.
+- (void)invalidateDetection:(NSString *)reason bubble:(NSString *)bubbleTitle {
+    _previewing=NO;
+    _showGuides=NO;
+    _previewIndex=0;
+    memset(&_solution,0,sizeof(_solution));
+    memset(_normalizedPieces,0,sizeof(_normalizedPieces));
+    memset(_pieces,0,sizeof(_pieces));
+    memset(_board,0,sizeof(_board));
+    _stableAutoFrames=0;
+    _observedAutoHash=0;
+    _solvedAutoHash=0;
+    _moveLabel.text=@"";
+    if(reason) _status.text=reason;
+    if(bubbleTitle) [_bubble setTitle:bubbleTitle forState:UIControlStateNormal];
+    [self refreshTiles];
+    [self refreshGuides];
 }
 - (void)toggleAutomatic {
     _autoEnabled=!_autoEnabled;
     _stableAutoFrames=0;
     if(!_autoEnabled) BLStopScreenCapture();
-    else _autoRetryAfter=0;
+    else { _autoRetryAfter=0; [self invalidateDetection:nil bubble:@"AI …"]; }
     _autoErrors=0;
+    _frozenRepeats=0;
     NSString *title=_autoEnabled?@"⚡ AUTO SCAN: ON (tap to pause)":@"⚡ AUTO SCAN: PAUSED (tap to resume)";
     [_autoButton setTitle:title forState:UIControlStateNormal];
     _autoButton.backgroundColor=_autoEnabled?BLColor(14,118,110):BLColor(91,81,70);
@@ -444,6 +499,18 @@ static const CGFloat kPiecePitch=19.0;
     if(!_autoEnabled || _autoBusy || !_panel.hidden || !_calibrationLayer.hidden) return;
     if(_autoRetryAfter>0 && CFAbsoluteTimeGetCurrent()<_autoRetryAfter) return;
     if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) return;
+    // 1. Capture was restarted since the last frame we trusted: forget everything.
+    unsigned long restarts=BLCaptureRestartCount();
+    if(restarts!=_lastRestartCount) {
+        _lastRestartCount=restarts;
+        _frozenRepeats=0;
+        [self invalidateDetection:@"Reconnecting… capture restarted. Waiting for fresh frame." bubble:@"AI …"];
+    }
+    // 2. Nothing fresh for too long (app was backgrounded, panel was open, etc.).
+    if((_previewing||_showGuides) && _lastFreshAt>0 &&
+       CFAbsoluteTimeGetCurrent()-_lastFreshAt>kStaleAfter) {
+        [self invalidateDetection:@"AI paused — no fresh frame. Waiting for fresh frame." bubble:@"AI …"];
+    }
     _autoBusy=YES;
     // Prevent captured AI text, buttons, and colored outlines from being
     // misidentified as Block Blast pieces. Restore after one video frame.
@@ -456,7 +523,15 @@ static const CGFloat kPiecePitch=19.0;
           [self refreshGuides];
           return;
       }
+      // ReplayKit only emits a frame when pixels change. Register the request FIRST
+      // and then flash a 2pt strip in the same run-loop turn, so a quiet screen
+      // still produces a frame that is guaranteed to be newer than this request.
+      self->_nudgeOn=!self->_nudgeOn;
+      self->_nudgeStrip.backgroundColor=self->_nudgeOn?[UIColor colorWithWhite:0 alpha:.5]
+                                                      :[UIColor colorWithWhite:1 alpha:.5];
+      self->_nudgeStrip.hidden=NO;
       BLCaptureScreen(^(UIImage *image,NSError *error) {
+        self->_nudgeStrip.hidden=YES;
         self->_autoBusy=NO;
         self->_bubble.hidden=NO;
         if(!self->_autoEnabled || !self->_panel.hidden) {
@@ -464,30 +539,52 @@ static const CGFloat kPiecePitch=19.0;
             return;
         }
         if(!image || error) {
-            self->_showGuides=NO;
-            [self refreshGuides];
             self->_autoErrors++;
+            [self invalidateDetection:[NSString stringWithFormat:@"AI paused — %@ Reconnecting…",
+                                       error.localizedDescription?:@"no fresh frame."]
+                               bubble:@"AI …"];
             if(self->_autoErrors>=3) {
                 self->_autoErrors=0;
-                self->_stableAutoFrames=0;
-                self->_autoRetryAfter=CFAbsoluteTimeGetCurrent()+9.0;
-                BLStopScreenCapture();
-                self->_status.text=[NSString stringWithFormat:@"Capture interrupted: %@. Auto-retrying shortly.",
+                self->_autoRetryAfter=CFAbsoluteTimeGetCurrent()+3.0;
+                BLStopScreenCapture(); // full stop; next request starts a clean stream
+                self->_status.text=[NSString stringWithFormat:@"Capture interrupted: %@. Restarting capture.",
                                    error.localizedDescription?:@"ReplayKit interrupted"];
-                [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
             }
             return;
         }
+        // 3. Frame identity: this must be a NEW frame from a stream that was not restarted.
+        unsigned long counter=BLCaptureFrameCounter();
+        unsigned long restartsNow=BLCaptureRestartCount();
+        if(restartsNow!=self->_lastRestartCount) {
+            self->_lastRestartCount=restartsNow;
+            [self invalidateDetection:@"Reconnecting… capture restarted. Waiting for fresh frame." bubble:@"AI …"];
+            return;
+        }
+        if(counter==self->_lastFrameCounter) {
+            [self invalidateDetection:@"AI paused — waiting for fresh frame." bubble:@"AI …"];
+            return;
+        }
+        self->_lastFrameCounter=counter;
+        uint64_t frameHash=BLFrameHash(image);
+        if(frameHash==self->_lastFrameHash) self->_frozenRepeats++;
+        else {self->_lastFrameHash=frameHash; self->_frozenRepeats=0;}
+        if(self->_frozenRepeats>=kFrozenLimit) {
+            // The strip flips black/white every tick, so identical hashes mean the
+            // frames are not really changing: treat the stream as frozen.
+            self->_frozenRepeats=0;
+            self->_autoRetryAfter=CFAbsoluteTimeGetCurrent()+1.5;
+            [self invalidateDetection:@"AI paused — video frames frozen. Reconnecting…" bubble:@"AI …"];
+            BLStopScreenCapture();
+            return;
+        }
+        self->_lastFreshAt=CFAbsoluteTimeGetCurrent();
         BOOL board[64]={0};
         BLPiece tray[3]={0};
         CGPoint first=CGPointZero,last=CGPointZero;
         NSString *info=nil;
         if(!BLAutoDetect(image,self.view.bounds.size,board,tray,&first,&last,&info)) {
-            self->_stableAutoFrames=0;
-            self->_showGuides=NO;
-            [self refreshGuides];
-            self->_status.text=info?:@"Auto detection needs a clear screen.";
-            [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
+            // Vision is uncertain: pause the highlight and DROP the old board.
+            [self invalidateDetection:info?:@"AI paused — auto detection needs a clear screen." bubble:@"AI …"];
             return;
         }
         self->_autoErrors=0;
@@ -516,16 +613,9 @@ static const CGFloat kPiecePitch=19.0;
         }
         BOOL transitional=(self->_solvedAutoHash!=0 && (sameTray != sameBoard));
         if(!goodGeom) {
-            self->_stableAutoFrames=0;
-            self->_showGuides=NO;
-            [self refreshGuides];
-            self->_status.text=@"Board coordinates changed unexpectedly. Waiting for a stable capture.";
-            [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
+            [self invalidateDetection:@"AI paused — board coordinates changed unexpectedly. Waiting for a stable capture." bubble:@"AI …"];
             return;
         }
-        // A board and tray can update on different frames. Previously this
-        // returned before the stability gate, making recovery impossible.
-        // Require extra identical observations rather than permanently freezing.
         self->_calibrated=YES;
         self->_gridFirst=first;
         self->_gridLast=last;
@@ -539,6 +629,8 @@ static const CGFloat kPiecePitch=19.0;
                 signature=(signature^(uint64_t)tray[p].y[i])*UINT64_C(1099511628211);
             }
         }
+        // 3-matching-FRESH-frames gate: each increment below comes from a frame
+        // that passed the freshness checks above; invalidateDetection resets it.
         if(signature==self->_observedAutoHash) self->_stableAutoFrames++;
         else {
             self->_observedAutoHash=signature;
@@ -581,9 +673,8 @@ static const CGFloat kPiecePitch=19.0;
                 [self refreshGuides];
             }
         } else {
-            // A temporary loss of confidence clears _showGuides; when the
-            // original valid state returns, restore it even if the hash is
-            // unchanged. This fixes permanently missing highlights.
+            // Same confirmed state seen again on a fresh frame. Any failure in between
+            // would have cleared _previewing, so this can no longer repaint an old answer.
             self->_showGuides=self->_previewing;
             if(self->_previewing && self->_solution.movesFound>0) {
                 BLMove move=self->_solution.moves[self->_previewIndex];
@@ -600,6 +691,19 @@ static const CGFloat kPiecePitch=19.0;
     _panel.hidden=!_panel.hidden;
     if(!_panel.hidden && _showCalibrationGrid) {
         _showCalibrationGrid=NO; [self refreshGuides];
+    }
+    if(!_panel.hidden && _autoEnabled) {
+        // Auto scan cannot run while the panel covers the tray, so whatever is drawn
+        // here may already be out of date (e.g. after you played the suggested move).
+        _showGuides=NO; [self refreshGuides];
+        _autoLabel.text=@"⏸ AUTO paused while panel is open — board below may be OUT OF DATE";
+    } else if(_panel.hidden) {
+        _autoLabel.text=@"AUTO: Board + pieces detected automatically (manual fallback below)";
+        if(_autoEnabled) {
+            // Resuming: never reuse what was shown before; require fresh confirmed frames.
+            _autoRetryAfter=0;
+            [self invalidateDetection:@"Waiting for fresh frame…" bubble:@"AI …"];
+        }
     }
 }
 - (void)dragBubble:(UIPanGestureRecognizer *)recognizer {
