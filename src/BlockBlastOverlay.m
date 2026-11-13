@@ -51,6 +51,11 @@ static const CGFloat kPiecePitch=19.0;
     int _previewIndex;
     BOOL _previewing;
     CGFloat _panelWidth;
+    BOOL _autoEnabled, _autoBusy;
+    NSInteger _autoErrors, _stableAutoFrames;
+    uint64_t _observedAutoHash, _solvedAutoHash;
+    NSTimer *_autoTimer;
+    UIButton *_autoButton;
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -125,7 +130,7 @@ static const CGFloat kPiecePitch=19.0;
     title.font=[UIFont boldSystemFontOfSize:16];
     UIButton *close=[self roundedButton:@"×" frame:CGRectMake(_panelWidth-41,10,29,28) action:@selector(togglePanel)];
     [_contentView addSubview:close];
-    [self addLabel:@"Tap each occupied square on your 8×8 board" y:42 height:22 font:12];
+    [self addLabel:@"AUTO: Board + pieces detected automatically (manual fallback below)" y:42 height:22 font:12];
 
     CGFloat x0=(_panelWidth-8*kBoardPitch)/2;
     for (int r=0;r<8;++r) for (int c=0;c<8;++c) {
@@ -142,7 +147,7 @@ static const CGFloat kPiecePitch=19.0;
     [_contentView addSubview:edit];
     UIButton *clearAll=[self roundedButton:@"Reset all" frame:CGRectMake(235,315,_panelWidth-247,30) action:@selector(clearAll)];
     [_contentView addSubview:clearAll];
-    [self addLabel:@"Draw the 3 pieces in their current orientation:" y:357 height:19 font:12];
+    [self addLabel:@"Automatically recognized tray pieces (editable if paused):" y:357 height:19 font:12];
 
     CGFloat pieceGridWidth=5*kPiecePitch;
     CGFloat pieceGap=(_panelWidth-3*pieceGridWidth)/4;
@@ -171,16 +176,16 @@ static const CGFloat kPiecePitch=19.0;
     UIButton *scan=[self roundedButton:@"📷 Scan board" frame:CGRectMake(125,555,106,33) action:@selector(scanBoard)];
     UIButton *guide=[self roundedButton:@"🎯 On game" frame:CGRectMake(238,555,_panelWidth-250,33) action:@selector(showOnGame)];
     [_contentView addSubview:calibrate]; [_contentView addSubview:scan]; [_contentView addSubview:guide];
-    UIButton *check=[self roundedButton:@"🧭 Check board alignment (show grid)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(checkCalibration)];
-    check.backgroundColor=BLColor(32,79,112);
-    [_contentView addSubview:check];
-    _status=[self addLabel:@"v0.3: First verify board alignment, then scan." y:638 height:48 font:12];
+    _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
+    _autoButton.backgroundColor=BLColor(14,118,110);
+    [_contentView addSubview:_autoButton];
+    _status=[self addLabel:@"v0.4: Starting automatic board and piece detection…" y:638 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,756,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"If grid overlay doesn't sit exactly on 8×8 board, recalibrate. Scanning is experimental." y:805 height:47 font:10];
+    _info=[self addLabel:@"LIVE AUTO detects the board and tray pieces and highlights the suggested placement. Beta: verify first moves." y:805 height:47 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -228,6 +233,11 @@ static const CGFloat kPiecePitch=19.0;
     }
     [self layoutPanel];
     [self refreshTiles];
+    _autoEnabled=YES;
+    _showGuides=NO;
+    // Auto starts without taps after the host game settles; permission may be
+    // requested by iOS on first ReplayKit use.
+    [self performSelector:@selector(startAutomatic) withObject:nil afterDelay:2.0];
 }
 
 #pragma mark - Resizable, movable panel
@@ -266,6 +276,8 @@ static const CGFloat kPiecePitch=19.0;
 }
 #pragma mark - One-time board geometry calibration
 - (void)startCalibration {
+    _autoEnabled=NO;
+    [_autoButton setTitle:@"⚡ AUTO SCAN: PAUSED (tap to resume)" forState:UIControlStateNormal];
     _showCalibrationGrid=NO;
     _panel.hidden=YES;
     _bubble.hidden=YES;
@@ -393,7 +405,8 @@ static const CGFloat kPiecePitch=19.0;
         CGFloat x=_gridFirst.x+dx*(move.col+piece.x[i]);
         CGFloat y=_gridFirst.y+dy*(move.row+piece.y[i]);
         UIView *tile=[[UIView alloc] initWithFrame:CGRectMake(x-dx*.44,y-dy*.44,dx*.88,dy*.88)];
-        tile.backgroundColor=[UIColor colorWithRed:1 green:.71 blue:.17 alpha:.34];
+        // Border only: leave sampled cell centers untouched for automatic recognition.
+        tile.backgroundColor=UIColor.clearColor;
         tile.layer.borderWidth=2.2;
         tile.layer.borderColor=UIColor.yellowColor.CGColor;
         tile.layer.cornerRadius=4;
@@ -402,7 +415,117 @@ static const CGFloat kPiecePitch=19.0;
     }
 }
 
-- (void)togglePanel { _panel.hidden=!_panel.hidden; if(!_panel.hidden && _showCalibrationGrid){ _showCalibrationGrid=NO; [self refreshGuides]; } }
+
+#pragma mark - Fully automatic recognition & live placement overlay
+- (void)startAutomatic {
+    if(_autoTimer) return;
+    _autoEnabled=YES;
+    _autoTimer=[NSTimer scheduledTimerWithTimeInterval:1.8
+        target:self selector:@selector(autoTick) userInfo:nil repeats:YES];
+    [self autoTick];
+}
+- (void)toggleAutomatic {
+    _autoEnabled=!_autoEnabled;
+    _stableAutoFrames=0;
+    _autoErrors=0;
+    NSString *title=_autoEnabled?@"⚡ AUTO SCAN: ON (tap to pause)":@"⚡ AUTO SCAN: PAUSED (tap to resume)";
+    [_autoButton setTitle:title forState:UIControlStateNormal];
+    _autoButton.backgroundColor=_autoEnabled?BLColor(14,118,110):BLColor(91,81,70);
+    _status.text=_autoEnabled?@"Auto scanning resumes when you close this panel.":@"Auto paused. Manual grid editing is available.";
+    if(!_autoEnabled) {
+        _showGuides=NO;
+        [self refreshGuides];
+    }
+}
+- (void)autoTick {
+    if(!_autoEnabled || _autoBusy || !_panel.hidden || !_calibrationLayer.hidden) return;
+    if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) return;
+    _autoBusy=YES;
+    BLCaptureScreen(^(UIImage *image,NSError *error) {
+        self->_autoBusy=NO;
+        if(!self->_autoEnabled || !self->_panel.hidden) return;
+        if(!image || error) {
+            self->_autoErrors++;
+            if(self->_autoErrors>=3) {
+                self->_autoEnabled=NO;
+                self->_status.text=[NSString stringWithFormat:@"Automatic capture unavailable: %@. Open AI to retry.",
+                                    error.localizedDescription?:@"ReplayKit unavailable"];
+                [self->_autoButton setTitle:@"⚡ AUTO OFF (tap to retry)" forState:UIControlStateNormal];
+                [self->_bubble setTitle:@"AI !" forState:UIControlStateNormal];
+            }
+            return;
+        }
+        BOOL board[64]={0};
+        BLPiece tray[3]={0};
+        CGPoint first=CGPointZero,last=CGPointZero;
+        NSString *info=nil;
+        if(!BLAutoDetect(image,self.view.bounds.size,board,tray,&first,&last,&info)) {
+            self->_stableAutoFrames=0;
+            self->_status.text=info?:@"Auto detection needs a clear screen.";
+            return;
+        }
+        self->_autoErrors=0;
+        self->_calibrated=YES;
+        self->_gridFirst=first;
+        self->_gridLast=last;
+        self->_showCalibrationGrid=NO;
+        uint64_t signature=UINT64_C(1469598103934665603);
+        for(int i=0;i<64;++i) signature=(signature^(uint64_t)board[i])*UINT64_C(1099511628211);
+        for(int p=0;p<3;++p) {
+            signature=(signature^(uint64_t)tray[p].count)*UINT64_C(1099511628211);
+            for(int i=0;i<tray[p].count;++i) {
+                signature=(signature^(uint64_t)tray[p].x[i])*UINT64_C(1099511628211);
+                signature=(signature^(uint64_t)tray[p].y[i])*UINT64_C(1099511628211);
+            }
+        }
+        if(signature==self->_observedAutoHash) self->_stableAutoFrames++;
+        else {self->_observedAutoHash=signature;self->_stableAutoFrames=1;}
+        if(self->_stableAutoFrames<2) {
+            [self refreshGuides];
+            return;
+        }
+        if(signature!=self->_solvedAutoHash) {
+            self->_solvedAutoHash=signature;
+            memcpy(self->_board,board,sizeof(board));
+            memset(self->_pieces,0,sizeof(self->_pieces));
+            memcpy(self->_normalizedPieces,tray,sizeof(tray));
+            int visible=0;
+            for(int p=0;p<3;++p) {
+                visible+=tray[p].count>0;
+                for(int i=0;i<tray[p].count;++i) {
+                    int x=tray[p].x[i],y=tray[p].y[i];
+                    if(x>=0&&x<5&&y>=0&&y<5) self->_pieces[p][y*5+x]=YES;
+                }
+            }
+            self->_previewIndex=0;
+            self->_solution=BLSolve([self boardMask],tray);
+            self->_previewing=(self->_solution.movesFound>0);
+            self->_showGuides=self->_previewing;
+            self->_status.text=[NSString stringWithFormat:@"LIVE: %@ %d move(s) recommended.",
+                                info?:@"Board detected.",self->_solution.movesFound];
+            if(self->_previewing) {
+                [self showMove];
+                BLMove move=self->_solution.moves[0];
+                [self->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
+                               forState:UIControlStateNormal];
+            } else {
+                self->_moveLabel.text=visible?@"No legal placement found.":@"Waiting for tray pieces…";
+                [self->_bubble setTitle:@"🧩 AI" forState:UIControlStateNormal];
+                [self refreshTiles];
+                [self refreshGuides];
+            }
+        } else {
+            [self refreshGuides]; // Handles geometry changes and screen resizes.
+        }
+    });
+}
+
+- (void)togglePanel {
+    _panel.hidden=!_panel.hidden;
+    if(!_panel.hidden && _showCalibrationGrid) {
+        _showCalibrationGrid=NO; [self refreshGuides];
+    }
+}
 - (void)dragBubble:(UIPanGestureRecognizer *)recognizer {
     CGPoint delta=[recognizer translationInView:self.view];
     CGPoint center=_bubble.center;
