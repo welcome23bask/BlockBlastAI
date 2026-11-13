@@ -124,6 +124,12 @@ static void BLStartStream(void) {
             if(sRestartAfterStart || !sShouldRun) {
                 sRestartAfterStart=NO;
                 if(sStreamStarted) BLRecycleStream();
+                else if(sShouldRun) {
+                    // A watchdog restart requested during startup must also
+                    // recover if ReplayKit rejects the initial start.
+                    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(3*NSEC_PER_SEC)),
+                                   dispatch_get_main_queue(),^{BLStartStream();});
+                }
             } else if(error && sShouldRun) {
                 // Back off to avoid hammering ReplayKit permission errors.
                 dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(3*NSEC_PER_SEC)),
