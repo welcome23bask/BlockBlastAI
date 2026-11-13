@@ -5,6 +5,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'simulator/**'
       - '.github/workflows/build.yml'
 permissions:
   contents: write
@@ -21,6 +22,9 @@ jobs:
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_vision.c src/BLVisionCore.c -lm -o /tmp/blvision-test
           /tmp/blvision-test
+      - name: Test browser simulator core
+        run: |
+          node simulator/test.js
       - name: Compile ARM64 iOS tweak
         run: |
           mkdir -p dist
@@ -34,6 +38,7 @@ jobs:
             src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c src/BlockBlastSolver.c \
             -o dist/BlockBlastAI.dylib
           file dist/BlockBlastAI.dylib
+          cp simulator/index.html dist/BlockBlastAI_Simulator.html
       - name: Upload unsigned dylib
         uses: actions/upload-artifact@v4
         with:
@@ -44,7 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if ! gh release view v0.5 >/dev/null 2>&1; then
-            gh release create v0.5 --title "BlockBlastAI v0.5 (experimental)" --notes "Unsigned v0.5 beta: fixes vertically flipped board, corrects UI placement geometry, rejects sky false positives, screens out unreliable frames and keeps overlay out of captures. Regression-tested but not yet verified inside your iPhone installation. Keep v0.1 backup."
+          if ! gh release view v0.6 >/dev/null 2>&1; then
+            gh release create v0.6 --title "BlockBlastAI v0.6 (experimental)" --notes "Unsigned experimental v0.6 live overlay plus self-contained browser simulator. Persistent ReplayKit session prevents repeated start-stop races. Auto recovery and consistency checks reduce lost highlights and false tray pieces. Browser simulator tested with repeatable fault injection. On-device gameplay still requires verification."
           fi
-          gh release upload v0.5 dist/BlockBlastAI.dylib --clobber
+          gh release upload v0.6 dist/BlockBlastAI.dylib dist/BlockBlastAI_Simulator.html --clobber
