@@ -20,10 +20,15 @@
 // Strength can be changed when compiling controlled A/B tests; normal iPhone
 // builds use 100. Shape frequencies are unknown: avoid pretending otherwise.
 #define DEPTH_BONUS INT64_C(10000000)
+#ifndef BL_COMBO_BREAK_PENALTY
+#define BL_COMBO_BREAK_PENALTY 100000
+#endif
+// A verified active streak is only a preference among routes that can place
+// the current tray legally. The depth priority still beats combo points.
 
 typedef struct {
     uint64_t board;
-    unsigned char used,depth,comboRun,misses;
+    unsigned char used,depth,comboRun,misses,comboBroken,startedCombo;
     int totalLines,comboBonus;
     BLMove moves[3];
     int64_t score;
@@ -239,6 +244,8 @@ static void advance_state_combo(BLState *next,const BLState *prev,int lines) {
     combo=BLComboAdvance(combo,lines);
     next->comboRun=(unsigned char)combo.streak;
     next->misses=(unsigned char)combo.misses;
+    if(prev->startedCombo && prev->comboRun>0 && combo.streak==0)
+        next->comboBroken=1;
     if(lines>0) {
         // Bounded utility is not claimed to be the exact game's score formula.
         // Real score multipliers can be enormous; survival still takes priority.
@@ -267,13 +274,19 @@ static int64_t grade(const BLState *s,const BLPreparedPiece prep[3],
                      const BLPiece pieces[3]) {
     int used=pc64(s->board);
     int64_t comboValue=(int64_t)s->comboBonus*BL_COMBO_REWARD;
-    if(used>31)comboValue/=4; // crowded boards: survive before saving a streak
-    // When the three-move window is about to close, strongly favor a clear.
-    // This only applies to trusted combo states, propagated by callers.
-    int windowPressure=(s->comboRun>0 && s->misses==2 && used<28)?-1100:0;
+    // Do not automatically discard the player's streak on a crowded board.
+    // First compare complete legal three-piece plans: a protected combo that
+    // can survive is materially preferable to a gratuitously broken chain.
+    // If every legal plan must break the chain, this cost is unavoidable and
+    // the solver still falls back to prioritizing the board's survival.
+    int64_t breakCost=(s->startedCombo && s->comboBroken)
+        ?(int64_t)BL_COMBO_BREAK_PENALTY:0;
+    // Maintain a small warning when two non-clearing moves are spent.
+    // Do not subtract this from already-clearing candidates.
+    int windowPressure=(s->startedCombo && s->comboRun>0 && s->misses==2)?-1700:0;
     return (int64_t)s->depth*DEPTH_BONUS +
            (int64_t)s->totalLines*BL_LINE_REWARD +
-           comboValue + windowPressure +
+           comboValue + windowPressure - breakCost +
            board_quality(s->board) +
            future_options(s,prep,pieces);
 }
@@ -373,6 +386,7 @@ BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContex
         if(combo.misses<0||combo.misses>2)combo.misses=0;
         best.comboRun=(unsigned char)combo.streak;
         best.misses=(unsigned char)combo.misses;
+        best.startedCombo=(unsigned char)(combo.streak>0);
     }
     beam[0]=best;
     best.board=board;
@@ -426,6 +440,7 @@ BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContex
         if(combo.known) {
             root.comboRun=(unsigned char)combo.streak;
             root.misses=(unsigned char)combo.misses;
+            root.startedCombo=(unsigned char)(combo.streak>0);
         }
         rescue.bestScore=INT64_MIN;
         rescue_full_tray(root,total,prep,pieces,&rescue);
