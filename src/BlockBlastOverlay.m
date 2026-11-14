@@ -75,7 +75,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     unsigned long _lastFrameCounter, _lastRestartCount;
     CFAbsoluteTime _lastFreshAt;
     NSInteger _frozenRepeats;
-    BLComboContext _verifiedCombo; // never use guessed score or hidden game state
+    BLComboTracker _comboTracker; // independent verified board+tray anchor
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -202,7 +202,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
 #ifdef BL_SAFE_BASELINE_SOLVER
     _status=[self addLabel:@"PINK BLINK SAFE: original v1.1 AI + pink-theme detection…" y:638 height:48 font:12];
 #else
-    _status=[self addLabel:@"v1.3 PINK+COMBO experimental: blinking highlights…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v1.4 COMBO GUARD experimental: preserve legal streaks…" y:638 height:48 font:12];
 #endif
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
@@ -484,7 +484,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _stableAutoFrames=0;
     _observedAutoHash=0;
     _solvedAutoHash=0;
-    _verifiedCombo=(BLComboContext){0};
+    // Clear stale recommendations, not the independently confirmed streak.
+    // The next stable frame must prove continuity or reset the tracker.
     ++_solveGeneration;
     _moveLabel.text=@"";
     if(reason) _status.text=reason;
@@ -495,8 +496,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
 - (void)toggleAutomatic {
     _autoEnabled=!_autoEnabled;
     _stableAutoFrames=0;
-    if(!_autoEnabled) BLStopScreenCapture();
-    else { _autoRetryAfter=0; [self invalidateDetection:nil bubble:@"AI …"]; }
+    if(!_autoEnabled) {
+        BLStopScreenCapture();
+        BLComboTrackerReset(&_comboTracker);
+    } else { _autoRetryAfter=0; [self invalidateDetection:nil bubble:@"AI …"]; }
     _autoErrors=0;
     _frozenRepeats=0;
     NSString *title=_autoEnabled?@"⚡ AUTO SCAN: ON (tap to pause)":@"⚡ AUTO SCAN: PAUSED (tap to resume)";
@@ -517,6 +520,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     if(restarts!=_lastRestartCount) {
         _lastRestartCount=restarts;
         _frozenRepeats=0;
+        BLComboTrackerReset(&_comboTracker);
         [self invalidateDetection:@"Reconnecting… capture restarted. Waiting for fresh frame." bubble:@"AI …"];
     }
     // 2. Nothing fresh for too long (app was backgrounded, panel was open, etc.).
@@ -567,6 +571,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         unsigned long restartsNow=BLCaptureRestartCount();
         if(restartsNow!=self->_lastRestartCount) {
             self->_lastRestartCount=restartsNow;
+            BLComboTrackerReset(&self->_comboTracker);
             [self invalidateDetection:@"Reconnecting… capture restarted. Waiting for fresh frame." bubble:@"AI …"];
             return;
         }
@@ -667,25 +672,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             return;
         }
         if(signature!=self->_solvedAutoHash) {
-            if(self->_solvedAutoHash!=0 && (!sameBoard || !sameTray)) {
-                BLMove actuallyPlaced={0};
-                BOOL verified=BLInferObservedPlacement([self boardMask],
-                        self->_normalizedPieces,scannedBoard,tray,&actuallyPlaced);
-                if(verified) {
-                    // Never invent a streak from score pixels or an AI suggestion.
-                    self->_verifiedCombo=BLComboAdvance(
-                            self->_verifiedCombo,actuallyPlaced.linesCleared);
-                } else {
-                    int oldRemaining=0,newRemaining=0;
-                    for(int p=0;p<3;++p) {
-                        oldRemaining+=self->_normalizedPieces[p].count>0;
-                        newRemaining+=tray[p].count>0;
-                    }
-                    // A tray refill without board movement is not a move.
-                    BOOL trayOnly=(sameBoard && oldRemaining==0 && newRemaining==3);
-                    if(!trayOnly)self->_verifiedCombo=(BLComboContext){0};
-                }
-            }
+            // Observe only after stable, independently confirmed game frames.
+            // In contrast to v1.3, failed video reads do not silently wipe a
+            // genuine streak; illegal/multiple unseen moves or stale captures
+            // still invalidate it when a new board is confirmed.
+            BLComboTrackerObserve(&self->_comboTracker,scannedBoard,tray,
+                                  CFAbsoluteTimeGetCurrent());
             self->_solvedAutoHash=signature;
             memcpy(self->_board,board,sizeof(board));
             memset(self->_pieces,0,sizeof(self->_pieces));
@@ -710,7 +702,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             uint64_t generation=++self->_solveGeneration;
             uint64_t boardSnapshot=scannedBoard;
             BLTraySnapshot traySnapshot; memcpy(traySnapshot.values,tray,sizeof(traySnapshot.values));
-            BLComboContext comboSnapshot=self->_verifiedCombo;
+            BLComboContext comboSnapshot=self->_comboTracker.streak;
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
@@ -728,8 +720,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                     strongSelf->_solution=answer;
                     strongSelf->_previewing=(answer.movesFound>0);
                     strongSelf->_showGuides=strongSelf->_previewing;
-                    strongSelf->_status.text=[NSString stringWithFormat:@"FAST: %@ %d move(s) recommended.",
-                                              scanDetail?:@"Board detected.",answer.movesFound];
+                    NSString *comboInfo=comboSnapshot.known && comboSnapshot.streak>0
+                        ?[NSString stringWithFormat:@"Streak %d, clear within %d move(s).",
+                            comboSnapshot.streak,3-comboSnapshot.misses]
+                        :@"Combo not yet verified.";
+                    strongSelf->_status.text=[NSString stringWithFormat:
+                        @"%d move(s) ready. %@ %@",
+                        answer.movesFound,comboInfo,scanDetail?:@""];
                     if(strongSelf->_previewing) {
                         [strongSelf showMove];
                         BLMove move=answer.moves[0];
@@ -806,6 +803,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshTiles];
 }
 - (void)clearBoard {
+    BLComboTrackerReset(&_comboTracker);
     _previewing=NO; memset(_board,0,sizeof(_board));
     _showGuides=NO;
     [self refreshGuides];
@@ -814,6 +812,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshTiles];
 }
 - (void)clearAll {
+    BLComboTrackerReset(&_comboTracker);
     _previewing=NO;
     memset(_board,0,sizeof(_board));
     memset(_pieces,0,sizeof(_pieces));
@@ -824,6 +823,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshTiles];
 }
 - (void)editInputs {
+    BLComboTrackerReset(&_comboTracker);
     _previewing=NO;
     _showGuides=NO;
     [self refreshGuides];
@@ -860,6 +860,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     return YES;
 }
 - (void)solveBoard {
+    BLComboTrackerReset(&_comboTracker);
     _previewing=NO;
     _showGuides=NO;
     [self refreshGuides];
