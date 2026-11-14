@@ -1,4 +1,5 @@
 #include "BLTransition.h"
+#include <string.h>
 static int same_piece(const BLPiece *a,const BLPiece *b) {
     if(a->count!=b->count || a->count<0 || a->count>25)return 0;
     for(int i=0;i<a->count;++i)
@@ -92,4 +93,54 @@ int BLInferObservedPlacement(uint64_t oldBoard,const BLPiece oldTray[3],
     if(solutions!=1)return 0;
     *observed=candidate;
     return 1;
+}
+
+// Keep this recorder independent of overlay invalidations. A scan failure
+// removes the displayed hint immediately, but does not retroactively erase
+// an already observed clear. Reconciliation on the next *confirmed* frame
+// either proves continuity or discards stale streak confidence.
+void BLComboTrackerReset(BLComboTracker *t) {
+    if(t)memset(t,0,sizeof(*t));
+}
+static int same_tray(const BLPiece a[3],const BLPiece b[3]) {
+    for(int i=0;i<3;++i)if(!same_piece(&a[i],&b[i]))return 0;
+    return 1;
+}
+int BLComboTrackerObserve(BLComboTracker *t,uint64_t board,
+                          const BLPiece tray[3],double timestamp) {
+    if(!t||!tray)return 0;
+    int counted=0;
+    if(t->anchored) {
+        double gap=timestamp-t->observedAt;
+        int identical=(board==t->board && same_tray(t->tray,tray));
+        int beforePieces=0,afterPieces=0;
+        for(int p=0;p<3;++p) {
+            beforePieces+=t->tray[p].count>0;
+            afterPieces+=tray[p].count>0;
+        }
+        // Some frames show an empty tray before the next three appear;
+        // a refill on the SAME board is not a player action.
+        int refillOnly=(board==t->board && beforePieces==0 && afterPieces==3);
+        if(gap<0 || gap>4.0) {
+            t->streak=(BLComboContext){0};
+        } else if(identical || refillOnly) {
+            // Preserve verified history; do not add a fictitious placement.
+        } else {
+            BLMove actual={0};
+            if(gap<=1.75 &&
+               BLInferObservedPlacement(t->board,t->tray,board,tray,&actual)) {
+                t->streak=BLComboAdvance(t->streak,actual.linesCleared);
+                counted=1;
+            } else {
+                // Multiple unseen moves, tray inconsistency, user restart, etc.
+                // Do not infer a combo history from the displayed score.
+                t->streak=(BLComboContext){0};
+            }
+        }
+    }
+    t->board=board;
+    memcpy(t->tray,tray,3*sizeof(BLPiece));
+    t->observedAt=timestamp;
+    t->anchored=1;
+    return counted;
 }
