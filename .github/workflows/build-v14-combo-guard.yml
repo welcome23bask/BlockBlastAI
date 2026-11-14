@@ -4,6 +4,7 @@ on:
   push:
     branches: [feature/v1.4-combo-guard]
     paths:
+      - 'src/**'
       - '.github/workflows/build-v14-combo-guard.yml'
 jobs:
   build:
