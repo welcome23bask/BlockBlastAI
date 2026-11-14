@@ -158,7 +158,11 @@ static int test(int argc,char **argv){
     printf("TEN_X_VERDICT=%s\n",passed?"ALL HELDOUT GATES PASSED":"NOT REACHED - NO DEPLOY");
     return 0;
 }
+#ifdef BL_TENX_EMBEDDED
+int BLTenxLegacyMain(int argc,char **argv){
+#else
 int main(int argc,char **argv){
+#endif
     if(argc<2){fprintf(stderr,"Usage: %s train [rounds] [seeds] | "
             "test [games] [weights.txt] [withheld_epoch]\n",argv[0]);return 2;}
     if(strcmp(argv[1],"train")==0)return train(argc,argv);
