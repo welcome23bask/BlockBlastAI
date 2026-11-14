@@ -2,6 +2,8 @@ name: Build iPhone Block Blast AI Dylib
 on:
   workflow_dispatch:
   push:
+    branches-ignore:
+      - feature/v1.3-pink-combo-lab
     paths:
       - 'src/**'
       - 'tests/**'
