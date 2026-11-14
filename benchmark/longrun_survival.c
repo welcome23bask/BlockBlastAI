@@ -4,6 +4,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>
 #include "../src/BlockBlastSolver.h"
 
 BLSolution BLOldSolve(uint64_t board,const BLPiece pieces[3]);
@@ -114,10 +115,30 @@ int main(int argc,char **argv){
  Stats base=evaluate(BLOldSolve,games,offset,moves);
  fprintf(stderr,"Simulating candidate %d matching games\n",games);
  Stats cand=evaluate(BLSolve,games,offset,moves);
+ // Difference is paired by initial PRNG seed, before sorting either series.
+ // Models remain approximate and samples may have high variance.
+ double sumDelta=0,squares=0;int wins=0,losses=0;
+ for(int i=0;i<games;++i) {
+   double delta=(double)cand.gameSteps[i]-base.gameSteps[i];
+   sumDelta+=delta;squares+=delta*delta;
+   if(delta>0)++wins;else if(delta<0)++losses;
+ }
+ double meanDelta=sumDelta/games;
+ double variance=games>1?(squares-games*meanDelta*meanDelta)/(games-1):0;
+ if(variance<0)variance=0;
+ double margin=1.96*sqrt(variance/games);
  report("baseline",&base,games);report("candidate",&cand,games);
  double moveRatio=base.steps?100*((double)cand.steps/base.steps-1):0;
  double lineRatio=base.lines?100*((double)cand.lines/base.lines-1):0;
  printf("gain_moves_pct=%.2f gain_lines_pct=%.2f\n",moveRatio,lineRatio);
+ printf("paired_delta_moves=%.3f 95pct_interval=[%.3f,%.3f] improved_games=%d worsened_games=%d tied=%d\n",
+        meanDelta,meanDelta-margin,meanDelta+margin,wins,losses,games-wins-losses);
+ // The release gate is intentionally strict: mean difference's confidence
+ // bound must be positive and lower-tail performance cannot decline.
+ int trustworthy=(meanDelta-margin>0 &&
+                  cand.gameSteps[(games-1)/10]>=base.gameSteps[(games-1)/10] &&
+                  cand.illegal==0);
+ printf("experimental_survival_gate=%s\n",trustworthy?"PASS":"FAIL");
  // Report observations without gating the build. A short, stochastic A/B
  // experiment is not proof that a version will score 100M.
  printf("sample_comparison=%s (not a guaranteed game outcome)\n",
