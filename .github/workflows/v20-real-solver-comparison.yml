@@ -1,0 +1,30 @@
+name: v2.0 Unseen-Piece Head-to-Head vs Existing SMART SURVIVAL
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2-offline-learning-lab]
+    paths:
+      - 'learning/compare_v17.c'
+      - 'learning/models/candidate_combo_weights.json'
+      - '.github/workflows/v20-real-solver-comparison.yml'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile real v1.7 SMART SURVIVAL and offline learned model
+        run: |
+          cc -O3 -std=c11 -Wall -Wextra -Isrc learning/compare_v17.c \
+            src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/v2compare
+      - name: Validate both solvers on two unseen seeds each
+        run: |
+          mkdir -p learning/headtohead
+          /tmp/v2compare 2 2 learning/models/candidate_combo_weights.json | tee learning/headtohead/smoke.txt
+      - name: Paired evaluation with 24 fresh normal and 24 stress games
+        run: |
+          /tmp/v2compare 24 24 learning/models/candidate_combo_weights.json | tee learning/headtohead/comparison.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v20-v17-versus-trained-comparison
+          path: learning/headtohead/*.txt
