@@ -1,6 +1,9 @@
 // v2.2 Offline self-play: evolutionary tuning of the COMPLETE THREE-PIECE
 // SMART SURVIVAL search. Not an iPhone runtime module.
 #define MAXMOVES 1400
+#ifndef BL_TENX_NODE_BUDGET
+#define BL_TENX_NODE_BUDGET 180000
+#endif
 #define main legacy_training_main
 #include "learn_combo_guarded.c"
 #undef main
@@ -31,8 +34,8 @@ static Result episode_complete(uint32_t seed,int scenario,const int weight[4],in
         BLPiece shapes3[3];convert(g.p,shapes3);
         BLComboContext combo={.known=g.known,.streak=g.streak,.misses=g.misses};
         BLTwoStrategies all=original
-            ?BLV17FindTwoStrategies(g.b,shapes3,combo,180000)
-            :BLFindTwoStrategies(g.b,shapes3,combo,180000);
+            ?BLV17FindTwoStrategies(g.b,shapes3,combo,BL_TENX_NODE_BUDGET)
+            :BLFindTwoStrategies(g.b,shapes3,combo,BL_TENX_NODE_BUDGET);
         BLSolution plan=all.smartSurvival;
         if(!plan.movesFound)break;
         BLMove m=plan.moves[0];
