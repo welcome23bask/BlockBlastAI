@@ -19,3 +19,77 @@ int BLIsExpectedTransition(uint64_t oldBoard, const BLPiece oldTray[3],
         if(p!=used && !same_piece(&oldTray[p],&observedTray[p]))return 0;
     return 1;
 }
+
+static uint64_t apply_legal(uint64_t board,const BLPiece *piece,int row,int col,
+                            int *lines) {
+    uint64_t bits=0;
+    for(int k=0;k<piece->count;++k) {
+        int x=col+piece->x[k],y=row+piece->y[k];
+        if(x<0||x>=8||y<0||y>=8)return UINT64_MAX;
+        uint64_t bit=UINT64_C(1)<<(y*8+x);
+        if((board|bits)&bit)return UINT64_MAX;
+        bits|=bit;
+    }
+    uint64_t placed=board|bits,erase=0;
+    *lines=0;
+    for(int r=0;r<8;++r) {
+        uint64_t mask=UINT64_C(0xff)<<(r*8);
+        if((placed&mask)==mask) {erase|=mask;++*lines;}
+    }
+    for(int c=0;c<8;++c) {
+        uint64_t mask=UINT64_C(0x0101010101010101)<<c;
+        if((placed&mask)==mask) {erase|=mask;++*lines;}
+    }
+    return placed&~erase;
+}
+int BLInferObservedPlacement(uint64_t oldBoard,const BLPiece oldTray[3],
+                              uint64_t newBoard,const BLPiece newTray[3],
+                              BLMove *observed) {
+    if(!oldTray||!newTray||!observed)return 0;
+    int oldCount=0,newCount=0;
+    for(int p=0;p<3;++p) {
+        if(oldTray[p].count<0||oldTray[p].count>25 ||
+           newTray[p].count<0||newTray[p].count>25)return 0;
+        oldCount+=oldTray[p].count>0;
+        newCount+=newTray[p].count>0;
+    }
+    // When the last visible piece is placed, the game normally replaces
+    // all three tray slots. The exact board transition is still verifiable.
+    int replenished=(oldCount==1 && newCount==3);
+    int solutions=0;
+    BLMove candidate={0};
+    for(int p=0;p<3;++p) {
+        const BLPiece *piece=&oldTray[p];
+        if(piece->count<=0)continue;
+        int shapeOkay=replenished;
+        if(!replenished && newTray[p].count==0 &&
+           newCount==oldCount-1) {
+            shapeOkay=1;
+            for(int q=0;q<3;++q)
+                if(q!=p&&!same_piece(&oldTray[q],&newTray[q]))
+                    shapeOkay=0;
+        }
+        if(!shapeOkay)continue;
+        int width=0,height=0;
+        for(int k=0;k<piece->count;++k) {
+            if(piece->x[k]<0||piece->y[k]<0||piece->x[k]>=8||
+               piece->y[k]>=8)return 0;
+            if(piece->x[k]+1>width)width=piece->x[k]+1;
+            if(piece->y[k]+1>height)height=piece->y[k]+1;
+        }
+        for(int row=0;row<=8-height;++row)
+          for(int col=0;col<=8-width;++col) {
+            int lines=0;
+            uint64_t result=apply_legal(oldBoard,piece,row,col,&lines);
+            if(result!=newBoard || result==UINT64_MAX)continue;
+            if(++solutions>1)return 0; // indistinguishable moves are unsafe
+            candidate.pieceIndex=p;
+            candidate.row=row;candidate.col=col;
+            candidate.before=oldBoard;candidate.after=newBoard;
+            candidate.linesCleared=lines;
+          }
+    }
+    if(solutions!=1)return 0;
+    *observed=candidate;
+    return 1;
+}
