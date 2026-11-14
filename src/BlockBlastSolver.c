@@ -14,6 +14,9 @@
 #ifndef BL_COMBO_REWARD
 #define BL_COMBO_REWARD 700
 #endif
+#ifndef BL_FUTURE_CLEAR_REWARD
+#define BL_FUTURE_CLEAR_REWARD 0
+#endif
 // Strength can be changed when compiling controlled A/B tests; normal iPhone
 // builds use 100. Shape frequencies are unknown: avoid pretending otherwise.
 #define DEPTH_BONUS INT64_C(10000000)
@@ -83,22 +86,40 @@ static const BLStressShape kFutureShapes[]={
     {UINT64_C(0x306),3,2,3},          // zigzag
     {UINT64_C(0x603),3,2,3}           // mirrored zigzag
 };
-static int count_fit(uint64_t occupied, const BLStressShape *shape) {
-    int fits=0;
+static int count_fit(uint64_t occupied,const BLStressShape *shape,int *bestRescue) {
+    int fits=0,best=0;
+    int oldOccupied=pc64(occupied);
     for(int r=0;r<=8-(int)shape->h;++r)
-        for(int c=0;c<=8-(int)shape->w;++c)
-            if(!(occupied & (shape->cells << (r*8+c)))) ++fits;
+        for(int c=0;c<=8-(int)shape->w;++c) {
+            uint64_t placement=shape->cells<<(r*8+c);
+            if(occupied&placement)continue;
+            ++fits;
+#if BL_FUTURE_CLEAR_REWARD > 0
+            // Is the board ready for an imminent clear using a plausible
+            // unseen piece? We count only actual legal clear transitions.
+            int lines=0;
+            uint64_t after=clear_lines(occupied|placement,&lines);
+            if(lines) {
+                int recovered=oldOccupied-pc64(after);
+                if(recovered>best)best=recovered;
+            }
+#endif
+        }
+    (void)oldOccupied;
+    if(bestRescue)*bestRescue=best;
     return fits;
 }
 // A near-full board with lots of individually empty cells can still be doomed:
 // isolated empty components and a shortage of large-shape landing zones both
 // increase the chance that the next unknown tray is impossible to place.
 static int survival_shape_access(uint64_t occupied) {
-    int free=64-pc64(occupied),covered=0,missing=0,flex=0,largeMissing=0;
+    int free=64-pc64(occupied),covered=0,missing=0,flex=0,largeMissing=0,rescuePotential=0;
     int n=(int)(sizeof(kFutureShapes)/sizeof(kFutureShapes[0]));
     for(int i=0;i<n;++i) {
         const BLStressShape *shape=&kFutureShapes[i];
-        int fits=count_fit(occupied,shape);
+        int recovered=0;
+        int fits=count_fit(occupied,shape,&recovered);
+        rescuePotential+=recovered*shape->importance;
         if(fits) {
             covered += shape->importance;
             int capped=fits>9?9:fits;
@@ -114,6 +135,7 @@ static int survival_shape_access(uint64_t occupied) {
     int score=covered*26+flex*11-missing*(45+congestion*7);
     score-=largeMissing*(free<29?100+congestion*12:30);
     if(free<18 && covered<20)score-= (18-free)*170;
+    score+=rescuePotential*BL_FUTURE_CLEAR_REWARD;
     return score*BL_SURVIVAL_STRENGTH/100;
 }
 static int fragmented_space_penalty(uint64_t occupied) {
