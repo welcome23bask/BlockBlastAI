@@ -1,0 +1,40 @@
+name: v1.6 Green Skin + Nonblinking AI Button iOS Build
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.6-green-scan-stable-button]
+    paths:
+      - 'src/**'
+      - '.github/workflows/green-stable-iphone.yml'
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Confirm green and pink themes and original SMART SURVIVAL
+        run: |
+          clang -O3 -std=c11 tests/test_green_textured_theme.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/green
+          /tmp/green
+          clang -O3 -std=c11 tests/test_pink_theme.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/pink
+          /tmp/pink
+          clang -O3 -std=c11 tests/test_smart_survival.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/smart
+          /tmp/smart
+      - name: Compile real iPhone ARM64 dylib with SMART SURVIVAL and optional Core ML YOLO
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLYOLOVision.m \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v16-GREEN-STABLE-BUTTON-iPhone
+          path: dist/BlockBlastAI.dylib
