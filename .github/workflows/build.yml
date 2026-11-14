@@ -19,6 +19,10 @@ jobs:
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/blsolver-test
           /tmp/blsolver-test
+      - name: Verify 300 randomized solver states against independent move rules
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_solver_paths.c src/BlockBlastSolver.c -o /tmp/blpaths-test
+          /tmp/blpaths-test
       - name: Regression test board vision and orientation
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_vision.c src/BLVisionCore.c -lm -o /tmp/blvision-test
@@ -50,7 +54,7 @@ jobs:
         run: |
           mkdir -p dist/replacements/src dist/replacements/tests dist/replacements/benchmark dist/replacements/.github/workflows
           cp src/BLScreenScan.m src/BlockBlastOverlay.m src/BlockBlastSolver.c dist/replacements/src/
-          cp tests/test_solver.c dist/replacements/tests/
+          cp tests/test_solver.c tests/test_solver_paths.c dist/replacements/tests/
           cp benchmark/v082_solver.c benchmark/benchmark.c benchmark/results_2000.txt dist/replacements/benchmark/
           cp .github/workflows/build.yml dist/replacements/.github/workflows/
           (cd dist/replacements && zip -qr ../BlockBlastAI_v0.9_Replacement_Files.zip .)
