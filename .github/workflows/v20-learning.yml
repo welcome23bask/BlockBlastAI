@@ -1,0 +1,64 @@
+name: v2.0 Offline Learning Lab - Train and Holdout
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2-offline-learning-lab]
+    paths:
+      - 'learning/**'
+      - '.github/workflows/v20-learning.yml'
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile learner and test exact mechanics
+        run: |
+          set -euxo pipefail
+          cc -O3 -std=c11 -Wall -Wextra learning/test_learning.c -lm -o /tmp/learner_test
+          /tmp/learner_test
+          cc -O3 -std=c11 -Wall -Wextra learning/learn.c -lm -o /tmp/learn
+      - name: Smoke-test repeatable learning and JSON files
+        run: |
+          mkdir -p learning/artifacts
+          cd learning/artifacts
+          /tmp/learn 1 1 2 20 | tee smoke.log
+          python3 - <<'PY'
+          import json
+          w=json.load(open('learned_weights.json'))
+          r=json.load(open('learning_results.json'))
+          assert w['format']=='BLTrainedValue-v1'
+          assert len(w['features'])==len(w['weights'])==12
+          assert w['promoted_for_ios'] is False
+          assert r['trained_games']==4
+          assert r['holdout_games_per_agent']==20
+          print('PASS: JSON model format, training count, and no premature iOS promotion')
+          PY
+      - name: Full seeded self-play training - 10,080 episodes
+        run: |
+          cd learning/artifacts
+          /tmp/learn 42 5 40 250 | tee training.log
+      - name: Check independent holdout, model validity, metrics and no auto-release
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          folder=Path('learning/artifacts')
+          w=json.loads((folder/'learned_weights.json').read_text())
+          r=json.loads((folder/'learning_results.json').read_text())
+          assert len(w['weights'])==12 and all(isinstance(x,(int,float)) for x in w['weights'])
+          assert r['trained_games']>=10000
+          assert r['holdout_games_per_agent']==250
+          assert r['baseline']['illegal']==0 and r['trained']['illegal']==0
+          assert w['promoted_for_ios'] is False
+          print('Holdout verdict:', 'PASSED' if r['passed_safety_gate'] else 'NOT PROMOTED')
+          print(json.dumps(r, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v20-learning-model-and-results
+          path: |
+            learning/artifacts/learned_weights.json
+            learning/artifacts/learning_results.json
+            learning/artifacts/training.log
+            learning/artifacts/smoke.log
