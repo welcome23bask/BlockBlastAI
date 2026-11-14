@@ -1,0 +1,38 @@
+name: v1.6 SMART SURVIVAL - combo and legal move tests
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.6-smart-survival-yolo]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/v16-smart-tests.yml'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: SMART SURVIVAL keeps a one-line combo and validates 240 boards
+        run: |
+          clang -O3 -std=c11 -Wall -Wextra tests/test_smart_survival.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/smart
+          /tmp/smart
+      - name: Original five-line versus two-line logic
+        run: |
+          clang -O3 -std=c11 -Wall -Wextra tests/test_dual_strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/dual
+          /tmp/dual
+          clang -O3 -std=c11 -Wall -Wextra tests/test_dual_budget.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/budget
+          /tmp/budget
+      - name: Original themes, combo tracking and exhaustive rescue tests
+        run: |
+          for n in test_vision test_wood_theme test_pink_theme test_palette_variants; do
+            clang -O3 -std=c11 tests/${n}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${n}
+            /tmp/${n}
+          done
+          clang -O3 -std=c11 tests/test_combo_tracking.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/combo
+          /tmp/combo
+          clang -O3 -std=c11 tests/test_hard_combo_guard.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/hard
+          /tmp/hard
+          clang -O3 -std=c11 tests/test_full_tray_rescue.c src/BlockBlastSolver.c -o /tmp/rescue
+          /tmp/rescue
+          node simulator/test.js
