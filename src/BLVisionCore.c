@@ -303,7 +303,20 @@ int BLVisionAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResult 
     if(nativeOK && adaptiveOK) {
         // Conflicting occupancy is not a trustworthy move. The overlay will
         // retry on the next fresh capture instead of drawing a wrong guide.
-        if(native.board!=adaptive.board)return 0;
+        if(native.board!=adaptive.board) {
+            // Color-dependent recognition can miss genuinely occupied cells
+            // when a skin uses black, pastel, metallic or nearly gray tiles.
+            // If adaptive vision sees ALL native occupied cells, adds only
+            // more occupied cells, and can identify the complete tray, use
+            // the geometric scanner. In conflicting directions, abstain.
+            int adaptiveSuperset=((adaptive.board & native.board)==native.board);
+            if(adaptiveSuperset && adaptive.detectedPieces==3 &&
+               adaptive.detectedPieces>=native.detectedPieces &&
+               bl_total_piece_cells(&adaptive)>=bl_total_piece_cells(&native)){
+                *result=adaptive;return 1;
+            }
+            return 0;
+        }
         // When the color-dependent detector has *lost* tray blocks, trust
         // the independently geometry-based result if it sees at least as
         // many physical objects and squares. This catches 3x3 -> 3x2
