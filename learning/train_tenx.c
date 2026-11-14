@@ -1,6 +1,8 @@
 // v2.2 Offline self-play: evolutionary tuning of the COMPLETE THREE-PIECE
 // SMART SURVIVAL search. Not an iPhone runtime module.
+#ifndef MAXMOVES
 #define MAXMOVES 1400
+#endif
 #ifndef BL_TENX_NODE_BUDGET
 #define BL_TENX_NODE_BUDGET 180000
 #endif
