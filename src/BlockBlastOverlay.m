@@ -1,4 +1,4 @@
-// BlockBlastAI v1.0 Fast Vision prototype — experimental in-app move assistant.
+// BlockBlastAI v1.2 — persistent nonblinking highlights and adaptive game skins.
 // Public UIKit/ReplayKit APIs only. Reads the screen to suggest moves; never touches or places pieces.
 // v0.8: stale-frame protection. Every detection must come from a fresh captured frame; capture
 // stalls/restarts clear the board, tray, solution, highlight and confirmation buffer.
@@ -21,6 +21,7 @@ static const CFTimeInterval kAutoScanInterval=0.24; // faster; ReplayKit and fra
 static const CFTimeInterval kCaptureWarmup=0.04;
 static const NSInteger kConfirmFrames=2;
 static const NSInteger kUncertainTransitionFrames=3;
+static const CFTimeInterval kTransientVisionHold=4.0; // short, bounded hold for uncertain frames
 // C Blocks cannot capture raw local arrays. A value-type wrapper copies all
 // three pieces safely onto the background solver work item.
 typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashes despite a forced pixel change
@@ -73,6 +74,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     BOOL _nudgeOn;
     unsigned long _lastFrameCounter, _lastRestartCount;
     CFAbsoluteTime _lastFreshAt;
+    CFAbsoluteTime _lastReliableVisionAt;
     NSInteger _frozenRepeats;
 }
 
@@ -197,13 +199,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v1.1 THEME FAST: Detecting your board colors…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v1.2 STEADY: Scanning board and blocks across themes…" y:638 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,756,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"FAST THEME AUTO: wood, blue and other colored boards. Confirm highlights before each move." y:805 height:47 font:10];
+    _info=[self addLabel:@"STEADY HIGHLIGHT: stays visible until the board changes. Adaptive colors. Verify each move." y:805 height:47 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -479,6 +481,19 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshTiles];
     [self refreshGuides];
 }
+// Keep a confirmed move visible across an occasional failed color/frame scan.
+// A prolonged blind period cannot safely keep showing potentially stale advice.
+- (void)handleTransientVisionFailure:(NSString *)reason {
+    CFAbsoluteTime elapsed=CFAbsoluteTimeGetCurrent()-_lastReliableVisionAt;
+    if(_autoEnabled && _previewing && _showGuides &&
+       _lastReliableVisionAt>0 && elapsed<kTransientVisionHold) {
+        _status.text=[NSString stringWithFormat:@"Checking theme… previous suggestion held briefly (%@)",
+                      reason?:@"scan uncertain"];
+        [self restoreGuidesAfterCapture];
+        return;
+    }
+    [self invalidateDetection:reason?:@"Awaiting a reliable view." bubble:@"AI …"];
+}
 - (void)toggleAutomatic {
     _autoEnabled=!_autoEnabled;
     _stableAutoFrames=0;
@@ -512,9 +527,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         [self invalidateDetection:@"AI paused — no fresh frame. Waiting for fresh frame." bubble:@"AI …"];
     }
     _autoBusy=YES;
-    // Prevent captured AI text, buttons, and colored outlines from being
-    // misidentified as Block Blast pieces. Restore after one video frame.
-    _guideLayer.hidden=YES;
+    // Never hide the on-board highlights merely to capture a video frame.
+    // Every tile is a thin border, and detection samples the centers of cells;
+    // therefore those outlines can stay in place until the actual board changes.
+    // Only hide the movable bubble, which could cover an entire tray piece.
     _bubble.hidden=YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(kCaptureWarmup*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
       if(!self->_autoEnabled || !self->_panel.hidden) {
@@ -573,8 +589,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         CGPoint first=CGPointZero,last=CGPointZero;
         NSString *info=nil;
         if(!BLAutoDetect(image,self.view.bounds.size,board,tray,&first,&last,&info)) {
-            // Vision is uncertain: pause the highlight and DROP the old board.
-            [self invalidateDetection:info?:@"AI paused — auto detection needs a clear screen." bubble:@"AI …"];
+            // A temporary animation or new skin must not blink the outline.
+            // A persistent failure eventually clears it rather than suggesting
+            // a stale/illegal move after unseen gameplay.
+            [self handleTransientVisionFailure:info?:@"Adaptive scan uncertain."];
             return;
         }
         self->_autoErrors=0;
@@ -611,9 +629,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             BLIsExpectedTransition([self boardMask],self->_normalizedPieces,
                                    &self->_solution,scannedBoard,tray));
         if(!goodGeom) {
-            [self invalidateDetection:@"AI paused — board coordinates changed unexpectedly. Waiting for a stable capture." bubble:@"AI …"];
+            [self handleTransientVisionFailure:@"Board geometry unstable; awaiting calibration."];
             return;
         }
+        self->_lastReliableVisionAt=CFAbsoluteTimeGetCurrent();
         // Smooth minor detector jitter; large jumps were already rejected.
         // Never smooth a new grid after reconnecting or a board transition.
         if(self->_solvedAutoHash!=0 && sameBoard && sameTray &&
@@ -645,12 +664,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         else {
             self->_observedAutoHash=signature;
             self->_stableAutoFrames=1;
-            self->_showGuides=NO;
+            // A single changed frame may be a skin animation rather than a
+            // placed block. Do not remove or repaint an existing highlight.
         }
         NSInteger required=expectedMove?1:(transitional?kUncertainTransitionFrames:kConfirmFrames);
         if(self->_stableAutoFrames<required) {
-            self->_showGuides=NO;
-            [self refreshGuides];
+            // Do not blink while the next frame independently confirms a move.
+            [self restoreGuidesAfterCapture];
             return;
         }
         if(signature!=self->_solvedAutoHash) {
