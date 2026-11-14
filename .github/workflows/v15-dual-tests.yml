@@ -18,6 +18,10 @@ jobs:
           set -euxo pipefail
           clang -O3 -std=c11 -Wall -Wextra tests/test_dual_strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/dual
           /tmp/dual
+      - name: Validate bounded live-search latency under massive branching
+        run: |
+          clang -O3 -std=c11 -Wall -Wextra tests/test_dual_budget.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/budget
+          /tmp/budget
       - name: Verify old blue, wood, pink and multi-theme scanner remains compatible
         run: |
           set -euxo pipefail
