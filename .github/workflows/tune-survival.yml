@@ -1,0 +1,34 @@
+name: Tune v1.3 Survival Risk Without Altering User's BLINK UI
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.3-survival-lab]
+    paths:
+      - '.github/workflows/tune-survival.yml'
+jobs:
+  sweep:
+    name: Risk strength ${{ matrix.strength }}
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        strength: [50, 100, 150, 200]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile frozen user-tested v1.1 and strength variant
+        run: |
+          clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v11_blink_solver.c -o /tmp/v11.o
+          clang -O3 -std=c11 -Isrc -DBL_SURVIVAL_STRENGTH=${{ matrix.strength }} -c src/BlockBlastSolver.c -o /tmp/new.o
+          clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/v11.o /tmp/new.o -o /tmp/benchmark
+      - name: Uniform pieces - 80 seeded full-length games
+        run: |
+          /tmp/benchmark 80 1000 310000 0 | tee uniform.txt
+      - name: Large piece stress - 80 seeded full-length games
+        run: |
+          /tmp/benchmark 80 1000 410000 1 | tee stress.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v13-tune-${{ matrix.strength }}
+          path: |
+            uniform.txt
+            stress.txt
