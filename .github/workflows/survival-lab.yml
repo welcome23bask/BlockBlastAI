@@ -19,6 +19,8 @@ jobs:
           /tmp/solver-test
           clang -O3 -std=c11 -Wall -Wextra tests/test_solver_paths.c src/BlockBlastSolver.c -o /tmp/path-test
           /tmp/path-test
+          clang -O3 -std=c11 -Wall -Wextra tests/test_full_tray_rescue.c src/BlockBlastSolver.c -o /tmp/rescue-test
+          /tmp/rescue-test
           clang -O3 -std=c11 -Wall -Wextra tests/test_transition.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/transition-test
           /tmp/transition-test
       - name: Verify the exact old BLINK scanner remains functional
