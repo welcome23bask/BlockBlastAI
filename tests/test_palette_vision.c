@@ -57,8 +57,28 @@ static void draw(int n) {
  piece(351,691,p2);
  for(int col=0;col<3;col++)piece(309+21*col,712,p2);
 }
-static int valid(const BLVisionResult *r){
- if(r->board!=0 || r->detectedPieces!=3)return 0;
+static uint64_t occupied_mask(void){
+ return (UINT64_C(1)<<(2*8+3)) | (UINT64_C(1)<<(4*8+6)) | (UINT64_C(1)<<(6*8+1));
+}
+static void draw_occupied(int n) {
+ int bg[3]={48+(n*31)%130,49+(n*43)%130,51+(n*67)%130};
+ int sign=(n%2)?-1:1,colors[3];
+ for(int k=0;k<3;k++){
+  int board=clamp(bg[k]+sign*(75+(n%3)*6));
+  int empty=clamp(board-(board>100?11:-11));
+  colors[k]=clamp(empty+(empty>124?-115:115));
+ }
+ const int rr[3]={2,4,6},cc[3]={3,6,1};
+ for(int i=0;i<3;i++){
+  int x0=22+(int)lround(cc[i]*386.0/8)+2;
+  int x1=22+(int)lround((cc[i]+1)*386.0/8)-2;
+  int y0=216+(int)lround(rr[i]*386.0/8)+2;
+  int y1=216+(int)lround((rr[i]+1)*386.0/8)-2;
+  rgb(x0,y0,x1,y1,colors[0],colors[1],colors[2]);
+ }
+}
+static int valid(const BLVisionResult *r,uint64_t expected){
+ if(r->board!=expected || r->detectedPieces!=3)return 0;
  if(r->pieces[0].count!=9 || r->pieces[1].count!=4 || r->pieces[2].count!=4)return 0;
  for(int row=0;row<3;row++)for(int col=0;col<3;col++){
   int found=0;
@@ -70,19 +90,24 @@ static int valid(const BLVisionResult *r){
 }
 int main(void){
  im=calloc((size_t)W*H,4);assert(im);
- int pass=0;
+ int pass=0,filledPass=0;
  for(int n=0;n<128;n++){
   draw(n);
   BLVisionResult r={0};
   int ok=BLVisionAnalyzeRGBA(im,W,H,&r);
-  if(ok&&valid(&r))pass++;
+  if(ok&&valid(&r,0))pass++;
   else {
    BLVisionResult a={0};int ao=BLAdaptiveAnalyzeRGBA(im,W,H,&a);
    fprintf(stderr,"FAIL palette %d: main=%d board=%llx pieces=%d counts=%d/%d/%d adaptive=%d pieces=%d counts=%d/%d/%d\\n",n,ok,(unsigned long long)r.board,r.detectedPieces,r.pieces[0].count,r.pieces[1].count,r.pieces[2].count,ao,a.detectedPieces,a.pieces[0].count,a.pieces[1].count,a.pieces[2].count);
   }
+  draw_occupied(n);
+  BLVisionResult filled={0};
+  int bok=BLVisionAnalyzeRGBA(im,W,H,&filled);
+  if(bok&&valid(&filled,occupied_mask()))filledPass++;
+  else fprintf(stderr,"FAIL occupied palette %d: scanned=%d board=%llx expected=%llx pieces=%d counts=%d/%d/%d\\n",n,bok,(unsigned long long)filled.board,(unsigned long long)occupied_mask(),filled.detectedPieces,filled.pieces[0].count,filled.pieces[1].count,filled.pieces[2].count);
  }
- printf("Palette fuzz: %d/128 synthetic skins parsed correctly\n",pass);
+ printf("Palette fuzz: %d/128 empty and %d/128 occupied synthetic skins parsed correctly\n",pass,filledPass);
  free(im);
- assert(pass==128);
+ assert(pass==128 && filledPass==128);
  return 0;
 }
