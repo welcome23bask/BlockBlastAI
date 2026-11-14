@@ -16,8 +16,9 @@ typedef struct {
     int counts[3],total;
     const BLPiece *pieces;
     BLComboContext initial;
-    BLPath maxPath,comboPath;
-    int maxQuality,comboQuality,haveMax,haveCombo;
+    BLPath maxPath,comboPath,smartPath,smartComboPath;
+    int maxQuality,comboQuality,smartQuality,smartComboQuality;
+    int haveMax,haveCombo,haveSmart,haveSmartCombo;
     uint32_t budget,visited;
     int truncated;
 } BLSearch;
@@ -63,6 +64,58 @@ static int future_quality(uint64_t board) {
     return free*85+square*72+hbar*15+vbar*15+
            (rect1+rect2)*28-rough*12-missing;
 }
+// A position can be mostly empty but still unable to accept a 3x3 square
+// or a five-long bar. Add a quantified cost for disconnected pockets and
+// reward *different* kinds of usable future piece footprints.
+static int survival_value(uint64_t board) {
+    int q=future_quality(board);
+    int a=fit(board,UINT64_C(0x70707),3,3);
+    int h=fit(board,UINT64_C(0x1f),5,1);
+    int v=fit(board,UINT64_C(0x0101010101),1,5);
+    int rect1=fit(board,UINT64_C(0x707),3,2);
+    int rect2=fit(board,UINT64_C(0x30303),2,3);
+    int empty=64-bits(board);
+    if(!a)q-=empty<30?1200:350;
+    if(!h)q-=empty<24?900:250;
+    if(!v)q-=empty<24?900:250;
+    q+=((a>8?8:a)+(h>8?8:h)+(v>8?8:v))*45;
+    q+=((rect1>8?8:rect1)+(rect2>8?8:rect2))*30;
+    // Remaining empty islands of size 1-2 cannot hold most useful pieces.
+    uint64_t free=~board;
+    const uint64_t edgeR=UINT64_C(0x7f7f7f7f7f7f7f7f);
+    const uint64_t edgeL=UINT64_C(0xfefefefefefefefe);
+    int regions=0,isolated=0;
+    while(free) {
+        uint64_t island=free&(~free+1),previous;
+        do {
+            previous=island;
+            uint64_t near=((island&edgeR)<<1)|((island&edgeL)>>1)|
+                          (island<<8)|(island>>8);
+            island|=near&free;
+        } while(island!=previous);
+        free&=~island;
+        ++regions;
+        int area=bits(island);
+        if(area<=2)isolated+=3-area;
+    }
+    q-=isolated*250;
+    if(regions>1)q-=(regions-1)*100;
+    return q;
+}
+// Hard safety check when keeping a small clear would sacrifice the only
+// future landing zone for a difficult shape on an already crowded board.
+static int dangerously_worse(uint64_t comboBoard,uint64_t safeBoard) {
+    int comboEmpty=64-bits(comboBoard);
+    if(comboEmpty>=29)return 0; // spare room permits more flexible combos
+    const uint64_t shapes[]={UINT64_C(0x70707),
+                             UINT64_C(0x1f),
+                             UINT64_C(0x0101010101)};
+    const int ws[]={3,5,1},hs[]={3,1,5};
+    for(int i=0;i<3;++i)
+        if(fit(safeBoard,shapes[i],ws[i],hs[i])>0 &&
+           fit(comboBoard,shapes[i],ws[i],hs[i])==0)return 1;
+    return 0;
+}
 static int preserved(const BLSearch *ctx,const BLPath *path) {
     if(ctx->initial.known && ctx->initial.streak>0)
         return !path->broken && path->streak>0;
@@ -87,6 +140,32 @@ static void save_if_best(BLSearch *ctx,const BLPath *path) {
          path->depth==ctx->comboPath.depth && comboOK==oldComboOK &&
          earlier(path->firstClear)==earlier(ctx->comboPath.firstClear);
     if(maybeCombo && path->lines>ctx->comboPath.lines)betterCombo=1;
+    // SMART SURVIVAL always considers the best *whole-tray* positions.
+    // A single-line combo is enough. Large clears do not get automatic
+    // priority. Score only proven legal completed sequences, never futures
+    // that require knowing the game's hidden next pieces.
+    if(path->depth>=ctx->smartPath.depth) {
+        int sq=survival_value(path->board);
+        if(!ctx->haveSmart || path->depth>ctx->smartPath.depth ||
+           (path->depth==ctx->smartPath.depth &&
+            (sq>ctx->smartQuality ||
+             (sq==ctx->smartQuality && path->lines>ctx->smartPath.lines)))) {
+            ctx->smartPath=*path;
+            ctx->smartQuality=sq;
+            ctx->haveSmart=1;
+        }
+        if(comboOK &&
+           (!ctx->haveSmartCombo ||
+            path->depth>ctx->smartComboPath.depth ||
+            (path->depth==ctx->smartComboPath.depth &&
+             (sq>ctx->smartComboQuality ||
+              (sq==ctx->smartComboQuality &&
+               earlier(path->firstClear)<earlier(ctx->smartComboPath.firstClear)))))) {
+            ctx->smartComboPath=*path;
+            ctx->smartComboQuality=sq;
+            ctx->haveSmartCombo=1;
+        }
+    }
     if(!betterMax&&!maybeMax&&!betterCombo&&!maybeCombo)return;
     quality=future_quality(path->board);
     if(maybeMax && (quality>ctx->maxQuality ||
@@ -202,12 +281,39 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
         out.comboFirstClear=ctx.comboPath.firstClear;
         out.keepComboPreserved=preserved(&ctx,&ctx.comboPath);
     }
+    // Require all visible pieces to fit. Preserve an ongoing small combo
+    // when doing so leaves a nearly-as-safe board, even if that means one
+    // clearing line now instead of five lines in the final placement.
+    if(ctx.haveSmart) {
+        BLPath chosen=ctx.smartPath;
+        int chosenQ=ctx.smartQuality;
+        if(ctx.haveSmartCombo &&
+           ctx.smartComboPath.depth==ctx.smartPath.depth) {
+            int sameSafety=ctx.smartComboQuality>=ctx.smartQuality-4700;
+            if(sameSafety &&
+               !dangerously_worse(ctx.smartComboPath.board,ctx.smartPath.board)) {
+                chosen=ctx.smartComboPath;
+                chosenQ=ctx.smartComboQuality;
+            } else {
+                out.smartComboRejectedForSafety=1;
+            }
+        }
+        pack(&out.smartSurvival,&chosen,ctx.truncated);
+        out.smartComboPreserved=preserved(&ctx,&chosen);
+        out.smartFutureQuality=chosenQ;
+    }
     // Guard against budget-based pruning that misses a complete path.
     if(ctx.truncated && (out.maxLines.movesFound<ctx.total ||
                          out.keepCombo.movesFound<ctx.total)) {
         BLSolution fallback=BLSolveWithCombo(board,pieces,combo);
         if(fallback.movesFound>out.maxLines.movesFound)out.maxLines=fallback;
         if(fallback.movesFound>out.keepCombo.movesFound)out.keepCombo=fallback;
+        if(fallback.movesFound>out.smartSurvival.movesFound) {
+            out.smartSurvival=fallback;
+            out.smartComboPreserved=0;
+            out.smartFutureQuality=survival_value(
+                fallback.movesFound?fallback.moves[fallback.movesFound-1].after:board);
+        }
     }
     return out;
 }
