@@ -256,6 +256,56 @@ static void insert(BLState beam[BEAM_WIDTH],int *count,const BLState *v) {
     *count=limit;
 }
 
+
+// Beam search can prune the *only* sequence that fits all three currently
+// visible pieces. In a dangerous near-full board, that can cause an avoidable
+// loss despite a legal complete sequence existing. Use a bounded exact
+// depth-first fallback only when the beam returns a partial solution.
+typedef struct {
+    int nodes,solutions;
+    int64_t bestScore;
+    BLState best;
+} BLRescueContext;
+static void rescue_full_tray(BLState state,int goal,
+                             const BLPreparedPiece prep[3],
+                             const BLPiece pieces[3],BLRescueContext *ctx) {
+    if(ctx->nodes>=35000 || ctx->solutions>=96)return;
+    if(state.depth==goal) {
+        int64_t value=grade(&state,prep,pieces)+survival_shape_access(state.board);
+        if(ctx->solutions==0 || value>ctx->bestScore) {
+            ctx->bestScore=value;
+            ctx->best=state;
+        }
+        ++ctx->solutions;
+        return;
+    }
+    for(int p=0;p<3;++p) {
+        if(!pieces[p].count || (state.used&(1u<<p)))continue;
+        const BLPreparedPiece *q=&prep[p];
+        for(int row=0;row<=8-q->height;++row)
+            for(int col=0;col<=8-q->width;++col) {
+                uint64_t mask=q->shifts[row*8+col];
+                if(state.board&mask)continue;
+                BLState next=state;
+                next.depth=state.depth+1;
+                next.used=state.used|(1u<<p);
+                int cleared=0;
+                next.board=clear_lines(state.board|mask,&cleared);
+                next.totalLines+=cleared;
+                if(cleared) {
+                    next.comboRun=state.comboRun+1;
+                    next.comboBonus+=(int)next.comboRun*(int)next.comboRun;
+                } else next.comboRun=0;
+                BLMove *m=&next.moves[state.depth];
+                m->pieceIndex=p;m->row=row;m->col=col;
+                m->before=state.board;m->after=next.board;
+                m->linesCleared=cleared;
+                ++ctx->nodes;
+                rescue_full_tray(next,goal,prep,pieces,ctx);
+                if(ctx->nodes>=35000 || ctx->solutions>=96)return;
+            }
+    }
+}
 BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
     BLSolution solution={0};
     solution.approximate=1;
@@ -326,6 +376,13 @@ BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
             if(forecast>bestForecast) {bestForecast=forecast;chosen=k;}
         }
         best=beam[chosen];
+    }
+    if(best.depth<total) {
+        BLRescueContext rescue={0};
+        BLState root={0};root.board=board;
+        rescue.bestScore=INT64_MIN;
+        rescue_full_tray(root,total,prep,pieces,&rescue);
+        if(rescue.solutions>0)best=rescue.best;
     }
     solution.movesFound=best.depth;
     solution.totalLines=best.totalLines;
