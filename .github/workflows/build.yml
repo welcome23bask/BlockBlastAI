@@ -7,6 +7,8 @@ on:
       - feature/v1.4-combo-guard
       - feature/v1.5-dual-strategy
       - feature/v1.6-smart-survival-yolo
+      - feature/v1.6-green-scan-stable-button
+      - feature/v1.7-black-block-vision
     paths:
       - 'src/**'
       - 'tests/**'
