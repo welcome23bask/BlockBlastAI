@@ -21,7 +21,10 @@ static const NSInteger kFrozenLimit=6;
 static const CFTimeInterval kAutoScanInterval=0.38; // bounded by ReplayKit availability
 static const CFTimeInterval kCaptureWarmup=0.06;
 static const NSInteger kConfirmFrames=2;
-static const NSInteger kUncertainTransitionFrames=3;         // identical hashes despite a forced pixel change
+static const NSInteger kUncertainTransitionFrames=3;
+// C Blocks cannot capture raw local arrays. A value-type wrapper copies all
+// three pieces safely onto the background solver work item.
+typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashes despite a forced pixel change
 // Lightweight frame identity: FNV hash of a 24x52 downsample of the captured frame.
 static uint64_t BLFrameHash(UIImage *image) {
     if(!image.CGImage) return 0;
@@ -691,11 +694,11 @@ static uint64_t BLFrameHash(UIImage *image) {
             // frame processing, or overlay rendering while calculating.
             uint64_t generation=++self->_solveGeneration;
             uint64_t boardSnapshot=scannedBoard;
-            BLPiece traySnapshot[3]; memcpy(traySnapshot,tray,sizeof(traySnapshot));
+            BLTraySnapshot traySnapshot; memcpy(traySnapshot.values,tray,sizeof(traySnapshot.values));
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-                BLSolution answer=BLSolve(boardSnapshot,traySnapshot);
+                BLSolution answer=BLSolve(boardSnapshot,traySnapshot.values);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
