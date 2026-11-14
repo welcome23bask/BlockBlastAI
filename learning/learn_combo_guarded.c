@@ -17,7 +17,9 @@
 #include <limits.h>
 
 #define F 12
+#ifndef MAXMOVES
 #define MAXMOVES 200
+#endif
 #define N_SHAPES 28
 typedef uint64_t U64;
 typedef struct { int n,w,h; int dx[9],dy[9]; U64 placed[64]; } Shape;
