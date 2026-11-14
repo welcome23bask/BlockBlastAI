@@ -1,0 +1,47 @@
+name: v2.0 Combo-Safe Learner - Full Training and Holdout
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2-offline-learning-lab]
+    paths:
+      - 'learning/learn_combo_guarded.c'
+      - 'learning/test_combo_guarded.c'
+      - '.github/workflows/v20-combo-learning.yml'
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify that a small clearing move saves a combo without making the tray impossible
+        run: |
+          cc -O3 -std=c11 -Wall -Wextra learning/test_combo_guarded.c -lm -o /tmp/combo-test
+          /tmp/combo-test
+          cc -O3 -std=c11 -Wall -Wextra learning/learn_combo_guarded.c -lm -o /tmp/combo-learn
+      - name: Train on 10,080 seeded simulated games and measure untouched holdout
+        run: |
+          mkdir -p learning/combo-results
+          cd learning/combo-results
+          /tmp/combo-learn 42 5 40 250 | tee training.log
+      - name: Validate model never auto-deploys and holdout metrics are coherent
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('learning/combo-results')
+          result=json.loads((root/'combo_learning_results.json').read_text())
+          model=json.loads((root/'learned_combo_weights.json').read_text())
+          assert result['trained_games']==10080
+          assert result['holdout_games_per_agent']==250
+          assert result['baseline']['illegal']==result['trained']['illegal']==0
+          assert model['promoted_for_ios'] is False
+          assert len(model['weights'])==12
+          print('Combo-gated model holdout:',result)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v20-combo-protected-trained-model
+          path: |
+            learning/combo-results/learned_combo_weights.json
+            learning/combo-results/combo_learning_results.json
+            learning/combo-results/training.log
