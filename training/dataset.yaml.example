@@ -1,0 +1,25 @@
+# YOLOv8n is OPTIONAL. This is a human labeling protocol, NOT pretrained weights.
+#
+# Folder structure after labeling:
+# training/dataset/
+#   images/train/*.jpg       labels/train/*.txt
+#   images/val/*.jpg         labels/val/*.txt
+# Reserve whole GAME SESSIONS (not adjacent frames) for validation.
+#
+# YOLO label format in each .txt:
+# class_id center_x center_y width height  (normalized 0..1)
+#
+# 0 board         one box around the entire 8x8 playing field, border included
+# 1 occupied_cell one box around EACH filled square in the board
+# 2 tray_cell     one box around EACH visible cell of every tray piece
+#
+# Do not label score, crown, guides, menu, animation, or ghost previews.
+# Include blank, partly-empty and crowded boards in actual screenshots.
+# These names must match BLYOLOVision.m exactly.
+path: ./training/dataset
+train: images/train
+val: images/val
+names:
+  0: board
+  1: occupied_cell
+  2: tray_cell
