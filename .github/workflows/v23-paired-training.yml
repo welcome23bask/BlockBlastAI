@@ -25,6 +25,11 @@ jobs:
           cc -O3 -std=c11 -Wall -Wextra -Isrc \
             -c src/BlockBlastSolver.c -o dist/engine.o
           cc -O3 -std=c11 -Wall -Wextra -w -Isrc \
+            learning/test_v23_deadline.c \
+            dist/original.o dist/trainable.o dist/engine.o -lm \
+            -o dist/deadline-test
+          dist/deadline-test
+          cc -O3 -std=c11 -Wall -Wextra -w -Isrc \
             learning/train_paired_v23.c \
             dist/original.o dist/trainable.o dist/engine.o -lm \
             -o dist/robust-trainer
@@ -54,6 +59,9 @@ jobs:
           text=(p/'paired-results/holdout952.log').read_text()
           assert text.count('scenario=')==3
           assert text.count('illegal=0')==6
+          for line in text.splitlines():
+              if line.startswith('candidate_'):
+                  assert 'avoidable_combo_misses=0' in line, line
           assert 'TEN_X_VERDICT=NOT REACHED' in text or 'TEN_X_VERDICT=PASSED' in text
           print('Candidate weights',weights,'heldout complete; NO IPHONE RELEASE')
           PY
