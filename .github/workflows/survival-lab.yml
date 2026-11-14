@@ -1,0 +1,64 @@
+name: v1.3 Survival Lab - iPhone Build and Long Runs
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.3-survival-lab]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'benchmark/longrun_survival.c'
+      - '.github/workflows/survival-lab.yml'
+jobs:
+  validation:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify legality, clear rules and first-move recognition
+        run: |
+          clang -O3 -std=c11 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/solver-test
+          /tmp/solver-test
+          clang -O3 -std=c11 -Wall -Wextra tests/test_solver_paths.c src/BlockBlastSolver.c -o /tmp/path-test
+          /tmp/path-test
+          clang -O3 -std=c11 -Wall -Wextra tests/test_transition.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/transition-test
+          /tmp/transition-test
+      - name: Verify the exact old BLINK scanner remains functional
+        run: |
+          clang -O3 -std=c11 -Wall -Wextra tests/test_vision.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/vision-test
+          /tmp/vision-test
+          clang -O3 -std=c11 -Wall -Wextra tests/test_wood_theme.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/wood-test
+          /tmp/wood-test
+      - name: Build iPhone ARM64 dylib with v1.1 BLINK interface
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo -framework CoreImage \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+      - name: Upload experimental binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v13-survival-lab-arm64
+          path: dist/BlockBlastAI.dylib
+      - name: Compile independent v1.1 baseline versus v1.3 planner
+        run: |
+          clang -O3 -std=c11 -Isrc -DBLSolve=BLV11Solve -c benchmark/v11_blink_solver.c -o /tmp/old.o
+          clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/new.o
+          clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/old.o /tmp/new.o -o /tmp/longrun
+      - name: Long-run uniform unseen pieces - 100 independent seeded sessions, max 1000 moves
+        run: |
+          /tmp/longrun 100 1000 100000 0 | tee /tmp/uniform_report.txt
+      - name: Long-run large-piece stress - 100 independent sessions, max 1000 moves
+        run: |
+          /tmp/longrun 100 1000 200000 1 | tee /tmp/stress_report.txt
+      - name: Upload actual benchmark reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v13-survival-benchmark-reports
+          path: |
+            /tmp/uniform_report.txt
+            /tmp/stress_report.txt
