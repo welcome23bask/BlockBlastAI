@@ -17,31 +17,13 @@ static UIColor *BLColor(CGFloat r, CGFloat g, CGFloat b) {
 static const CGFloat kBoardPitch=30.0;
 static const CGFloat kPiecePitch=19.0;
 static const CFTimeInterval kStaleAfter=3.0;   // no fresh frame for this long => clear everything
-static const NSInteger kFrozenLimit=6;
-static const CFTimeInterval kAutoScanInterval=0.38; // bounded by ReplayKit availability
-static const CFTimeInterval kCaptureWarmup=0.06;
+static const CFTimeInterval kAutoScanInterval=0.24; // faster; ReplayKit and frame processing still bound latency
+static const CFTimeInterval kCaptureWarmup=0.04;
 static const NSInteger kConfirmFrames=2;
 static const NSInteger kUncertainTransitionFrames=3;
 // C Blocks cannot capture raw local arrays. A value-type wrapper copies all
 // three pieces safely onto the background solver work item.
 typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashes despite a forced pixel change
-// Lightweight frame identity: FNV hash of a 24x52 downsample of the captured frame.
-static uint64_t BLFrameHash(UIImage *image) {
-    if(!image.CGImage) return 0;
-    enum {W=24,H=52};
-    uint8_t px[W*H*4]; memset(px,0,sizeof(px));
-    CGColorSpaceRef cs=CGColorSpaceCreateDeviceRGB();
-    CGContextRef ctx=CGBitmapContextCreate(px,W,H,8,W*4,cs,kCGImageAlphaPremultipliedLast|kCGBitmapByteOrder32Big);
-    CGColorSpaceRelease(cs);
-    if(!ctx) return 0;
-    CGContextSetInterpolationQuality(ctx,kCGInterpolationMedium);
-    CGContextDrawImage(ctx,CGRectMake(0,0,W,H),image.CGImage);
-    CGContextRelease(ctx);
-    uint64_t h=UINT64_C(1469598103934665603);
-    for(int i=0;i<W*H*4;++i) h=(h^(uint64_t)(px[i]>>2))*UINT64_C(1099511628211);
-    return h?h:1;
-}
-
 @interface BLPassThroughWindow : UIWindow
 @end
 @implementation BLPassThroughWindow
@@ -91,7 +73,6 @@ static uint64_t BLFrameHash(UIImage *image) {
     BOOL _nudgeOn;
     unsigned long _lastFrameCounter, _lastRestartCount;
     CFAbsoluteTime _lastFreshAt;
-    uint64_t _lastFrameHash;
     NSInteger _frozenRepeats;
 }
 
@@ -216,13 +197,13 @@ static uint64_t BLFrameHash(UIImage *image) {
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v1.0 FAST: Waiting for a fresh board and piece scan…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v1.1 THEME FAST: Detecting your board colors…" y:638 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,756,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"FAST AUTO: quicker frame checks, predicted-move detection, safer highlights. Beta: verify moves." y:805 height:47 font:10];
+    _info=[self addLabel:@"FAST THEME AUTO: wood, blue and other colored boards. Confirm highlights before each move." y:805 height:47 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -581,18 +562,11 @@ static uint64_t BLFrameHash(UIImage *image) {
             return;
         }
         self->_lastFrameCounter=counter;
-        uint64_t frameHash=BLFrameHash(image);
-        if(frameHash==self->_lastFrameHash) self->_frozenRepeats++;
-        else {self->_lastFrameHash=frameHash; self->_frozenRepeats=0;}
-        if(self->_frozenRepeats>=kFrozenLimit) {
-            // The strip flips black/white every tick, so identical hashes mean the
-            // frames are not really changing: treat the stream as frozen.
-            self->_frozenRepeats=0;
-            self->_autoRetryAfter=CFAbsoluteTimeGetCurrent()+1.5;
-            [self invalidateDetection:@"AI paused — video frames frozen. Reconnecting…" bubble:@"AI …"];
-            BLStopScreenCapture();
-            return;
-        }
+        // A stationary or empty board is allowed to be identical between
+        // independent ReplayKit frames. The monotonic frame counter and capture
+        // timeout already reject stale delivery; hashing a still game screen
+        // incorrectly triggered restarts and stopped the AI on quiet boards.
+        self->_frozenRepeats=0;
         self->_lastFreshAt=CFAbsoluteTimeGetCurrent();
         BOOL board[64]={0};
         BLPiece tray[3]={0};
