@@ -227,30 +227,94 @@ static int black_theme_scan(const uint8_t *im,int w,int h,int flip,BLVisionResul
     *out=result;
     return 1;
 }
+// An appearance-agnostic shape gate: a piece is a connected grid object,
+// regardless of pixel color, lighting, texture or seasonal skin.
+// Reject a fragment or spurious sprite instead of confidently highlighting it.
+static int bl_shapes_connected(const BLVisionResult *v) {
+    if(!v || v->detectedPieces<1 || v->detectedPieces>3) return 0;
+    int present=0;
+    for(int p=0;p<3;++p) {
+        const BLPiece *a=&v->pieces[p];
+        if(!a->count)continue;
+        if(a->count<1 || a->count>25)return 0;
+        ++present;
+        int at[5][5]={0},visited[5][5]={0},lowX=5,lowY=5;
+        for(int i=0;i<a->count;++i) {
+            const int x=a->x[i],y=a->y[i];
+            if(x<0||x>=5||y<0||y>=5||at[y][x])return 0;
+            at[y][x]=1;
+            if(x<lowX)lowX=x;if(y<lowY)lowY=y;
+        }
+        if(lowX!=0||lowY!=0)return 0;
+        int queue[25],head=0,tail=0,seen=0;
+        queue[tail++]=a->y[0]*5+a->x[0];
+        visited[a->y[0]][a->x[0]]=1;
+        while(head<tail){
+            int value=queue[head++],x=value%5,y=value/5; ++seen;
+            const int dx[4]={1,-1,0,0},dy[4]={0,0,1,-1};
+            for(int d=0;d<4;++d){
+                int nx=x+dx[d],ny=y+dy[d];
+                if(nx<0||nx>=5||ny<0||ny>=5||!at[ny][nx]||visited[ny][nx])continue;
+                visited[ny][nx]=1;queue[tail++]=ny*5+nx;
+            }
+        }
+        if(seen!=a->count)return 0;
+    }
+    return present==v->detectedPieces;
+}
+static int bl_total_piece_cells(const BLVisionResult *v){
+    return v->pieces[0].count+v->pieces[1].count+v->pieces[2].count;
+}
 int BLVisionAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResult *result) {
     if(!rgba||!result||width<240||height<350||width>1600||height>3000)return 0;
-    // Black-on-navy skin requires a darkness-relative check before the old
-    // bright palette can incorrectly accept the tray but omit black cells.
+    // The special black-on-navy detector remains first: dark filled cells
+    // require a different check than bright themed tiles.
     BLVisionResult blackNormal={0},blackFlipped={0};
     int blackA=black_theme_scan(rgba,width,height,0,&blackNormal);
     int blackB=black_theme_scan(rgba,width,height,1,&blackFlipped);
     if(blackA||blackB){
-        if(blackA&&blackB)return 0; // ambiguous orientation: refuse to guess
-        *result=blackA?blackNormal:blackFlipped;
+        if(blackA&&blackB)return 0;
+        BLVisionResult *black=blackA?&blackNormal:&blackFlipped;
+        if(!bl_shapes_connected(black))return 0;
+        *result=*black;
         return 1;
     }
-    BLVisionResult normal,upsideDown;
+    BLVisionResult normal={0},upsideDown={0};
     int a=scan(rgba,width,height,0,&normal);
     int b=scan(rgba,width,height,1,&upsideDown);
-    if(!a&&!b) return BLAdaptiveAnalyzeRGBA(rgba,width,height,result);
     float errorA=a?board_anchor_error(&normal,height):1.0f;
     float errorB=b?board_anchor_error(&upsideDown,height):1.0f;
-    // If both are plausible but indistinguishable, don't guess.
-    if(a&&b&&fabsf(errorA-errorB)<0.018f)return 0;
-    BLVisionResult *chosen=errorA<errorB?&normal:&upsideDown;
-    // Refuse screens whose detected board is too far from the actual game's
-    // portrait layout; a wrong orientation must never create a false highlight.
-    if(board_anchor_error(chosen,height)>0.085f)return 0;
-    *result=*chosen;
-    return 1;
+    int nativeOK=0;
+    BLVisionResult native={0};
+    if(!(a&&b&&fabsf(errorA-errorB)<0.018f) && (a||b)){
+        BLVisionResult *chosen=errorA<errorB?&normal:&upsideDown;
+        if(board_anchor_error(chosen,height)<=0.085f &&
+           bl_shapes_connected(chosen)) {
+            native=*chosen;nativeOK=1;
+        }
+    }
+    // Unlike the legacy scanner, adaptive vision learns the board/tray's
+    // color from THIS frame, without an allowlist of red/green/blue/pink.
+    // Always cross-check it; a palette-based scanner can falsely return a
+    // valid but truncated 3x2 shape and prevent the adaptive fallback.
+    BLVisionResult adaptive={0};
+    int adaptiveOK=BLAdaptiveAnalyzeRGBA(rgba,width,height,&adaptive) &&
+                   bl_shapes_connected(&adaptive);
+    if(nativeOK && adaptiveOK) {
+        // Conflicting occupancy is not a trustworthy move. The overlay will
+        // retry on the next fresh capture instead of drawing a wrong guide.
+        if(native.board!=adaptive.board)return 0;
+        // When the color-dependent detector has *lost* tray blocks, trust
+        // the independently geometry-based result if it sees at least as
+        // many physical objects and squares. This catches 3x3 -> 3x2
+        // truncation and missing pieces across multiple palettes.
+        if(adaptive.detectedPieces>=native.detectedPieces &&
+           bl_total_piece_cells(&adaptive)>=bl_total_piece_cells(&native)){
+            *result=adaptive;return 1;
+        }
+        *result=native;return 1;
+    }
+    if(adaptiveOK){*result=adaptive;return 1;}
+    if(nativeOK){*result=native;return 1;}
+    return 0;
 }
