@@ -4,6 +4,8 @@ on:
   push:
     branches: [feature/v1.4-combo-guard]
     paths:
+      - 'src/BlockBlastSolver.c'
+      - 'src/BLTransition.c'
       - 'benchmark/combo_longrun.c'
       - '.github/workflows/v14-combo-longrun.yml'
 jobs:
