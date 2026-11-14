@@ -2,7 +2,7 @@
 #include "BlockBlastSolver.h"
 #include <string.h>
 
-#define BEAM_WIDTH 128
+#define BEAM_WIDTH 192
 #define DEPTH_BONUS INT64_C(10000000)
 
 typedef struct {
