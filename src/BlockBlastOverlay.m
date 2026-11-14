@@ -566,14 +566,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         [self invalidateDetection:@"AI paused — no fresh frame. Waiting for fresh frame." bubble:@"AI …"];
     }
     _autoBusy=YES;
-    // Prevent captured AI text, buttons, and colored outlines from being
-    // misidentified as Block Blast pieces. Restore after one video frame.
+    // The AI bubble is outside the board/tray region: leave it visible while
+    // ReplayKit captures. Only placement outlines blink as requested.
     [self blinkGuidesBeforeCapture];
-    _bubble.hidden=YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(kCaptureWarmup*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
       if(!self->_autoEnabled || !self->_panel.hidden) {
           self->_autoBusy=NO;
-          self->_bubble.hidden=NO;
           [self restoreGuidesAfterCapture];
           return;
       }
@@ -584,7 +582,6 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         callbackCompleted=YES;
         self->_nudgeStrip.hidden=YES;
         self->_autoBusy=NO;
-        self->_bubble.hidden=NO;
         if(!self->_autoEnabled || !self->_panel.hidden) {
             [self refreshGuides];
             return;
