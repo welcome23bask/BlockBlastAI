@@ -23,7 +23,7 @@
 
 typedef struct {
     uint64_t board;
-    unsigned char used,depth,comboRun;
+    unsigned char used,depth,comboRun,misses;
     int totalLines,comboBonus;
     BLMove moves[3];
     int64_t score;
@@ -232,6 +232,20 @@ static int board_quality(uint64_t b) {
         quality-=(occupancy-26)*100*BL_SURVIVAL_STRENGTH/100;
     return quality;
 }
+// Unlike the former per-move comboRun reset, three non-clears (not one) break
+// the three-move streak. We reward verified clears across separate trays.
+static void advance_state_combo(BLState *next,const BLState *prev,int lines) {
+    BLComboContext combo={(int)prev->comboRun,(int)prev->misses,1};
+    combo=BLComboAdvance(combo,lines);
+    next->comboRun=(unsigned char)combo.streak;
+    next->misses=(unsigned char)combo.misses;
+    if(lines>0) {
+        // Bounded utility is not claimed to be the exact game's score formula.
+        // Real score multipliers can be enormous; survival still takes priority.
+        int useful=combo.streak>6?6:combo.streak;
+        next->comboBonus+=useful*useful;
+    }
+}
 // Favor routes that preserve room for the *current* remaining tray pieces.
 static int future_options(const BLState *s,const BLPreparedPiece prep[3],
                           const BLPiece pieces[3]) {
@@ -251,9 +265,15 @@ static int future_options(const BLState *s,const BLPreparedPiece prep[3],
 }
 static int64_t grade(const BLState *s,const BLPreparedPiece prep[3],
                      const BLPiece pieces[3]) {
+    int used=pc64(s->board);
+    int64_t comboValue=(int64_t)s->comboBonus*BL_COMBO_REWARD;
+    if(used>31)comboValue/=4; // crowded boards: survive before saving a streak
+    // When the three-move window is about to close, strongly favor a clear.
+    // This only applies to trusted combo states, propagated by callers.
+    int windowPressure=(s->comboRun>0 && s->misses==2 && used<28)?-1100:0;
     return (int64_t)s->depth*DEPTH_BONUS +
            (int64_t)s->totalLines*BL_LINE_REWARD +
-           (int64_t)s->comboBonus*BL_COMBO_REWARD +
+           comboValue + windowPressure +
            board_quality(s->board) +
            future_options(s,prep,pieces);
 }
@@ -314,10 +334,7 @@ static void rescue_full_tray(BLState state,int goal,
                 int cleared=0;
                 next.board=clear_lines(state.board|mask,&cleared);
                 next.totalLines+=cleared;
-                if(cleared) {
-                    next.comboRun=state.comboRun+1;
-                    next.comboBonus+=(int)next.comboRun*(int)next.comboRun;
-                } else next.comboRun=0;
+                advance_state_combo(&next,&state,cleared);
                 BLMove *m=&next.moves[state.depth];
                 m->pieceIndex=p;m->row=row;m->col=col;
                 m->before=state.board;m->after=next.board;
@@ -328,7 +345,7 @@ static void rescue_full_tray(BLState state,int goal,
             }
     }
 }
-BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
+BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContext combo) {
     BLSolution solution={0};
     solution.approximate=1;
     BLPreparedPiece prep[3];
@@ -350,6 +367,13 @@ BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
     if(!total)return solution;
     BLState beam[BEAM_WIDTH],next[BEAM_WIDTH],best={0};
     int count=1;
+    if(combo.known) {
+        if(combo.streak<0)combo.streak=0;
+        if(combo.streak>63)combo.streak=63;
+        if(combo.misses<0||combo.misses>2)combo.misses=0;
+        best.comboRun=(unsigned char)combo.streak;
+        best.misses=(unsigned char)combo.misses;
+    }
     beam[0]=best;
     best.board=board;
     beam[0].board=board;
@@ -369,10 +393,7 @@ BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
                     int cleared=0;
                     candidate.board=clear_lines(prior->board|m,&cleared);
                     candidate.totalLines+=cleared;
-                    if(cleared>0) {
-                        candidate.comboRun=prior->comboRun+1;
-                        candidate.comboBonus+=(int)candidate.comboRun*(int)candidate.comboRun;
-                    } else candidate.comboRun=0;
+                    advance_state_combo(&candidate,prior,cleared);
                     BLMove *move=&candidate.moves[prior->depth];
                     move->pieceIndex=p;
                     move->row=r;
@@ -402,6 +423,10 @@ BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
     if(best.depth<total) {
         BLRescueContext rescue={0};
         BLState root={0};root.board=board;
+        if(combo.known) {
+            root.comboRun=(unsigned char)combo.streak;
+            root.misses=(unsigned char)combo.misses;
+        }
         rescue.bestScore=INT64_MIN;
         rescue_full_tray(root,total,prep,pieces,&rescue);
         if(rescue.solutions>0)best=rescue.best;
@@ -410,4 +435,11 @@ BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
     solution.totalLines=best.totalLines;
     for(int i=0;i<best.depth;++i)solution.moves[i]=best.moves[i];
     return solution;
+}
+
+// Existing v1.1 and benchmark callers use the same public ABI. New iPhone
+// overlay passes only combo events verified from a legal board transition.
+BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
+    BLComboContext unknown={0};
+    return BLSolveWithCombo(board,pieces,unknown);
 }
