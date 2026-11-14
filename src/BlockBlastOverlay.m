@@ -459,6 +459,15 @@ static uint64_t BLFrameHash(UIImage *image) {
 
 
 #pragma mark - Fully automatic recognition & live placement overlay
+// The same recommendation should not recreate all outlined UIKit tile views
+// at every scan: just unhide the existing pass-through guide layer.
+- (void)restoreGuidesAfterCapture {
+    if(_calibrated && _showGuides && _previewing &&
+       !_showCalibrationGrid && _solution.movesFound>0 &&
+       _guideLayer.subviews.count>0) {
+        _guideLayer.hidden=NO;
+    } else [self refreshGuides];
+}
 - (void)startAutomatic {
     if(_autoTimer) return;
     _autoEnabled=YES;
@@ -530,7 +539,7 @@ static uint64_t BLFrameHash(UIImage *image) {
       if(!self->_autoEnabled || !self->_panel.hidden) {
           self->_autoBusy=NO;
           self->_bubble.hidden=NO;
-          [self refreshGuides];
+          [self restoreGuidesAfterCapture];
           return;
       }
       // Register the frame request FIRST. Only then change the strip to
@@ -731,7 +740,7 @@ static uint64_t BLFrameHash(UIImage *image) {
                 [self->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
                                forState:UIControlStateNormal];
             }
-            [self refreshGuides];
+            [self restoreGuidesAfterCapture];
         }
       });
       // If the frame request was synchronously rejected (e.g. busy),
