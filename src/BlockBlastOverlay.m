@@ -8,6 +8,7 @@
 #import "BlockBlastSolver.h"
 #import "BLScreenScan.h"
 #import "BLTransition.h"
+#import "BLDualStrategy.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -76,6 +77,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     CFAbsoluteTime _lastFreshAt;
     NSInteger _frozenRepeats;
     BLComboTracker _comboTracker; // independent verified board+tray anchor
+    BLStrategyMode _strategyMode;
+    UISegmentedControl *_strategyTabs;
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -142,7 +145,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _scroll=[[UIScrollView alloc] initWithFrame:CGRectZero];
     _scroll.alwaysBounceVertical=YES;
     [_panel addSubview:_scroll];
-    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,868)];
+    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,927)];
     _contentView.layer.anchorPoint=CGPointZero;
     _contentView.layer.position=CGPointZero;
     [_scroll addSubview:_contentView];
@@ -192,24 +195,35 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     solve.backgroundColor=BLColor(14,118,110);
     solve.titleLabel.font=[UIFont boldSystemFontOfSize:14];
     [_contentView addSubview:solve];
-    UIButton *calibrate=[self roundedButton:@"📍 Calibrate" frame:CGRectMake(12,555,106,33) action:@selector(startCalibration)];
-    UIButton *scan=[self roundedButton:@"📷 Scan board" frame:CGRectMake(125,555,106,33) action:@selector(scanBoard)];
-    UIButton *guide=[self roundedButton:@"🎯 On game" frame:CGRectMake(238,555,_panelWidth-250,33) action:@selector(showOnGame)];
+    _strategyMode=BLModeKeepCombo; // preserve chains by default
+    id savedMode=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLStrategyPreferenceV15"];
+    if(savedMode) _strategyMode=([savedMode integerValue]==0)?BLModeMaxLines:BLModeKeepCombo;
+    _strategyTabs=[[UISegmentedControl alloc] initWithItems:@[@"BEST: MAX LINES",@"KEEP COMBO"]];
+    _strategyTabs.frame=CGRectMake(12,557,_panelWidth-24,32);
+    _strategyTabs.selectedSegmentIndex=(NSInteger)_strategyMode;
+    _strategyTabs.selectedSegmentTintColor=BLColor(14,118,110);
+    [_strategyTabs setTitleTextAttributes:@{NSForegroundColorAttributeName:UIColor.whiteColor,
+        NSFontAttributeName:[UIFont boldSystemFontOfSize:11]} forState:UIControlStateSelected];
+    [_strategyTabs addTarget:self action:@selector(changeStrategy:) forControlEvents:UIControlEventValueChanged];
+    [_contentView addSubview:_strategyTabs];
+    UIButton *calibrate=[self roundedButton:@"📍 Calibrate" frame:CGRectMake(12,597,106,33) action:@selector(startCalibration)];
+    UIButton *scan=[self roundedButton:@"📷 Scan board" frame:CGRectMake(125,597,106,33) action:@selector(scanBoard)];
+    UIButton *guide=[self roundedButton:@"🎯 On game" frame:CGRectMake(238,597,_panelWidth-250,33) action:@selector(showOnGame)];
     [_contentView addSubview:calibrate]; [_contentView addSubview:scan]; [_contentView addSubview:guide];
-    _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
+    _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
 #ifdef BL_SAFE_BASELINE_SOLVER
-    _status=[self addLabel:@"PINK BLINK SAFE: original v1.1 AI + pink-theme detection…" y:638 height:48 font:12];
+    _status=[self addLabel:@"PINK BLINK SAFE" y:690 height:48 font:12];
 #else
-    _status=[self addLabel:@"v1.4 COMBO GUARD experimental: preserve legal streaks…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v1.5 TWO MODES: MAX LINES or KEEP COMBO (independent solver)…" y:690 height:48 font:12];
 #endif
-    _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
+    _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
-    UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
-    UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,756,130,37) action:@selector(nextMove)];
+    UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
+    UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,811,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"v1.1 BLINK: same highlight flashing as v1.0; improved wood/blue board recognition." y:805 height:47 font:10];
+    _info=[self addLabel:@"Local three-piece search; choose MAX LINES or KEEP COMBO above. Blinking highlights and multi-theme scanner retained." y:859 height:50 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -277,7 +291,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _scroll.frame=CGRectMake(0,30,w,h-30);
     CGFloat ratio=w/_panelWidth;
     _contentView.transform=CGAffineTransformMakeScale(ratio,ratio);
-    _scroll.contentSize=CGSizeMake(w,868*ratio);
+    _scroll.contentSize=CGSizeMake(w,927*ratio);
 }
 - (void)savePanelFrame {
     [[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGRect(_panel.frame) forKey:@"BLPanelFrameV2"];
@@ -493,6 +507,27 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshTiles];
     [self refreshGuides];
 }
+- (void)changeStrategy:(UISegmentedControl *)sender {
+    BLStrategyMode choice=(sender.selectedSegmentIndex==0)?BLModeMaxLines:BLModeKeepCombo;
+    if(_strategyMode==choice)return;
+    _strategyMode=choice;
+    [[NSUserDefaults standardUserDefaults] setInteger:(NSInteger)choice
+                                              forKey:@"BLStrategyPreferenceV15"];
+    // A previous AI answer used the OLD objective. Never show it as a hint
+    // after the strategy changes. Confirm the board on fresh frames instead.
+    ++_solveGeneration;
+    _solvedAutoHash=0;
+    _observedAutoHash=0;
+    _stableAutoFrames=0;
+    _previewing=NO;
+    _showGuides=NO;
+    [self refreshGuides];
+    [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
+    _moveLabel.text=@"";
+    _status.text=(choice==BLModeMaxLines)
+        ?@"MAX LINES selected. Close the panel for a fresh 3-piece solution."
+        :@"KEEP COMBO selected. Close the panel for a fresh 3-piece solution.";
+}
 - (void)toggleAutomatic {
     _autoEnabled=!_autoEnabled;
     _stableAutoFrames=0;
@@ -703,6 +738,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             uint64_t boardSnapshot=scannedBoard;
             BLTraySnapshot traySnapshot; memcpy(traySnapshot.values,tray,sizeof(traySnapshot.values));
             BLComboContext comboSnapshot=self->_comboTracker.streak;
+            BLStrategyMode selectedMode=self->_strategyMode;
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
@@ -710,7 +746,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                 // Safe distribution: original user-validated v1.1 BLINK planner.
                 BLSolution answer=BLSolve(boardSnapshot,traySnapshot.values);
 #else
-                BLSolution answer=BLSolveWithCombo(boardSnapshot,traySnapshot.values,comboSnapshot);
+                BLTwoStrategies strategies=BLFindTwoStrategies(
+                    boardSnapshot,traySnapshot.values,comboSnapshot,180000);
+                BLSolution answer=(selectedMode==BLModeMaxLines)
+                    ?strategies.maxLines:strategies.keepCombo;
 #endif
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
@@ -725,8 +764,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                             comboSnapshot.streak,3-comboSnapshot.misses]
                         :@"Combo not yet verified.";
                     strongSelf->_status.text=[NSString stringWithFormat:
-                        @"%d move(s) ready. %@ %@",
-                        answer.movesFound,comboInfo,scanDetail?:@""];
+                        @"%@: %d lines (%@). Other: %d lines. %@ %@",
+                        selectedMode==BLModeMaxLines?@"MAX LINES":@"KEEP COMBO",
+                        answer.totalLines,
+                        strategies.exhaustive?@"full search":@"budget-limited search",
+                        selectedMode==BLModeMaxLines
+                            ?strategies.keepCombo.totalLines:strategies.maxLines.totalLines,
+                        comboInfo,scanDetail?:@""];
                     if(strongSelf->_previewing) {
                         [strongSelf showMove];
                         BLMove move=answer.moves[0];
@@ -865,7 +909,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _showGuides=NO;
     [self refreshGuides];
     if (![self readPieces]) return;
-    _solution=BLSolve([self boardMask],_normalizedPieces);
+    BLComboContext unknownCombo={0};
+    BLTwoStrategies strategies=BLFindTwoStrategies(
+        [self boardMask],_normalizedPieces,unknownCombo,180000);
+    _solution=(_strategyMode==BLModeMaxLines)?strategies.maxLines:strategies.keepCombo;
     if (_solution.movesFound==0) {
         _status.text=@"No legal placement found. Check the board and piece shapes.";
         _moveLabel.text=@"";
