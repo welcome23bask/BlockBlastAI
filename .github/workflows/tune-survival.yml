@@ -25,7 +25,7 @@ jobs:
         run: |
           clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v11_blink_solver.c -o /tmp/v11.o
           clang -O3 -std=c11 -Isrc -DBL_SURVIVAL_STRENGTH=${{ matrix.strength }} -DBL_LINE_REWARD=${{ matrix.line }} -DBL_FUTURE_CLEAR_REWARD=${{ matrix.forecast }} -c src/BlockBlastSolver.c -o /tmp/new.o
-          clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/v11.o /tmp/new.o -o /tmp/benchmark
+          clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/v11.o /tmp/new.o -lm -o /tmp/benchmark
       - name: Uniform pieces - 80 seeded full-length games
         run: |
           /tmp/benchmark 80 1000 310000 0 | tee uniform.txt
