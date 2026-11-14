@@ -1,0 +1,49 @@
+name: Pink + Combo Linux Fast Safety Gates
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.3-pink-combo-lab]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'benchmark/**'
+      - '.github/workflows/pink-ci-linux.yml'
+jobs:
+  fast-safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: All blue, wood, pink and multi-theme vision tests
+        run: |
+          set -euxo pipefail
+          for test in test_vision test_wood_theme test_pink_theme test_palette_variants; do
+            clang -O2 -std=c11 -Wall -Wextra tests/${test}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+      - name: Verified combo, expected transitions and rescue oracle
+        run: |
+          set -euxo pipefail
+          clang -O2 -std=c11 -Wall -Wextra tests/test_combo_tracking.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/combo
+          /tmp/combo
+          clang -O2 -std=c11 -Wall -Wextra tests/test_transition.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/transition
+          /tmp/transition
+          clang -O2 -std=c11 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/solver
+          /tmp/solver
+          clang -O2 -std=c11 -Wall -Wextra tests/test_solver_paths.c src/BlockBlastSolver.c -o /tmp/paths
+          /tmp/paths
+          clang -O2 -std=c11 -Wall -Wextra tests/test_full_tray_rescue.c src/BlockBlastSolver.c -o /tmp/rescue
+          /tmp/rescue
+      - name: Browser game simulation
+        run: node simulator/test.js
+      - name: Fast long-run A/B versus frozen v1.1
+        run: |
+          clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v11_blink_solver.c -o /tmp/old.o
+          clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/new.o
+          clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/old.o /tmp/new.o -lm -o /tmp/longrun
+          /tmp/longrun 40 1000 930000 0 | tee /tmp/uniform_fast.txt
+          /tmp/longrun 40 1000 940000 1 | tee /tmp/stress_fast.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pink-combo-fast-survival-logs
+          path: /tmp/*_fast.txt
