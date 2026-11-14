@@ -213,11 +213,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-#ifdef BL_SAFE_BASELINE_SOLVER
-    _status=[self addLabel:@"PINK BLINK SAFE" y:690 height:48 font:12];
-#else
     _status=[self addLabel:@"v1.5 TWO MODES: MAX LINES or KEEP COMBO (independent solver)…" y:690 height:48 font:12];
-#endif
     _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
@@ -742,15 +738,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-#ifdef BL_SAFE_BASELINE_SOLVER
-                // Safe distribution: original user-validated v1.1 BLINK planner.
-                BLSolution answer=BLSolve(boardSnapshot,traySnapshot.values);
-#else
                 BLTwoStrategies strategies=BLFindTwoStrategies(
                     boardSnapshot,traySnapshot.values,comboSnapshot,180000);
                 BLSolution answer=(selectedMode==BLModeMaxLines)
                     ?strategies.maxLines:strategies.keepCombo;
-#endif
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
