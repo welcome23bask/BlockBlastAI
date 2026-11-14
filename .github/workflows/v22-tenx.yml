@@ -1,0 +1,62 @@
+name: v2.2 10x Challenge - Offline Self-Play Research
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2.2-10x-research-gate]
+    paths:
+      - 'learning/BLTrainableStrategy.c'
+      - 'learning/train_tenx.c'
+      - 'learning/tenx_checkpoint.txt'
+      - 'learning/tenx_candidate_weights.txt'
+      - '.github/workflows/v22-tenx.yml'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile unchanged v1.7 and research-only trainable solver independently
+        run: |
+          set -eux
+          cc -O3 -std=c11 -Wall -Wextra -Isrc -DBLFindTwoStrategies=BLV17FindTwoStrategies \
+             -c src/BLDualStrategy.c -o /tmp/v17.o
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+             -c learning/BLTrainableStrategy.c -o /tmp/trained.o
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+             -c src/BlockBlastSolver.c -o /tmp/solver.o
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+             learning/train_tenx.c /tmp/v17.o /tmp/trained.o /tmp/solver.o \
+             -lm -o /tmp/tenx_lab
+      - name: Fresh heldout three-generator comparison, no iPhone release
+        run: |
+          mkdir -p learning/tenx-results
+          /tmp/tenx_lab test 24 learning/tenx_candidate_weights.txt 93 \
+             | tee learning/tenx-results/fresh_holdout93.txt
+          grep -q "TEN_X_VERDICT=" learning/tenx-results/fresh_holdout93.txt
+      - name: Verify 10x threshold cannot be bypassed by invalid/zero simulations
+        run: |
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          s=Path('learning/tenx-results/fresh_holdout93.txt').read_text()
+          assert s.count('survival_ratio=')==3
+          assert s.count('score_ratio=')==3
+          assert 'nan' not in s.lower()
+          assert 'illegal=0' in s
+          if 'ALL HELDOUT GATES PASSED' not in s:
+              print('Candidate is NOT approved; v1.7 iPhone build stays unchanged.')
+          PY
+      - name: A tiny new train/checkpoint smoke test, no benchmark leakage
+        run: |
+          cp learning/tenx_checkpoint.txt tenx_checkpoint.txt
+          /tmp/tenx_lab train 1 2 | tee learning/tenx-results/next_epoch_smoke.txt
+          cp tenx_checkpoint.txt learning/tenx-results/next_checkpoint_preview.txt
+          cp tenx_candidate_weights.txt learning/tenx-results/next_candidate_preview.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v22-10x-Challenge-Verified-Research
+          path: |
+            learning/tenx-results/fresh_holdout93.txt
+            learning/tenx-results/next_epoch_smoke.txt
+            learning/tenx-results/next_checkpoint_preview.txt
+            learning/tenx-results/next_candidate_preview.txt
