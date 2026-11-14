@@ -52,7 +52,7 @@ jobs:
           mkdir -p dist
           xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
             -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
-            -DBL_SAFE_BASELINE_SOLVER=1 \
+            -DBL_SAFE_BASELINE_SOLVER=1 -Isrc \
             -install_name @rpath/BlockBlastAI.dylib \
             -framework Foundation -framework UIKit -framework CoreGraphics \
             -framework ReplayKit -framework CoreMedia -framework CoreVideo -framework CoreImage \
