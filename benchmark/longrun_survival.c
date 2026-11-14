@@ -25,15 +25,31 @@ static BLPiece shape_from(int index){
    piece.x[piece.count]=x;piece.y[piece.count]=y;piece.count++;
  }x++;} return piece;
 }
-static void next_tray(BLPiece pieces[3]) {
+static int legal(uint64_t board,BLPiece *p,int row,int col);
+static int tray_any_legal(uint64_t board,BLPiece pieces[3]) {
+ for(int p=0;p<3;++p) {
+   int width=0,height=0;
+   for(int i=0;i<pieces[p].count;++i) {
+     if(pieces[p].x[i]+1>width)width=pieces[p].x[i]+1;
+     if(pieces[p].y[i]+1>height)height=pieces[p].y[i]+1;
+   }
+   for(int r=0;r<=8-height;++r)for(int c=0;c<=8-width;++c)
+     if(legal(board,&pieces[p],r,c))return 1;
+ }
+ return 0;
+}
+static void next_tray(BLPiece pieces[3],uint64_t board) {
  static const int large[]={9,10,11,12,13,14,21,22,23,24,25,26,27};
- for(int i=0;i<3;++i) {
-   int n=(int)next_bounded(SHAPES);
-   // This intentionally isn't the game's secret RNG. Model a second,
-   // tougher distribution to challenge strategies tuned to uniform shapes.
-   if(stressMode==1 && next_bounded(3)<2)
-       n=large[next_bounded((uint32_t)(sizeof(large)/sizeof(large[0])))];
-   pieces[i]=shape_from(n);
+ // Mode 2 explores a different *hypothetical* game that rejects draws
+ // with zero legal first moves. The actual iOS generator is unavailable.
+ for(int attempt=0;attempt<(stressMode>=2?80:1);++attempt) {
+   for(int i=0;i<3;++i) {
+     int n=(int)next_bounded(SHAPES);
+     if((stressMode==1 || stressMode==3) && next_bounded(3)<2)
+         n=large[next_bounded((uint32_t)(sizeof(large)/sizeof(large[0])))];
+     pieces[i]=shape_from(n);
+   }
+   if(stressMode<2 || tray_any_legal(board,pieces))break;
  }
 }
 static int legal(uint64_t board,BLPiece *p,int row,int col){
@@ -57,7 +73,7 @@ static Stats evaluate(Solver solver,int games,int seedOffset,int maxMoves){
  for(int g=0;g<games;++g){
    rng=(uint32_t)(0x9e3779b9u^((uint32_t)(g+seedOffset+1)*2654435761u));
    if(!rng)rng=1337;
-   uint64_t board=0; BLPiece pieces[3];next_tray(pieces);
+   uint64_t board=0; BLPiece pieces[3];next_tray(pieces,board);
    int t=0;
    for(;t<maxMoves;++t){
      struct timespec a,b;clock_gettime(CLOCK_MONOTONIC,&a);
@@ -71,7 +87,7 @@ static Stats evaluate(Solver solver,int games,int seedOffset,int maxMoves){
      }
      stats.steps++;stats.lines+=(uint64_t)m.linesCleared;
      board=m.after;pieces[m.pieceIndex].count=0;
-     if(!pieces[0].count&&!pieces[1].count&&!pieces[2].count)next_tray(pieces);
+     if(!pieces[0].count&&!pieces[1].count&&!pieces[2].count)next_tray(pieces,board);
    }
    stats.gameSteps[g]=t;
    if(t==maxMoves)stats.completed++;
@@ -93,7 +109,7 @@ int main(int argc,char **argv){
  int moves=argc>2?atoi(argv[2]):1000;
  int offset=argc>3?atoi(argv[3]):50000;
  stressMode=argc>4?atoi(argv[4]):0;
- if(games<1||games>100000||moves<1||moves>10000||offset<0||offset>100000000||stressMode<0||stressMode>1)return 2;
+ if(games<1||games>100000||moves<1||moves>10000||offset<0||offset>100000000||stressMode<0||stressMode>3)return 2;
  fprintf(stderr,"Simulating baseline %d deterministic games (max %d moves/game, seed offset %d)\n",games,moves,offset);
  Stats base=evaluate(BLOldSolve,games,offset,moves);
  fprintf(stderr,"Simulating candidate %d matching games\n",games);
