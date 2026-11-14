@@ -1,4 +1,5 @@
 #include "BLVisionCore.h"
+#include "BLAdaptiveTheme.h"
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -147,7 +148,7 @@ int BLVisionAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResult 
     BLVisionResult normal,upsideDown;
     int a=scan(rgba,width,height,0,&normal);
     int b=scan(rgba,width,height,1,&upsideDown);
-    if(!a&&!b) return 0;
+    if(!a&&!b) return BLAdaptiveAnalyzeRGBA(rgba,width,height,result);
     float errorA=a?board_anchor_error(&normal,height):1.0f;
     float errorB=b?board_anchor_error(&upsideDown,height):1.0f;
     // If both are plausible but indistinguishable, don't guess.
