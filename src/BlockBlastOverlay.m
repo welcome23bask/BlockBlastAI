@@ -148,7 +148,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _scroll=[[UIScrollView alloc] initWithFrame:CGRectZero];
     _scroll.alwaysBounceVertical=YES;
     [_panel addSubview:_scroll];
-    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,927)];
+    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,976)];
     _contentView.layer.anchorPoint=CGPointZero;
     _contentView.layer.position=CGPointZero;
     [_scroll addSubview:_contentView];
