@@ -5,6 +5,7 @@ on:
     branches-ignore:
       - feature/v1.3-pink-combo-lab
       - feature/v1.4-combo-guard
+      - feature/v1.5-dual-strategy
     paths:
       - 'src/**'
       - 'tests/**'
