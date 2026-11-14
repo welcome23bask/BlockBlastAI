@@ -1,0 +1,67 @@
+name: v2.3 Paired-Seed 3-Piece AI Training and Holdout
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2.3-paired-generalization-training]
+    paths:
+      - 'learning/train_paired_v23.c'
+      - 'learning/train_tenx.c'
+      - 'learning/BLTrainableStrategy.c'
+      - '.github/workflows/v23-paired-training.yml'
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile frozen v1.7 planner and trainable whole-tray planner
+        run: |
+          mkdir -p dist learning/paired-results
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+            -DBLFindTwoStrategies=BLV17FindTwoStrategies \
+            -c src/BLDualStrategy.c -o dist/original.o
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+            -c learning/BLTrainableStrategy.c -o dist/trainable.o
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+            -c src/BlockBlastSolver.c -o dist/engine.o
+          cc -O3 -std=c11 -Wall -Wextra -w -Isrc \
+            learning/train_paired_v23.c \
+            dist/original.o dist/trainable.o dist/engine.o -lm \
+            -o dist/robust-trainer
+          cc -O3 -std=c11 -Wall -Wextra -w -Isrc \
+            learning/train_tenx.c \
+            dist/original.o dist/trainable.o dist/engine.o -lm \
+            -o dist/full-benchmark
+      - name: Paired self-play training with two protected seed groups
+        run: |
+          cd learning
+          ../dist/robust-trainer 3 8 4 | tee paired-results/training.log
+      - name: Independent full-budget head-to-head using unseen seeds
+        run: |
+          cd learning
+          ../dist/full-benchmark test 24 v23_paired_checkpoint.txt 941 \
+            | tee paired-results/holdout941.log
+          ../dist/full-benchmark test 24 v23_paired_checkpoint.txt 952 \
+            | tee paired-results/holdout952.log
+      - name: Verify model validity and fail-closed tenfold result
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('learning')
+          weights=list(map(int,(p/'v23_paired_checkpoint.txt').read_text().split()))
+          assert len(weights)==4 and all(-300<=x<=300 for x in weights)
+          text=(p/'paired-results/holdout952.log').read_text()
+          assert text.count('scenario=')==3
+          assert text.count('invalid=0')==6
+          assert 'TEN_X_VERDICT=NOT REACHED' in text or 'TEN_X_VERDICT=PASSED' in text
+          print('Candidate weights',weights,'heldout complete; NO IPHONE RELEASE')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v23-paired-research-only
+          path: |
+            learning/v23_paired_checkpoint.txt
+            learning/paired-results/training.log
+            learning/paired-results/holdout941.log
+            learning/paired-results/holdout952.log
