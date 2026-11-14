@@ -74,7 +74,7 @@ static int adaptive_locate(const uint8_t *im,int w,int h,int flip,int *x0,int *y
         const uint8_t *gap=P(im,w,h,gx,sy,flip),*cell=P(im,w,h,cx,sy,flip);
         grid+=delta(gap,cell); ++samples;
     }
-    if(!samples || grid/samples<5)return 0;
+    if(!samples || grid/samples<3)return 0;
     *x0=xBest;*y0=yBest;*sz=sBest;return 1;
 }
 static uint8_t median_channel(const int count[256],int total) {
