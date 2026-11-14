@@ -26,6 +26,8 @@ jobs:
           set -euxo pipefail
           clang -O2 -std=c11 -Wall -Wextra tests/test_combo_tracking.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/combo
           /tmp/combo
+          clang -O2 -std=c11 tests/test_bazz_verified_moves.c src/BLTransition.c -o /tmp/bazz
+          /tmp/bazz
           clang -O2 -std=c11 -Wall -Wextra tests/test_transition.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/transition
           /tmp/transition
           clang -O2 -std=c11 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/solver
