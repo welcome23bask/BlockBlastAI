@@ -1,4 +1,4 @@
-// BlockBlastAI v0.8 — experimental in-app Block Blast move-suggestion overlay.
+// BlockBlastAI v1.0 Fast Vision prototype — experimental in-app move assistant.
 // Public UIKit/ReplayKit APIs only. Reads the screen to suggest moves; never touches or places pieces.
 // v0.8: stale-frame protection. Every detection must come from a fresh captured frame; capture
 // stalls/restarts clear the board, tray, solution, highlight and confirmation buffer.
@@ -7,6 +7,7 @@
 #import <Foundation/Foundation.h>
 #import "BlockBlastSolver.h"
 #import "BLScreenScan.h"
+#import "BLTransition.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -16,7 +17,11 @@ static UIColor *BLColor(CGFloat r, CGFloat g, CGFloat b) {
 static const CGFloat kBoardPitch=30.0;
 static const CGFloat kPiecePitch=19.0;
 static const CFTimeInterval kStaleAfter=3.0;   // no fresh frame for this long => clear everything
-static const NSInteger kFrozenLimit=4;         // identical hashes despite a forced pixel change
+static const NSInteger kFrozenLimit=6;
+static const CFTimeInterval kAutoScanInterval=0.38; // bounded by ReplayKit availability
+static const CFTimeInterval kCaptureWarmup=0.06;
+static const NSInteger kConfirmFrames=2;
+static const NSInteger kUncertainTransitionFrames=3;         // identical hashes despite a forced pixel change
 // Lightweight frame identity: FNV hash of a 24x52 downsample of the captured frame.
 static uint64_t BLFrameHash(UIImage *image) {
     if(!image.CGImage) return 0;
@@ -75,6 +80,7 @@ static uint64_t BLFrameHash(UIImage *image) {
     NSInteger _autoErrors, _stableAutoFrames;
     CFTimeInterval _autoRetryAfter;
     uint64_t _observedAutoHash, _solvedAutoHash;
+    uint64_t _solveGeneration; // discard background solver results after any newer observation
     NSTimer *_autoTimer;
     UIButton *_autoButton;
     UILabel *_autoLabel;
@@ -207,13 +213,13 @@ static uint64_t BLFrameHash(UIImage *image) {
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v0.8: Starting automatic board and piece detection…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v1.0 FAST: Waiting for a fresh board and piece scan…" y:638 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,756,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"LIVE AUTO detects the board and tray pieces and highlights the suggested placement. Beta: verify first moves." y:805 height:47 font:10];
+    _info=[self addLabel:@"FAST AUTO: quicker frame checks, predicted-move detection, safer highlights. Beta: verify moves." y:805 height:47 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -455,7 +461,7 @@ static uint64_t BLFrameHash(UIImage *image) {
     _autoEnabled=YES;
     _lastRestartCount=BLCaptureRestartCount();
     _lastFrameCounter=BLCaptureFrameCounter();
-    _autoTimer=[NSTimer scheduledTimerWithTimeInterval:1.2
+    _autoTimer=[NSTimer scheduledTimerWithTimeInterval:kAutoScanInterval
         target:self selector:@selector(autoTick) userInfo:nil repeats:YES];
     [self autoTick];
 }
@@ -473,6 +479,7 @@ static uint64_t BLFrameHash(UIImage *image) {
     _stableAutoFrames=0;
     _observedAutoHash=0;
     _solvedAutoHash=0;
+    ++_solveGeneration;
     _moveLabel.text=@"";
     if(reason) _status.text=reason;
     if(bubbleTitle) [_bubble setTitle:bubbleTitle forState:UIControlStateNormal];
@@ -516,7 +523,7 @@ static uint64_t BLFrameHash(UIImage *image) {
     // misidentified as Block Blast pieces. Restore after one video frame.
     _guideLayer.hidden=YES;
     _bubble.hidden=YES;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(0.20*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(kCaptureWarmup*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
       if(!self->_autoEnabled || !self->_panel.hidden) {
           self->_autoBusy=NO;
           self->_bubble.hidden=NO;
@@ -609,9 +616,29 @@ static uint64_t BLFrameHash(UIImage *image) {
                fabs(last.y-self->_gridLast.y)>pitchY*.35) goodGeom=NO;
         }
         BOOL transitional=(self->_solvedAutoHash!=0 && (sameTray != sameBoard));
+        uint64_t scannedBoard=0;
+        for(int i=0;i<64;++i)
+            if(board[i]) scannedBoard |= UINT64_C(1)<<i;
+        // Instant-path only for the exact board + tray resulting from the FIRST
+        // recommended placement. Any ambiguity still needs confirmation.
+        BOOL expectedMove=(self->_previewing && self->_solvedAutoHash!=0 &&
+            BLIsExpectedTransition([self boardMask],self->_normalizedPieces,
+                                   &self->_solution,scannedBoard,tray));
         if(!goodGeom) {
             [self invalidateDetection:@"AI paused — board coordinates changed unexpectedly. Waiting for a stable capture." bubble:@"AI …"];
             return;
+        }
+        // Smooth minor detector jitter; large jumps were already rejected.
+        // Never smooth a new grid after reconnecting or a board transition.
+        if(self->_solvedAutoHash!=0 && sameBoard && sameTray &&
+           fabs(first.x-self->_gridFirst.x)<pitchX*.12 &&
+           fabs(first.y-self->_gridFirst.y)<pitchY*.12 &&
+           fabs(last.x-self->_gridLast.x)<pitchX*.12 &&
+           fabs(last.y-self->_gridLast.y)<pitchY*.12) {
+            first.x=self->_gridFirst.x*.65+first.x*.35;
+            first.y=self->_gridFirst.y*.65+first.y*.35;
+            last.x=self->_gridLast.x*.65+last.x*.35;
+            last.y=self->_gridLast.y*.65+last.y*.35;
         }
         self->_calibrated=YES;
         self->_gridFirst=first;
@@ -626,15 +653,16 @@ static uint64_t BLFrameHash(UIImage *image) {
                 signature=(signature^(uint64_t)tray[p].y[i])*UINT64_C(1099511628211);
             }
         }
-        // 3-matching-FRESH-frames gate: each increment below comes from a frame
-        // that passed the freshness checks above; invalidateDetection resets it.
+        // Two independent matching fresh observations for regular changes.
+        // Exact expected moves can advance on their first verified frame.
         if(signature==self->_observedAutoHash) self->_stableAutoFrames++;
         else {
             self->_observedAutoHash=signature;
             self->_stableAutoFrames=1;
             self->_showGuides=NO;
         }
-        if(self->_stableAutoFrames<(transitional?6:3)) {
+        NSInteger required=expectedMove?1:(transitional?kUncertainTransitionFrames:kConfirmFrames);
+        if(self->_stableAutoFrames<required) {
             self->_showGuides=NO;
             [self refreshGuides];
             return;
@@ -653,22 +681,44 @@ static uint64_t BLFrameHash(UIImage *image) {
                 }
             }
             self->_previewIndex=0;
-            self->_solution=BLSolve([self boardMask],tray);
-            self->_previewing=(self->_solution.movesFound>0);
-            self->_showGuides=self->_previewing;
-            self->_status.text=[NSString stringWithFormat:@"LIVE: %@ %d move(s) recommended.",
-                                info?:@"Board detected.",self->_solution.movesFound];
-            if(self->_previewing) {
-                [self showMove];
-                BLMove move=self->_solution.moves[0];
-                [self->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
-                               forState:UIControlStateNormal];
-            } else {
-                self->_moveLabel.text=visible?@"No legal placement found.":@"Waiting for tray pieces…";
-                [self->_bubble setTitle:@"🧩 AI" forState:UIControlStateNormal];
-                [self refreshTiles];
-                [self refreshGuides];
-            }
+            self->_previewing=NO;
+            self->_showGuides=NO;
+            self->_moveLabel.text=@"⚡ Calculating the safest available move…";
+            [self->_bubble setTitle:@"AI ⚡" forState:UIControlStateNormal];
+            [self refreshGuides]; // remove stale highlights immediately
+            [self refreshTiles];
+            // Move the beam solver off UIKit's main thread; never block taps,
+            // frame processing, or overlay rendering while calculating.
+            uint64_t generation=++self->_solveGeneration;
+            uint64_t boardSnapshot=scannedBoard;
+            BLPiece traySnapshot[3]; memcpy(traySnapshot,tray,sizeof(traySnapshot));
+            NSString *scanDetail=[info copy];
+            __weak BLController *weakSelf=self;
+            dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
+                BLSolution answer=BLSolve(boardSnapshot,traySnapshot);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    BLController *strongSelf=weakSelf;
+                    if(!strongSelf || generation!=strongSelf->_solveGeneration ||
+                       signature!=strongSelf->_solvedAutoHash ||
+                       !strongSelf->_autoEnabled || !strongSelf->_panel.hidden)return;
+                    strongSelf->_solution=answer;
+                    strongSelf->_previewing=(answer.movesFound>0);
+                    strongSelf->_showGuides=strongSelf->_previewing;
+                    strongSelf->_status.text=[NSString stringWithFormat:@"FAST: %@ %d move(s) recommended.",
+                                              scanDetail?:@"Board detected.",answer.movesFound];
+                    if(strongSelf->_previewing) {
+                        [strongSelf showMove];
+                        BLMove move=answer.moves[0];
+                        [strongSelf->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
+                                              forState:UIControlStateNormal];
+                    } else {
+                        strongSelf->_moveLabel.text=visible?@"No legal placement found.":@"Waiting for tray pieces…";
+                        [strongSelf->_bubble setTitle:@"🧩 AI" forState:UIControlStateNormal];
+                        [strongSelf refreshTiles];
+                        [strongSelf refreshGuides];
+                    }
+                });
+            });
         } else {
             // Same confirmed state seen again on a fresh frame. Any failure in between
             // would have cleared _previewing, so this can no longer repaint an old answer.
