@@ -143,8 +143,102 @@ static float board_anchor_error(const BLVisionResult *v,int height) {
     float center=(v->firstY+v->lastY)/(2.0f*(float)height);
     return fabsf(center-0.44f);
 }
+// Strict optional fallback for solid BLACK filled squares on a dark-blue
+// board, with warm/orange tray pieces. Unlike the existing bright-palette
+// detector, this measures luminance and the grid seam color. It runs before
+// generic scanners, so a partial scan cannot silently omit black cells.
+static int black_block_center(const uint8_t *im,int w,int h,int x,int y,int flip,
+                              int seamR,int seamG,int seamB) {
+    if(x<3||y<3||x>=w-3||y>=h-3)return 0;
+    int hits=0;
+    for(int dy=-2;dy<=2;dy+=2)for(int dx=-2;dx<=2;dx+=2){
+        const uint8_t *p=pixel(im,w,h,x+dx,y+dy,flip);
+        hits+=(p[0]<39 && p[1]<45 && p[2]<53 &&
+               (int)p[0]+p[1]+p[2] < seamR+seamG+seamB-75);
+    }
+    return hits>=7;
+}
+static int warm_tray_pixel(const uint8_t *p) {
+    // Matches orange/red brick pieces, not the blue sky background.
+    return p[0]>=142 && (int)p[0]-(int)p[1]>=38 &&
+           (int)p[1]-(int)p[2]>=10 && p[1]>=45 && p[2]<155;
+}
+static int black_theme_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *out) {
+    int x0,y0,side;
+    if(!locate(im,w,h,flip,&x0,&y0,&side))return 0;
+    double cell=(double)side/8.0,small=cell*.44;
+    if(small<8||small>80)return 0;
+    if(fabs((y0+side/2.0)/h-0.44)>0.085)return 0;
+    // Use grid seams, not filled block centers, as the board background.
+    int seam[3]={0};
+    for(int row=0;row<8;++row)for(int col=1;col<8;++col){
+        int x=x0+(int)lround(col*cell),y=y0+(int)lround((row+.5)*cell);
+        const uint8_t *p=pixel(im,w,h,x,y,flip);
+        for(int k=0;k<3;k++)seam[k]+=p[k];
+    }
+    for(int k=0;k<3;k++)seam[k]/=56;
+    // Strict blue/navy guard ensures we do NOT alter pink, green or wood skins.
+    if(seam[2]<seam[1]+8 || seam[2]<seam[0]+24 ||
+       seam[0]+seam[1]+seam[2]<100 || seam[0]+seam[1]+seam[2]>400)return 0;
+    BLVisionResult result={0};
+    result.flippedInput=flip;
+    result.firstX=x0+cell*.5;result.firstY=y0+cell*.5;
+    result.lastX=x0+cell*7.5;result.lastY=y0+cell*7.5;
+    int black=0;
+    for(int row=0;row<8;++row)for(int col=0;col<8;++col){
+        int x=x0+(int)lround((col+.5)*cell);
+        int y=y0+(int)lround((row+.5)*cell);
+        if(black_block_center(im,w,h,x,y,flip,seam[0],seam[1],seam[2])){
+            result.board|=UINT64_C(1)<<(row*8+col);++black;
+        }
+    }
+    // Never interpret ordinary dark-blue empty cells as a black-piece board.
+    if(black<1)return 0;
+    int trayTop=(int)(y0+side+side*.07);
+    int trayBottom=(int)fmin(h*.95,y0+side+side*.70);
+    if(trayTop<0||trayBottom<=trayTop+20||trayBottom>=h)return 0;
+    for(int slot=0;slot<3;++slot) {
+        int xMin=w,xMax=-1,yMin=h,yMax=-1,n=0;
+        for(int y=trayTop;y<trayBottom;++y)for(int x=slot*w/3;x<(slot+1)*w/3;++x){
+            if(!warm_tray_pixel(pixel(im,w,h,x,y,flip)))continue;
+            if(x<xMin)xMin=x;if(x>xMax)xMax=x;
+            if(y<yMin)yMin=y;if(y>yMax)yMax=y;
+            ++n;
+        }
+        if(n<60)continue; // Empty slots are valid immediately after moves.
+        int cols=(int)lround((xMax-xMin+1)/small);
+        int rows=(int)lround((yMax-yMin+1)/small);
+        if(cols<1||cols>5||rows<1||rows>5)return 0;
+        BLPiece p={0};
+        for(int row=0;row<rows;++row)for(int col=0;col<cols;++col){
+            int x=(int)lround(xMin+(col+.5)*small);
+            int y=(int)lround(yMin+(row+.5)*small);
+            int hits=0;
+            for(int dy=-2;dy<=2;dy+=2)for(int dx=-2;dx<=2;dx+=2)
+                hits+=warm_tray_pixel(pixel(im,w,h,x+dx,y+dy,flip));
+            if(hits<5)continue;
+            if(p.count>=25)return 0;
+            p.x[p.count]=col;p.y[p.count]=row;++p.count;
+        }
+        if(!p.count)return 0;
+        result.pieces[slot]=p;++result.detectedPieces;
+    }
+    if(result.detectedPieces==0)return 0;
+    *out=result;
+    return 1;
+}
 int BLVisionAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResult *result) {
     if(!rgba||!result||width<240||height<350||width>1600||height>3000)return 0;
+    // Black-on-navy skin requires a darkness-relative check before the old
+    // bright palette can incorrectly accept the tray but omit black cells.
+    BLVisionResult blackNormal={0},blackFlipped={0};
+    int blackA=black_theme_scan(rgba,width,height,0,&blackNormal);
+    int blackB=black_theme_scan(rgba,width,height,1,&blackFlipped);
+    if(blackA||blackB){
+        if(blackA&&blackB)return 0; // ambiguous orientation: refuse to guess
+        *result=blackA?blackNormal:blackFlipped;
+        return 1;
+    }
     BLVisionResult normal,upsideDown;
     int a=scan(rgba,width,height,0,&normal);
     int b=scan(rgba,width,height,1,&upsideDown);
