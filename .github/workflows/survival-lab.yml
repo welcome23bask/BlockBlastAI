@@ -63,6 +63,12 @@ jobs:
       - name: Long-run large-piece stress - 100 independent sessions, max 1000 moves
         run: |
           /tmp/longrun 100 1000 200000 1 | tee /tmp/stress_report.txt
+      - name: Alternative fair-dealing simulation - 40 sessions max 1500 moves
+        run: |
+          /tmp/longrun 40 1500 300000 2 | tee /tmp/fair_report.txt
+      - name: Harder fair-dealing simulation - 40 sessions max 1500 moves
+        run: |
+          /tmp/longrun 40 1500 400000 3 | tee /tmp/hard_fair_report.txt
       - name: Upload actual benchmark reports
         uses: actions/upload-artifact@v4
         with:
@@ -70,3 +76,5 @@ jobs:
           path: |
             /tmp/uniform_report.txt
             /tmp/stress_report.txt
+            /tmp/fair_report.txt
+            /tmp/hard_fair_report.txt
