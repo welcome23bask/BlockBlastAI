@@ -1,0 +1,26 @@
+name: v2.0 Hybrid Candidate - Learning Assistant vs SMART SURVIVAL
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2-offline-learning-lab]
+    paths:
+      - 'learning/compare_hybrid.c'
+      - '.github/workflows/v20-hybrid-benchmark.yml'
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile trained three-piece hybrid benchmark with legal-move verification
+        run: |
+          cc -O3 -std=c11 -Wall -Wextra -Isrc learning/compare_hybrid.c \
+            src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/hybrid
+      - name: Paired unseen game streams - 24 mixed and 24 hard games
+        run: |
+          mkdir -p learning/hybrid-results
+          /tmp/hybrid 24 24 learning/models/candidate_combo_weights.json | tee learning/hybrid-results/benchmark.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v20-hybrid-v17-headtohead
+          path: learning/hybrid-results/benchmark.txt
