@@ -1,0 +1,20 @@
+name: v2 Offline Research Full Source Snapshot
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2-offline-learning-lab]
+    paths:
+      - '.github/workflows/v2-full-source-snapshot.yml'
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive exact full solver and training source
+        run: |
+          tar czf full-source-v2.tar.gz src learning benchmark tests simulator
+          tar tzf full-source-v2.tar.gz | head
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v2-Full-Research-Source
+          path: full-source-v2.tar.gz
