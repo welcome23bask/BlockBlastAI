@@ -44,6 +44,14 @@ jobs:
         with:
           name: BlockBlastAI-v13-survival-lab-arm64
           path: dist/BlockBlastAI.dylib
+      - name: Upload exact benchmark/source snapshot for independent local replay
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v13-survival-source
+          path: |
+            src/
+            tests/
+            benchmark/
       - name: Compile independent v1.1 baseline versus v1.3 planner
         run: |
           clang -O3 -std=c11 -Isrc -DBLSolve=BLV11Solve -c benchmark/v11_blink_solver.c -o /tmp/old.o
