@@ -1,0 +1,49 @@
+name: v1.1 Vision Smoke Tests and iPhone Build
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.1-adaptive-themes]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/build-vision-fast.yml'
+jobs:
+  vision-build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test original blue theme, tray shapes and orientation
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_vision.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-blue
+          /tmp/test-blue
+      - name: Test brown wood theme, occupied cells and reverse capture
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_wood_theme.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-wood
+          /tmp/test-wood
+      - name: Test legal solver moves and correct next-state prediction
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/test-solver
+          /tmp/test-solver
+          clang -std=c11 -O2 -Wall -Wextra tests/test_solver_paths.c src/BlockBlastSolver.c -o /tmp/test-paths
+          /tmp/test-paths
+          clang -std=c11 -O2 -Wall -Wextra tests/test_transition.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/test-transition
+          /tmp/test-transition
+      - name: Test web simulator
+        run: node simulator/test.js
+      - name: Compile iPhone ARM64 dylib
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang \
+            -target arm64-apple-ios15.0 -arch arm64 -O2 -fobjc-arc -std=gnu11 \
+            -dynamiclib -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo -framework CoreImage \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+      - name: Upload v1.1 iPhone artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v11-theme-fast-dylib
+          path: dist/BlockBlastAI.dylib
