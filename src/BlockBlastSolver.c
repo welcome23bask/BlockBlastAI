@@ -2,7 +2,7 @@
 #include "BlockBlastSolver.h"
 #include <string.h>
 
-#define BEAM_WIDTH 100
+#define BEAM_WIDTH 128
 #define DEPTH_BONUS INT64_C(10000000)
 
 typedef struct {
@@ -50,7 +50,7 @@ static uint64_t clear_lines(uint64_t placed,int *cleared) {
 // The score intentionally values survival more than creating narrow 1-cell holes.
 static int board_quality(uint64_t b) {
     int quality= -105*pc64(b),holes=0,rough=0,nearly=0;
-    int fits2=0,fits3=0,lines4=0;
+    int fits2=0,fits3=0,lines4=0,rect23=0,rect32=0,lines5=0;
     for(int r=0;r<8;++r) {
         int filled=pc64((b>>(r*8))&255);
         if(filled>=5 && filled<=7) nearly+=(filled-4)*(filled-4);
@@ -71,6 +71,7 @@ static int board_quality(uint64_t b) {
         for(int c=0;c<=4;++c) {
             uint64_t mask=UINT64_C(15)<<(r*8+c);
             if(!(b&mask))lines4++;
+            if(c<=3 && !(b&(UINT64_C(31)<<(r*8+c))))lines5++;
         }
     }
     for(int c=0;c<8;++c) {
@@ -85,6 +86,7 @@ static int board_quality(uint64_t b) {
         for(int r=0;r<=4;++r) {
             uint64_t mask=UINT64_C(0x01010101)<<(r*8+c);
             if(!(b&mask))lines4++;
+            if(r<=3 && !(b&(UINT64_C(0x0101010101)<<(r*8+c))))lines5++;
         }
     }
     for(int r=0;r<=6;++r)for(int c=0;c<=6;++c) {
@@ -94,16 +96,41 @@ static int board_quality(uint64_t b) {
             uint64_t k=UINT64_C(0x70707)<<(r*8+c);
             if(!(b&k))fits3++;
         }
+        if(c<=5 && !(b & (UINT64_C(0x707)<<(r*8+c))))rect23++;
+        if(r<=5 && !(b & (UINT64_C(0x30303)<<(r*8+c))))rect32++;
     }
-    quality += fits2*13 + fits3*50 + lines4*9;
-    quality += nearly*35 - holes*105 - rough*11;
+    // Maintain space for different likely future pieces, not just 3x3s.
+    quality += fits2*13 + fits3*48 + lines4*9;
+    quality += rect23*23 + rect32*23 + lines5*15;
+    // Low capacity for either rectangle orientation is a future-tray risk.
+    quality += (rect23<rect32?rect23:rect32)*24;
+    quality += nearly*35 - holes*125 - rough*13;
     return quality;
 }
-static int64_t grade(const BLState *s) {
+// Favor routes that preserve room for the *current* remaining tray pieces.
+static int future_options(const BLState *s,const BLPreparedPiece prep[3],
+                          const BLPiece pieces[3]) {
+    int score=0;
+    for(int p=0;p<3;++p) {
+        if(!pieces[p].count || (s->used&(1u<<p)))continue;
+        const BLPreparedPiece *q=&prep[p];
+        int options=0;
+        for(int r=0;r<=8-q->height && options<12;++r)
+            for(int c=0;c<=8-q->width && options<12;++c)
+                options += !(s->board&q->shifts[r*8+c]);
+        // A temporary zero might still be rescued by a line clear, so
+        // penalize softly rather than treating it as permanently impossible.
+        score+=options==0?-1800:45*options;
+    }
+    return score;
+}
+static int64_t grade(const BLState *s,const BLPreparedPiece prep[3],
+                     const BLPiece pieces[3]) {
     return (int64_t)s->depth*DEPTH_BONUS +
-           (int64_t)s->totalLines*5000 +
-           (int64_t)s->comboBonus*650 +
-           board_quality(s->board);
+           (int64_t)s->totalLines*5200 +
+           (int64_t)s->comboBonus*700 +
+           board_quality(s->board) +
+           future_options(s,prep,pieces);
 }
 
 // Deduplicate equivalent board + used-piece states; retain the higher-scored
@@ -178,7 +205,7 @@ BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
                     move->linesCleared=cleared;
                     move->before=prior->board;
                     move->after=candidate.board;
-                    candidate.score=grade(&candidate);
+                    candidate.score=grade(&candidate,prep,pieces);
                     insert(next,&nextCount,&candidate);
                 }
             }
