@@ -1,8 +1,8 @@
-name: v1.1 Vision Smoke Tests and iPhone Build
+name: Multi-theme Vision and iPhone Build
 on:
   workflow_dispatch:
   push:
-    branches: [feature/v1.1-adaptive-themes]
+    branches: [feature/v1.1-adaptive-themes, feature/v1.2-steady-multitheme]
     paths:
       - 'src/**'
       - 'tests/**'
@@ -20,6 +20,10 @@ jobs:
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_wood_theme.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-wood
           /tmp/test-wood
+      - name: Test seven palettes including pink, neon, metal, and visible highlight
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_palette_variants.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-variants
+          /tmp/test-variants
       - name: Test legal solver moves and correct next-state prediction
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/test-solver
@@ -45,5 +49,5 @@ jobs:
       - name: Upload v1.1 iPhone artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v11-theme-fast-dylib
+          name: BlockBlastAI-v12-steady-multitheme-dylib
           path: dist/BlockBlastAI.dylib
