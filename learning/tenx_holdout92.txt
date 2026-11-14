@@ -1,0 +1,11 @@
+Independent simulator-only holdout: 30 games per scenario; 1,400-move cap; v1.7 C solver is baseline.
+Baseline normal: 113.700 moves avg, p10 47, score proxy 4414.2, combo breaks / 100 moves 2.668, missed safe combo 0.
+Candidate normal: 137.700 moves avg, p10 34, score proxy 5833.1, combo breaks / 100 moves 2.154, missed safe combo 4.
+Normal ratios: survival 1.2111, score 1.3214, p10 0.7234.
+Baseline heavy: 33.567 avg, p10 18, score proxy 1188.6.
+Candidate heavy: 41.133 avg, p10 20, score proxy 1522.4, missed safe combo 1.
+Heavy ratios: survival 1.2254, score 1.2808, p10 1.1111.
+Baseline shifted-heavy: 28.700 avg, p10 15, score proxy 1075.2.
+Candidate shifted-heavy: 33.500 avg, p10 17, score proxy 1337.6.
+Shifted ratios: survival 1.1672, score 1.2440, p10 1.1333.
+VERDICT: TEN_X NOT REACHED, DO NOT DEPLOY. Normal lower-tail worsened and combo misses increased.
