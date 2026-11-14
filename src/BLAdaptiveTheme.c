@@ -11,20 +11,24 @@ static inline const uint8_t *P(const uint8_t *im,int w,int h,int x,int y,int fli
 static inline int delta(const uint8_t *a,const uint8_t *b) {
     return abs((int)a[0]-(int)b[0])+abs((int)a[1]-(int)b[1])+abs((int)a[2]-(int)b[2]);
 }
-static int palette(const uint8_t *p) {
-    int r=p[0],g=p[1],b=p[2];
-    // Warm wood must NOT be mistaken for a red/orange game piece.
-    return (g>110 && b>142 && b-r>30)
-        || (b>160 && b-r>58)
-        || (r>130 && r-g>58 && r-b>55 && g<135)
-        || (g>110 && g-r>28 && g-b>9)
-        || (r>160 && g>120 && r-b>80 && b<105)
-        || (b>120 && r>68 && b-g>34 && r-g>21 && b>r*.88);
-}
+// No hard-coded red/blue/green/pink palette: skins can have ANY hue, including
+// monochrome, pale pastel, wood, neon, metallic and textured appearances.
+// The frame's own background is the reference, and we require enough per-pixel
+// contrast that small gradients and wood grain do not become fake blocks.
 static int is_tile(const uint8_t *p,const uint8_t bg[3]) {
-    int d=delta(p,bg);
-    int brighter=(int)p[0]+p[1]+p[2]-(int)bg[0]-bg[1]-bg[2];
-    return (d>89 && palette(p)) || (d>145 && brighter>100);
+    int dr=(int)p[0]-(int)bg[0];
+    int dg=(int)p[1]-(int)bg[1];
+    int db=(int)p[2]-(int)bg[2];
+    int sum=abs(dr)+abs(dg)+abs(db);
+    int maxdelta=abs(dr);
+    if(abs(dg)>maxdelta)maxdelta=abs(dg);
+    if(abs(db)>maxdelta)maxdelta=abs(db);
+    int chromaChange=abs(dr-dg)+abs(dg-db);
+    int luminanceChange=abs(dr+dg+db);
+    // Solid blocks may be darker than their background: test both directions.
+    return (sum>105 && maxdelta>=32) ||
+           (sum>65 && maxdelta>=27 &&
+            (chromaChange>35 || luminanceChange>60));
 }
 static int tile_center(const uint8_t *im,int w,int h,int x,int y,int flip,const uint8_t bg[3]) {
     if(x<3 || y<3 || x+3>=w || y+3>=h)return 0;
@@ -46,7 +50,7 @@ static int loc_score(const uint8_t *im,int w,int h,int flip,int x,int y,int s) {
         sums[3]+=delta(P(im,w,h,xx,y+s-d,flip),P(im,w,h,xx,y+s+d,flip));
     }
     // All FOUR boundaries of a real, centered, square board must be visible.
-    for(int j=0;j<4;++j) if(sums[j]<8*45)return 0;
+    for(int j=0;j<4;++j) if(sums[j]<8*30)return 0;
     return sums[0]+sums[1]+sums[2]+sums[3];
 }
 static int adaptive_locate(const uint8_t *im,int w,int h,int flip,int *x0,int *y0,int *sz) {
@@ -62,7 +66,9 @@ static int adaptive_locate(const uint8_t *im,int w,int h,int flip,int *x0,int *y
             }
         }
     }
-    if(best<8*4*60)return 0;
+    // Pastel and custom boards can have softer outer contrast than wood/navy.
+    // Their repeated 8x8 cell seams provide an additional independent gate.
+    if(best<8*4*42)return 0;
     // A flat UI card or advertisement cannot substitute for an 8x8 board.
     // Repeated cell gutters are structural evidence independent of theme.
     int grid=0,samples=0;
@@ -120,10 +126,13 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
         if(tile_center(im,w,h,x,y,flip,boardBg))
             found.board|=UINT64_C(1)<<(row*8+col);
     }
-    uint8_t trayBg[3];sample_background(im,w,h,flip,0,trayTop,w,trayBottom,trayBg);
     for(int slot=0;slot<3;++slot) {
         int xmin=w,xmax=-1,ymin=h,ymax=-1,hits=0;
         int xfrom=slot*w/3,xto=(slot+1)*w/3;
+        // Different parts of pastel/gradient backgrounds can have different
+        // RGB values. Compare each tray piece with its OWN local background.
+        uint8_t trayBg[3];
+        sample_background(im,w,h,flip,xfrom,trayTop,xto,trayBottom,trayBg);
         for(int y=trayTop;y<trayBottom;++y)for(int x=xfrom;x<xto;++x) {
             if(!is_tile(P(im,w,h,x,y,flip),trayBg))continue;
             if(x<xmin)xmin=x;if(x>xmax)xmax=x;
