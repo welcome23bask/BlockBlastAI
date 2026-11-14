@@ -72,8 +72,8 @@ static const BLStressShape kFutureShapes[]={
     {UINT64_C(0x01010101),1,4,3},     // 4x1 bar
     {UINT64_C(0x10103),2,3,3},        // left-L 4
     {UINT64_C(0x20203),2,3,3},        // right-L 4
-    {UINT64_C(0x307),3,2,3},          // L 4 variant
-    {UINT64_C(0x607),3,2,3},          // mirrored L 4
+    {UINT64_C(0x107),3,2,3},          // L 4 variant
+    {UINT64_C(0x407),3,2,3},          // mirrored L 4
     {UINT64_C(0x306),3,2,3},          // zigzag
     {UINT64_C(0x603),3,2,3}           // mirrored zigzag
 };
@@ -196,8 +196,12 @@ static int board_quality(uint64_t b) {
     // occupied-space count alone is not a sufficient survival heuristic.
     int occupancy=pc64(b);
     quality-=occupancy*occupancy*BL_SURVIVAL_STRENGTH/75;
-    quality+=survival_shape_access(b);
+    // The full 14-shape forecast is evaluated on beam finalists only.
+    // Calling it for every possible candidate would stall live gameplay.
     quality-=fragmented_space_penalty(b);
+    if(occupancy>31 && !fits3)quality-=(occupancy-30)*145*BL_SURVIVAL_STRENGTH/100;
+    if(occupancy>27 && (lines5<2 || rect23+rect32<3))
+        quality-=(occupancy-26)*100*BL_SURVIVAL_STRENGTH/100;
     return quality;
 }
 // Favor routes that preserve room for the *current* remaining tray pieces.
@@ -306,7 +310,16 @@ BLSolution BLSolve(uint64_t board,const BLPiece pieces[3]) {
         if(!nextCount)break;
         count=nextCount;
         memcpy(beam,next,sizeof(BLState)*(size_t)count);
-        best=beam[0];
+        // Explore with a fast, cheap local heuristic. Evaluate all *surviving*
+        // beam states against harder unseen future shapes only once per depth.
+        // This keeps the 0.24-second screen loop responsive.
+        int64_t bestForecast=INT64_MIN;
+        int chosen=0;
+        for(int k=0;k<count;++k) {
+            int64_t forecast=beam[k].score+(int64_t)survival_shape_access(beam[k].board);
+            if(forecast>bestForecast) {bestForecast=forecast;chosen=k;}
+        }
+        best=beam[chosen];
     }
     solution.movesFound=best.depth;
     solution.totalLines=best.totalLines;
