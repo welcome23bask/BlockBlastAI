@@ -1,4 +1,4 @@
-// BlockBlastAI v1.0 Fast Vision prototype — experimental in-app move assistant.
+// BlockBlastAI v1.1 BLINK replacement — v1.0 blinking highlights + adaptive theme detector.
 // Public UIKit/ReplayKit APIs only. Reads the screen to suggest moves; never touches or places pieces.
 // v0.8: stale-frame protection. Every detection must come from a fresh captured frame; capture
 // stalls/restarts clear the board, tray, solution, highlight and confirmation buffer.
@@ -19,6 +19,7 @@ static const CGFloat kPiecePitch=19.0;
 static const CFTimeInterval kStaleAfter=3.0;   // no fresh frame for this long => clear everything
 static const CFTimeInterval kAutoScanInterval=0.24; // faster; ReplayKit and frame processing still bound latency
 static const CFTimeInterval kCaptureWarmup=0.04;
+static const BOOL kBlinkHighlightsLikeV10=YES; // preserve original v1.0 capture behaviour
 static const NSInteger kConfirmFrames=2;
 static const NSInteger kUncertainTransitionFrames=3;
 // C Blocks cannot capture raw local arrays. A value-type wrapper copies all
@@ -197,13 +198,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v1.1 THEME FAST: Detecting your board colors…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v1.1 BLINK: v1.0 flashing highlights + adaptive colors…" y:638 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,756,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"FAST THEME AUTO: wood, blue and other colored boards. Confirm highlights before each move." y:805 height:47 font:10];
+    _info=[self addLabel:@"v1.1 BLINK: same highlight flashing as v1.0; improved wood/blue board recognition." y:805 height:47 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -442,6 +443,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
 #pragma mark - Fully automatic recognition & live placement overlay
 // The same recommendation should not recreate all outlined UIKit tile views
 // at every scan: just unhide the existing pass-through guide layer.
+// Reproduce v1.0: briefly remove the highlighted outlines during each
+// video capture so that the scanner sees the unobstructed game board.
+// This is deliberately different from the persistent v1.2 style.
+- (void)blinkGuidesBeforeCapture {
+    if(kBlinkHighlightsLikeV10) _guideLayer.hidden=YES;
+}
 - (void)restoreGuidesAfterCapture {
     if(_calibrated && _showGuides && _previewing &&
        !_showCalibrationGrid && _solution.movesFound>0 &&
@@ -514,7 +521,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoBusy=YES;
     // Prevent captured AI text, buttons, and colored outlines from being
     // misidentified as Block Blast pieces. Restore after one video frame.
-    _guideLayer.hidden=YES;
+    [self blinkGuidesBeforeCapture];
     _bubble.hidden=YES;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,(int64_t)(kCaptureWarmup*NSEC_PER_SEC)),dispatch_get_main_queue(),^{
       if(!self->_autoEnabled || !self->_panel.hidden) {
