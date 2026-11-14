@@ -1,4 +1,4 @@
-// BlockBlastAI v1.3 survival-first 3-piece beam solver.
+// BlockBlastAI v1.4 targeted combo deadline rescue; survival-first PINK COMBO baseline.
 // Predicts future *shape accessibility*, not unseen future pieces.
 // No I/O, heap allocation, network calls or app-specific hooks.
 #include "BlockBlastSolver.h"
@@ -20,15 +20,10 @@
 // Strength can be changed when compiling controlled A/B tests; normal iPhone
 // builds use 100. Shape frequencies are unknown: avoid pretending otherwise.
 #define DEPTH_BONUS INT64_C(10000000)
-#ifndef BL_COMBO_BREAK_PENALTY
-#define BL_COMBO_BREAK_PENALTY 100000
-#endif
-// A verified active streak is only a preference among routes that can place
-// the current tray legally. The depth priority still beats combo points.
 
 typedef struct {
     uint64_t board;
-    unsigned char used,depth,comboRun,misses,comboBroken,startedCombo;
+    unsigned char used,depth,comboRun,misses;
     int totalLines,comboBonus;
     BLMove moves[3];
     int64_t score;
@@ -244,8 +239,6 @@ static void advance_state_combo(BLState *next,const BLState *prev,int lines) {
     combo=BLComboAdvance(combo,lines);
     next->comboRun=(unsigned char)combo.streak;
     next->misses=(unsigned char)combo.misses;
-    if(prev->startedCombo && prev->comboRun>0 && combo.streak==0)
-        next->comboBroken=1;
     if(lines>0) {
         // Bounded utility is not claimed to be the exact game's score formula.
         // Real score multipliers can be enormous; survival still takes priority.
@@ -274,19 +267,13 @@ static int64_t grade(const BLState *s,const BLPreparedPiece prep[3],
                      const BLPiece pieces[3]) {
     int used=pc64(s->board);
     int64_t comboValue=(int64_t)s->comboBonus*BL_COMBO_REWARD;
-    // Do not automatically discard the player's streak on a crowded board.
-    // First compare complete legal three-piece plans: a protected combo that
-    // can survive is materially preferable to a gratuitously broken chain.
-    // If every legal plan must break the chain, this cost is unavoidable and
-    // the solver still falls back to prioritizing the board's survival.
-    int64_t breakCost=(s->startedCombo && s->comboBroken)
-        ?(int64_t)BL_COMBO_BREAK_PENALTY:0;
-    // Maintain a small warning when two non-clearing moves are spent.
-    // Do not subtract this from already-clearing candidates.
-    int windowPressure=(s->startedCombo && s->comboRun>0 && s->misses==2)?-1700:0;
+    if(used>31)comboValue/=4; // crowded boards: survive before saving a streak
+    // When the three-move window is about to close, strongly favor a clear.
+    // This only applies to trusted combo states, propagated by callers.
+    int windowPressure=(s->comboRun>0 && s->misses==2 && used<28)?-1100:0;
     return (int64_t)s->depth*DEPTH_BONUS +
            (int64_t)s->totalLines*BL_LINE_REWARD +
-           comboValue + windowPressure - breakCost +
+           comboValue + windowPressure +
            board_quality(s->board) +
            future_options(s,prep,pieces);
 }
@@ -358,6 +345,68 @@ static void rescue_full_tray(BLState state,int goal,
             }
     }
 }
+// Tight, exceptional rescue for a VERIFIED last-chance combo only. Unlike a
+// global combo-breaking penalty, this does not perturb normal beam-search moves.
+// Search only legal first moves that actually clear a line, then verify that the
+// remaining visible pieces still have a COMPLETE legal placement plan.
+// A combo is never worth losing the game due to a clearly unsafe alternative.
+static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
+                                  const BLPreparedPiece prep[3],
+                                  BLComboContext combo,int goal,
+                                  BLState *baseline) {
+    if(goal<1||goal>3||baseline->depth!=goal||
+       !combo.known||combo.streak<=0||combo.misses!=2||
+       baseline->moves[0].linesCleared>0)return 0;
+    // Stay close to the original survival plan in both the immediate and
+    // post-tray board. The heuristic is not a guarantee of unseen pieces.
+    int baseFirst=board_quality(baseline->moves[0].after);
+    int baseFinal=board_quality(baseline->board);
+    int baseFirstOccupancy=pc64(baseline->moves[0].after);
+    int64_t highScore=INT64_MIN;
+    BLState chosen={0};
+    int candidates=0;
+    BLState root={0};root.board=board;
+    root.comboRun=(unsigned char)(combo.streak>63?63:combo.streak);
+    root.misses=(unsigned char)combo.misses;
+    for(int p=0;p<3;++p) {
+        if(!pieces[p].count)continue;
+        const BLPreparedPiece *q=&prep[p];
+        for(int r=0;r<=8-q->height;++r)for(int c=0;c<=8-q->width;++c) {
+            uint64_t mask=q->shifts[r*8+c];
+            if(board&mask)continue;
+            int lines=0;
+            uint64_t after=clear_lines(board|mask,&lines);
+            if(lines<=0)continue;
+            if(++candidates>40)break;
+            if(pc64(after)>baseFirstOccupancy+3)continue;
+            if(board_quality(after)<baseFirst-2500)continue;
+            BLState seed=root;
+            seed.depth=1;seed.used=(unsigned char)(1u<<p);
+            seed.board=after;
+            seed.totalLines=lines;
+            seed.comboRun=(unsigned char)(root.comboRun<63?root.comboRun+1:63);
+            seed.misses=0;
+            seed.comboBonus=(int)seed.comboRun*(int)seed.comboRun;
+            BLMove *first=&seed.moves[0];
+            first->pieceIndex=p;first->row=r;first->col=c;
+            first->before=board;first->after=after;first->linesCleared=lines;
+            BLRescueContext rescue={0};
+            rescue.bestScore=INT64_MIN;
+            // Hard CPU cap per legal clear; search at most 5000 nodes.
+            rescue.nodes=30000;
+            rescue_full_tray(seed,goal,prep,pieces,&rescue);
+            if(!rescue.solutions)continue;
+            BLState found=rescue.best;
+            if(board_quality(found.board)<baseFinal-3500)continue;
+            int64_t score=grade(&found,prep,pieces)
+                         +(int64_t)survival_shape_access(found.board);
+            if(score>highScore) {highScore=score;chosen=found;}
+        }
+    }
+    if(highScore==INT64_MIN)return 0;
+    *baseline=chosen;
+    return 1;
+}
 BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContext combo) {
     BLSolution solution={0};
     solution.approximate=1;
@@ -386,7 +435,6 @@ BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContex
         if(combo.misses<0||combo.misses>2)combo.misses=0;
         best.comboRun=(unsigned char)combo.streak;
         best.misses=(unsigned char)combo.misses;
-        best.startedCombo=(unsigned char)(combo.streak>0);
     }
     beam[0]=best;
     best.board=board;
@@ -440,12 +488,15 @@ BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContex
         if(combo.known) {
             root.comboRun=(unsigned char)combo.streak;
             root.misses=(unsigned char)combo.misses;
-            root.startedCombo=(unsigned char)(combo.streak>0);
         }
         rescue.bestScore=INT64_MIN;
         rescue_full_tray(root,total,prep,pieces,&rescue);
         if(rescue.solutions>0)best=rescue.best;
     }
+    // On a proven expiring streak, an emergency clear is permissible only
+    // when its follow-up tray is fully legal and it stays close to baseline
+    // board quality. Do not bend every move toward the combo objective.
+    rescue_last_combo_clear(board,pieces,prep,combo,total,&best);
     solution.movesFound=best.depth;
     solution.totalLines=best.totalLines;
     for(int i=0;i<best.depth;++i)solution.moves[i]=best.moves[i];
