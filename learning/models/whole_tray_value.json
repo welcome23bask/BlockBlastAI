@@ -1,0 +1,50 @@
+{
+  "format": "BLWholeTrayValue-v1",
+  "model_type": "group-validated-ridge-regression",
+  "feature_order": [
+    "empty",
+    "fit3x3",
+    "fit5h",
+    "fit5v",
+    "rectangles",
+    "shape_coverage",
+    "large_coverage",
+    "isolated",
+    "near_complete_lines",
+    "combo_active",
+    "combo_urgency",
+    "combo_streak"
+  ],
+  "weights": [
+    -13.137015377800155,
+    -13.816137019297717,
+    13.066673660071027,
+    3.861702791074232,
+    21.340110553676574,
+    -18.351672806725457,
+    10.138067302458392,
+    -15.328788785094549,
+    -13.539958931881943,
+    -0.15867211983599172,
+    2.694420990113732,
+    2.990340115282272
+  ],
+  "bias": 32.31494746493636,
+  "target": "future simulator moves after completed three-piece tray (clipped to 120)",
+  "data_source": "v1.7 SMART SURVIVAL simulated trajectories; not real mobile game",
+  "promoted_for_ios": false,
+  "validation": {
+    "train_games": 68,
+    "validation_games": 23,
+    "train_afterstates": 1250,
+    "validation_afterstates": 397,
+    "heldout_mae": 21.206872180195194,
+    "naive_mae": 26.982547103274555,
+    "heldout_r2": 0.09444211491190702,
+    "reg_strength": 0.01,
+    "scenario_mae": {
+      "0": 25.925364648499336,
+      "1": 14.503160319738699
+    }
+  }
+}
