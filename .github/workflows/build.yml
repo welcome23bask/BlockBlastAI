@@ -4,6 +4,7 @@ on:
   push:
     branches-ignore:
       - feature/v1.3-pink-combo-lab
+      - feature/v1.4-combo-guard
     paths:
       - 'src/**'
       - 'tests/**'
