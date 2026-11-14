@@ -25,6 +25,10 @@ jobs:
         run: |
           clang -std=c11 -O3 tests/test_pink_theme.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/pink
           /tmp/pink
+      - name: Seven additional skins, contrast and overlay outline regression
+        run: |
+          clang -std=c11 -O3 tests/test_palette_variants.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/themes
+          /tmp/themes
       - name: Exact transition, 3-move combo persistence and refill detection
         run: |
           clang -std=c11 -O3 tests/test_combo_tracking.c src/BLTransition.c src/BlockBlastSolver.c -lm -o /tmp/combo
