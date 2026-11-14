@@ -1,0 +1,22 @@
+name: v2.0 Offline Learning Source Package
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2-offline-learning-lab]
+    paths:
+      - '.github/workflows/v20-source-package.yml'
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Archive self-play learning system, tests, and documented failed gates
+        run: |
+          mkdir -p dist
+          zip -qr dist/BlockBlastAI-v20-Learning-Source.zip learning/ -x 'learning/artifacts/*' 'learning/combo-results/*'
+          unzip -t dist/BlockBlastAI-v20-Learning-Source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v20-Learning-Source
+          path: dist/BlockBlastAI-v20-Learning-Source.zip
