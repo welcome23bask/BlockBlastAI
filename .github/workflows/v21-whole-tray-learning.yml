@@ -1,0 +1,61 @@
+name: v2.1 Whole-Tray Learning and Honest Heldout Evaluation
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2.1-whole-tray-learning]
+    paths:
+      - 'learning/**'
+      - '.github/workflows/v21-whole-tray-learning.yml'
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install offline research libraries
+        run: python3 -m pip install -r learning/requirements-learning.txt
+      - name: Three-piece legal move, deadlines, deterministic generator tests
+        run: |
+          cc -O3 -std=c11 -fsanitize=address,undefined -fno-omit-frame-pointer \
+            learning/test_whole_tray_value.c src/BLDualStrategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/whole-tray-test
+          ASAN_OPTIONS=detect_leaks=1 /tmp/whole-tray-test
+          cc -O3 -std=c11 \
+            learning/whole_tray_value_safe.c src/BLDualStrategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/whole-tray-value
+      - name: Generate a NEW training dataset from actual baseline three-piece play
+        run: /tmp/whole-tray-value collect learning/whole_tray_train.csv 48
+      - name: Group-isolated regression training and independent game validation
+        run: |
+          python3 learning/train_whole_tray.py \
+            --data learning/whole_tray_train.csv \
+            --output learning/models/whole_tray_value.json | tee learning/whole_tray_training.log
+      - name: Check learning is predictive and model cannot auto-deploy
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('learning/models/whole_tray_value.json').read_text())
+          v=m['validation']
+          assert m['promoted_for_ios'] is False
+          assert len(m['weights'])==len(m['feature_order'])==12
+          assert v['train_games'] >= 20 and v['validation_games'] >= 5
+          assert v['heldout_mae'] < v['naive_mae']
+          print('Training improves held-out prediction, but is not yet a proven better policy:',v)
+          PY
+      - name: Fresh unseen 3-generator head-to-head versus v1.7 SMART SURVIVAL
+        run: |
+          /tmp/whole-tray-value test learning/models/whole_tray_value.json 16 5000000 \
+            | tee learning/whole_tray_headtohead_ci.txt
+      - name: Publish source, training metrics, model and policy comparison as research only
+        uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v21-whole-tray-RESEARCH-NOT-IPHONE
+          path: |
+            learning/whole_tray_train.csv
+            learning/models/whole_tray_value.json
+            learning/models/whole_tray_validation.json
+            learning/whole_tray_training.log
+            learning/whole_tray_headtohead_ci.txt
+            learning/IMPROVEMENT_AUDIT.md
+            learning/README_v21.md
