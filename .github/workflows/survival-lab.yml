@@ -71,6 +71,18 @@ jobs:
       - name: Harder fair-dealing simulation - 40 sessions max 1500 moves
         run: |
           /tmp/longrun 40 1500 400000 3 | tee /tmp/hard_fair_report.txt
+      - name: Extra holdout - 80 uniform games, up to 1500 moves, fresh seeds
+        run: |
+          /tmp/longrun 80 1500 520000 0 | tee /tmp/holdout_uniform.txt
+      - name: Extra holdout - 80 hard-tray games, up to 1500 moves, fresh seeds
+        run: |
+          /tmp/longrun 80 1500 620000 1 | tee /tmp/holdout_stress.txt
+      - name: Extra holdout - 40 fair-dealt games, up to 2000 moves
+        run: |
+          /tmp/longrun 40 2000 720000 2 | tee /tmp/holdout_fair.txt
+      - name: Extra holdout - 40 fair-dealt stressful games, up to 2000 moves
+        run: |
+          /tmp/longrun 40 2000 820000 3 | tee /tmp/holdout_hard_fair.txt
       - name: Upload actual benchmark reports
         uses: actions/upload-artifact@v4
         with:
@@ -80,3 +92,7 @@ jobs:
             /tmp/stress_report.txt
             /tmp/fair_report.txt
             /tmp/hard_fair_report.txt
+            /tmp/holdout_uniform.txt
+            /tmp/holdout_stress.txt
+            /tmp/holdout_fair.txt
+            /tmp/holdout_hard_fair.txt
