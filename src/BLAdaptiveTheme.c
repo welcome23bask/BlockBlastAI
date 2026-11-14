@@ -138,6 +138,11 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
     }
     for(int slot=0;slot<3;++slot) {
         int xmin=w,xmax=-1,ymin=h,ymax=-1,hits=0;
+        // High-contrast pale squares against a darker textured skin.
+        // Texture outside the actual piece may pass a weak RGB-delta test;
+        // use the stronger luminance-positive population to find the true
+        // compact tray-piece bounds when it is clearly present.
+        int lxmin=w,lxmax=-1,lymin=h,lymax=-1,lightHits=0;
         int xfrom=slot*w/3,xto=(slot+1)*w/3;
         uint8_t trayBg[3];
         sample_background(im,w,h,flip,xfrom,trayTop,xto,trayBottom,trayBg);
@@ -145,13 +150,34 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
         int threshold=29+2*noise;
         if(threshold<31)threshold=31;
         if(threshold>88)threshold=88;
+        const int backgroundLum=(int)trayBg[0]+trayBg[1]+trayBg[2];
         for(int y=trayTop;y<trayBottom;++y)for(int x=xfrom;x<xto;++x) {
-            if(!is_tile(P(im,w,h,x,y,flip),trayBg,threshold))continue;
+            const uint8_t *pixel=P(im,w,h,x,y,flip);
+            if(!is_tile(pixel,trayBg,threshold))continue;
             if(x<xmin)xmin=x;if(x>xmax)xmax=x;
             if(y<ymin)ymin=y;if(y>ymax)ymax=y;
             ++hits;
+            int pixelLum=(int)pixel[0]+pixel[1]+pixel[2];
+            if(pixelLum-backgroundLum>=150) {
+                if(x<lxmin)lxmin=x;if(x>lxmax)lxmax=x;
+                if(y<lymin)lymin=y;if(y>lymax)lymax=y;
+                ++lightHits;
+            }
         }
         if(hits<35)continue;
+        // The iPhone green/wood-like textured skins can contribute spurious
+        // positive-delta pixels far below real tray tiles. When an actual
+        // pale piece forms a dense compact region, ignore those dark/weak
+        // pixels in the bounding-box calculation. Do NOT apply this to
+        // darker tiles on light pink/blue themes.
+        if(lightHits>=100) {
+            int lc=(int)lround((lxmax-lxmin+1)/small);
+            int lr=(int)lround((lymax-lymin+1)/small);
+            if(lc>=1&&lc<=5&&lr>=1&&lr<=5 &&
+               lightHits>=lc*lr*65) {
+                xmin=lxmin;xmax=lxmax;ymin=lymin;ymax=lymax;
+            }
+        }
         int cols=(int)lround((xmax-xmin+1)/small);
         int rows=(int)lround((ymax-ymin+1)/small);
         if(cols<1||cols>5||rows<1||rows>5)return 0;
