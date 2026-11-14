@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "../src/BLVisionCore.h"
+#include "../src/BLAdaptiveTheme.h"
 #define W 430
 #define H 932
 static unsigned char *im;
@@ -75,7 +76,10 @@ int main(void){
   BLVisionResult r={0};
   int ok=BLVisionAnalyzeRGBA(im,W,H,&r);
   if(ok&&valid(&r))pass++;
-  else fprintf(stderr,"FAIL palette %d: scanned=%d board=%llx pieces=%d counts=%d/%d/%d\n",n,ok,(unsigned long long)r.board,r.detectedPieces,r.pieces[0].count,r.pieces[1].count,r.pieces[2].count);
+  else {
+   BLVisionResult a={0};int ao=BLAdaptiveAnalyzeRGBA(im,W,H,&a);
+   fprintf(stderr,"FAIL palette %d: main=%d board=%llx pieces=%d counts=%d/%d/%d adaptive=%d pieces=%d counts=%d/%d/%d\\n",n,ok,(unsigned long long)r.board,r.detectedPieces,r.pieces[0].count,r.pieces[1].count,r.pieces[2].count,ao,a.detectedPieces,a.pieces[0].count,a.pieces[1].count,a.pieces[2].count);
+  }
  }
  printf("Palette fuzz: %d/128 synthetic skins parsed correctly\n",pass);
  free(im);
