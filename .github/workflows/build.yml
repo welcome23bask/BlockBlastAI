@@ -23,6 +23,10 @@ jobs:
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_solver_paths.c src/BlockBlastSolver.c -o /tmp/blpaths-test
           /tmp/blpaths-test
+      - name: Verify fast-path only accepts exact next move
+        run: |
+          clang -std=c11 -O2 -Wall -Wextra tests/test_transition.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/bltransition-test
+          /tmp/bltransition-test
       - name: Regression test board vision and orientation
         run: |
           clang -std=c11 -O2 -Wall -Wextra tests/test_vision.c src/BLVisionCore.c -lm -o /tmp/blvision-test
@@ -49,23 +53,23 @@ jobs:
             -dynamiclib \
             -install_name @rpath/BlockBlastAI.dylib \
             -framework Foundation -framework UIKit -framework CoreGraphics -framework ReplayKit -framework CoreMedia -framework CoreVideo -framework CoreImage \
-            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c src/BlockBlastSolver.c \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c src/BLTransition.c src/BlockBlastSolver.c \
             -o dist/BlockBlastAI.dylib
           file dist/BlockBlastAI.dylib
           cp simulator/index.html dist/BlockBlastAI_Simulator.html
       - name: Package complete replacement source files for iPhone upload
         run: |
           mkdir -p dist/replacements/src dist/replacements/tests dist/replacements/benchmark dist/replacements/.github/workflows
-          cp src/BLScreenScan.m src/BlockBlastOverlay.m src/BlockBlastSolver.c dist/replacements/src/
-          cp tests/test_solver.c tests/test_solver_paths.c dist/replacements/tests/
+          cp src/BLScreenScan.m src/BlockBlastOverlay.m src/BlockBlastSolver.c src/BLTransition.c src/BLTransition.h dist/replacements/src/
+          cp tests/test_solver.c tests/test_solver_paths.c tests/test_transition.c dist/replacements/tests/
           cp benchmark/v082_solver.c benchmark/benchmark.c benchmark/results_2000.txt benchmark/holdout_1000.txt dist/replacements/benchmark/
           cp .github/workflows/build.yml dist/replacements/.github/workflows/
-          (cd dist/replacements && zip -qr ../BlockBlastAI_v0.9_Replacement_Files.zip .)
+          (cd dist/replacements && zip -qr ../BlockBlastAI_v1.0_Replacement_Files.zip .)
 
       - name: Upload unsigned dylib
         uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v09-iOS-arm64
+          name: BlockBlastAI-v10-fast-iOS-arm64
           path: dist/BlockBlastAI.dylib
 
       - name: Publish direct-download GitHub Release
