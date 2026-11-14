@@ -30,9 +30,9 @@ jobs:
       - name: Test browser simulator core
         run: |
           node simulator/test.js
-      - name: Benchmark v0.9 against working v0.8.2 (2000 paired games)
+      - name: Benchmark beam-192 against passed beam-128 (2,000 games) (2000 paired games)
         run: |
-          clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v082_solver.c -o /tmp/bl_old.o
+          clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v09_first_candidate.c -o /tmp/bl_old.o
           clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/bl_new.o
           clang -O3 -std=c11 benchmark/benchmark.c /tmp/bl_old.o /tmp/bl_new.o -o /tmp/bl_bench
           /tmp/bl_bench 2000 120 | tee benchmark/results_2000.txt
@@ -55,14 +55,14 @@ jobs:
           mkdir -p dist/replacements/src dist/replacements/tests dist/replacements/benchmark dist/replacements/.github/workflows
           cp src/BLScreenScan.m src/BlockBlastOverlay.m src/BlockBlastSolver.c dist/replacements/src/
           cp tests/test_solver.c tests/test_solver_paths.c dist/replacements/tests/
-          cp benchmark/v082_solver.c benchmark/benchmark.c benchmark/results_2000.txt dist/replacements/benchmark/
+          cp benchmark/v09_first_candidate.c benchmark/benchmark.c benchmark/results_2000.txt dist/replacements/benchmark/
           cp .github/workflows/build.yml dist/replacements/.github/workflows/
           (cd dist/replacements && zip -qr ../BlockBlastAI_v0.9_Replacement_Files.zip .)
 
       - name: Upload unsigned dylib
         uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v09-iOS-arm64
+          name: BlockBlastAI-v09-experiment-iOS-arm64
           path: dist/BlockBlastAI.dylib
 
       - name: Publish direct-download GitHub Release
