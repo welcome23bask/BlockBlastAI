@@ -58,7 +58,7 @@ static Result episode_complete(uint32_t seed,int scenario,const int weight[4],in
     }
     return out;
 }
-typedef struct {int n,illegal,p10;double moves,score,breaks,skips;} Stats;
+typedef struct {int n,illegal,p10;double moves,score,breaks,skips;} TenXStats;
 static uint32_t seed_for(int scenario,int game,int epoch){
     return (uint32_t)(163000000u+20000000u*scenario+
                       (uint32_t)epoch*1000000u+(uint32_t)game*13717u);
@@ -66,8 +66,8 @@ static uint32_t seed_for(int scenario,int game,int epoch){
 static int compare_int(const void *a,const void *b){
     int x=*(const int*)a,y=*(const int*)b;return x<y?-1:x>y;
 }
-static Stats measure(const int w[4],int n,int epoch,int scenario,int original){
-    Stats s={.n=n};
+static TenXStats measure(const int w[4],int n,int epoch,int scenario,int original){
+    TenXStats s={.n=n};
     int *lengths=calloc(n,sizeof(int));if(!lengths)abort();
     for(int i=0;i<n;i++){
         Result r=episode_complete(seed_for(scenario,i,epoch),scenario,w,original);
@@ -77,11 +77,11 @@ static Stats measure(const int w[4],int n,int epoch,int scenario,int original){
     qsort(lengths,n,sizeof(int),compare_int);
     s.p10=lengths[(n-1)/10];free(lengths);return s;
 }
-static double fitness(Stats s){
+static double tenx_fitness(TenXStats s){
     return s.moves/s.n+.002*s.score/s.n-.7*s.breaks/s.n
         -3*s.skips/s.n-500*s.illegal;
 }
-static void metrics(const char *tag,Stats s){
+static void metrics(const char *tag,TenXStats s){
     printf("%s games=%d avg_moves=%.3f p10=%d proxy=%.1f "
            "breaks_per_100=%.3f avoidable_combo_misses=%.0f illegal=%d\n",
            tag,s.n,s.moves/s.n,s.p10,s.score/s.n,
@@ -111,8 +111,8 @@ static int train(int argc,char **argv){
             }
             double score=0;
             for(int scenario=0;scenario<3;scenario++){
-                Stats s=measure(trial,seeds,epoch,scenario,0);
-                score+=fitness(s)*(scenario?1.0:0.5);
+                TenXStats s=measure(trial,seeds,epoch,scenario,0);
+                score+=tenx_fitness(s)*(scenario?1.0:0.5);
             }
             if(score>best){best=score;memcpy(chosen,trial,sizeof(chosen));}
         }
@@ -139,8 +139,8 @@ static int test(int argc,char **argv){
     printf("SYNTHETIC TEN_X TEST: %d unseen games/scenario, epoch=%d, "
            "max_moves=%d. NOT the real game's scoring.\n",n,epoch,MAXMOVES);
     for(int scenario=0;scenario<3;scenario++){
-        Stats old=measure(zero,n,epoch,scenario,1);
-        Stats challenger=measure(w,n,epoch,scenario,0);
+        TenXStats old=measure(zero,n,epoch,scenario,1);
+        TenXStats challenger=measure(w,n,epoch,scenario,0);
         metrics(scenario==0?"v17_normal":scenario==1?"v17_stress":"v17_shifted",old);
         metrics(scenario==0?"candidate_normal":scenario==1?"candidate_stress":"candidate_shifted",challenger);
         if(old.moves<=0||old.score<=0||old.p10<=0||old.illegal||challenger.illegal){
