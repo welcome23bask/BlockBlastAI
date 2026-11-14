@@ -261,7 +261,7 @@ static void pack(BLSolution *to,const BLPath *from,int approximate) {
     to->approximate=approximate;
     for(int i=0;i<from->depth;++i)to->moves[i]=from->moves[i];
 }
-BLTwoStrategies BLV25FindTwoStrategies(uint64_t board,const BLPiece pieces[3],
+static BLTwoStrategies BLV25RawFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
                                     BLComboContext combo,uint32_t nodeBudget) {
     BLTwoStrategies out={0};
     if(!pieces)return out;
@@ -349,4 +349,80 @@ BLTwoStrategies BLV25FindTwoStrategies(uint64_t board,const BLPiece pieces[3],
         }
     }
     return out;
+}
+
+/* v2.5 on-device combo deadline safeguard.
+ * A one-line clear is sufficient to preserve the verified combo, but the
+ * rescue must provide a REAL legal sequence for every remaining tray piece.
+ * This mirrors the offline research rule rather than inventing a preview.
+ * Bounded to limit latency; fail closed to the normal strategy.
+ */
+typedef struct {
+    BLSolution best;
+    int bestQ,visited;
+} BLV25Rescue;
+static void v25_rescue_continue(uint64_t board,const BLPiece pieces[3],
+                BLMove moves[3],int depth,int total,int used,
+                BLV25Rescue *result) {
+    if(result->visited++>=24000)return;
+    if(depth==total) {
+        int q=survival_value(board);
+        if(result->best.movesFound!=total || q>result->bestQ) {
+            memset(&result->best,0,sizeof(result->best));
+            result->best.movesFound=total;
+            result->bestQ=q;
+            for(int i=0;i<depth;i++){
+                result->best.moves[i]=moves[i];
+                result->best.totalLines+=moves[i].linesCleared;
+            }
+        }
+        return;
+    }
+    for(int p=0;p<3;p++){
+        if((used&(1<<p))||pieces[p].count<=0)continue;
+        int width=0,height=0;
+        for(int k=0;k<pieces[p].count;k++){
+            if(pieces[p].x[k]+1>width)width=pieces[p].x[k]+1;
+            if(pieces[p].y[k]+1>height)height=pieces[p].y[k]+1;
+        }
+        if(width<1||width>8||height<1||height>8)continue;
+        for(int row=0;row<=8-height;row++)for(int col=0;col<=8-width;col++){
+            if(result->visited>=24000)return;
+            uint64_t mask=0;
+            for(int k=0;k<pieces[p].count;k++)
+                mask|=UINT64_C(1)<<((row+pieces[p].y[k])*8+col+pieces[p].x[k]);
+            if(mask&board)continue;
+            int lines=0;
+            uint64_t after=clear_full(board|mask,&lines);
+            // The third non-clearing placement would break the active combo.
+            if(depth==0&&!lines)continue;
+            moves[depth]=(BLMove){.pieceIndex=p,.row=row,.col=col,
+                 .before=board,.after=after,.linesCleared=lines};
+            v25_rescue_continue(after,pieces,moves,depth+1,total,
+                                 used|(1<<p),result);
+        }
+    }
+}
+BLTwoStrategies BLV25FindTwoStrategies(uint64_t board,const BLPiece pieces[3],
+                                      BLComboContext combo,uint32_t nodeBudget){
+    BLTwoStrategies answer=BLV25RawFindTwoStrategies(board,pieces,combo,nodeBudget);
+    if(!pieces||!combo.known||combo.streak<=0||combo.misses!=2)
+        return answer;
+    if(answer.smartSurvival.movesFound>0 &&
+       answer.smartSurvival.moves[0].linesCleared>0)
+        return answer;
+    int total=0;
+    for(int p=0;p<3;p++)total+=pieces[p].count>0;
+    if(total<1||total>3)return answer;
+    BLV25Rescue rescue={0};
+    rescue.bestQ=INT_MIN;
+    BLMove moves[3]={0};
+    v25_rescue_continue(board,pieces,moves,0,total,0,&rescue);
+    if(rescue.best.movesFound!=total)return answer;
+    // The entire displayed sequence is valid and saves the combo NOW.
+    answer.smartSurvival=rescue.best;
+    answer.smartComboPreserved=1;
+    answer.smartComboRejectedForSafety=0;
+    answer.smartFutureQuality=rescue.bestQ;
+    return answer;
 }
