@@ -15,7 +15,7 @@ static inline int delta(const uint8_t *a,const uint8_t *b) {
 // monochrome, pale pastel, wood, neon, metallic and textured appearances.
 // The frame's own background is the reference, and we require enough per-pixel
 // contrast that small gradients and wood grain do not become fake blocks.
-static int is_tile(const uint8_t *p,const uint8_t bg[3]) {
+static int is_tile(const uint8_t *p,const uint8_t bg[3],int softThreshold) {
     int dr=(int)p[0]-(int)bg[0];
     int dg=(int)p[1]-(int)bg[1];
     int db=(int)p[2]-(int)bg[2];
@@ -26,15 +26,22 @@ static int is_tile(const uint8_t *p,const uint8_t bg[3]) {
     int chromaChange=abs(dr-dg)+abs(dg-db);
     int luminanceChange=abs(dr+dg+db);
     // Solid blocks may be darker than their background: test both directions.
-    return (sum>105 && maxdelta>=32) ||
-           (sum>65 && maxdelta>=27 &&
-            (chromaChange>35 || luminanceChange>60));
+    int standard=(sum>105 && maxdelta>=32) ||
+                 (sum>65 && maxdelta>=27 &&
+                  (chromaChange>35 || luminanceChange>60));
+    // Muted metallic/pastel pieces may be only slightly different from their
+    // own tray background. Relax contrast only when local background noise is
+    // low; never lower the test for empty board cells.
+    int gentle=(softThreshold>0 && sum>softThreshold &&
+                maxdelta>=19 &&
+                (chromaChange>20 || luminanceChange>softThreshold));
+    return standard || gentle;
 }
-static int tile_center(const uint8_t *im,int w,int h,int x,int y,int flip,const uint8_t bg[3]) {
+static int tile_center(const uint8_t *im,int w,int h,int x,int y,int flip,const uint8_t bg[3],int softness) {
     if(x<3 || y<3 || x+3>=w || y+3>=h)return 0;
     int hits=0;
     for(int dy=-2;dy<=2;dy+=2) for(int dx=-2;dx<=2;dx+=2)
-        hits+=is_tile(P(im,w,h,x+dx,y+dy,flip),bg);
+        hits+=is_tile(P(im,w,h,x+dx,y+dy,flip),bg,softness);
     return hits>=5;
 }
 static int loc_score(const uint8_t *im,int w,int h,int flip,int x,int y,int s) {
@@ -100,6 +107,28 @@ static void sample_background(const uint8_t *im,int w,int h,int flip,
     if(!total) {memset(bg,0,3);return;}
     for(int k=0;k<3;++k)bg[k]=median_channel(hist[k],total);
 }
+// Robust 60th percentile of distance from local tray background. Because
+// real pieces occupy a minority of this region, this estimates grain/gradient
+// variation without learning their color as "background".
+static int local_tray_noise(const uint8_t *im,int w,int h,int flip,
+                            int x0,int y0,int x1,int y1,const uint8_t bg[3]) {
+    int histogram[766]={0},total=0;
+    int sx=(x1-x0)/24,sy=(y1-y0)/20;
+    if(sx<4)sx=4;if(sy<4)sy=4;
+    for(int y=y0+sy/2;y<y1;y+=sy)for(int x=x0+sx/2;x<x1;x+=sx) {
+        if(x<0||y<0||x>=w||y>=h)continue;
+        int d=delta(P(im,w,h,x,y,flip),bg);
+        if(d>765)d=765;
+        ++histogram[d];++total;
+    }
+    if(!total)return 0;
+    int seen=0;
+    for(int d=0;d<=765;++d) {
+        seen+=histogram[d];
+        if(seen*10>=total*6)return d;
+    }
+    return 765;
+}
 static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *out) {
     int left,top,side;
     if(!adaptive_locate(im,w,h,flip,&left,&top,&side))return 0;
@@ -123,7 +152,7 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
     for(int row=0;row<8;++row)for(int col=0;col<8;++col) {
         int x=left+(int)lround((col+.5)*cell);
         int y=top+(int)lround((row+.5)*cell);
-        if(tile_center(im,w,h,x,y,flip,boardBg))
+        if(tile_center(im,w,h,x,y,flip,boardBg,0))
             found.board|=UINT64_C(1)<<(row*8+col);
     }
     for(int slot=0;slot<3;++slot) {
@@ -133,8 +162,12 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
         // RGB values. Compare each tray piece with its OWN local background.
         uint8_t trayBg[3];
         sample_background(im,w,h,flip,xfrom,trayTop,xto,trayBottom,trayBg);
+        int noise=local_tray_noise(im,w,h,flip,xfrom,trayTop,xto,trayBottom,trayBg);
+        int softThreshold=24+2*noise;
+        if(softThreshold<31)softThreshold=31;
+        if(softThreshold>93)softThreshold=93;
         for(int y=trayTop;y<trayBottom;++y)for(int x=xfrom;x<xto;++x) {
-            if(!is_tile(P(im,w,h,x,y,flip),trayBg))continue;
+            if(!is_tile(P(im,w,h,x,y,flip),trayBg,softThreshold))continue;
             if(x<xmin)xmin=x;if(x>xmax)xmax=x;
             if(y<ymin)ymin=y;if(y>ymax)ymax=y;
             ++hits;
@@ -147,7 +180,7 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
         for(int row=0;row<rows;++row)for(int col=0;col<cols;++col) {
             int x=(int)lround(xmin+(col+.5)*small);
             int y=(int)lround(ymin+(row+.5)*small);
-            if(!tile_center(im,w,h,x,y,flip,trayBg))continue;
+            if(!tile_center(im,w,h,x,y,flip,trayBg,softThreshold))continue;
             shape.x[shape.count]=col;shape.y[shape.count]=row;++shape.count;
         }
         if(!shape.count)return 0;
