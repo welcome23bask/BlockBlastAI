@@ -1,0 +1,8 @@
+{
+  "format": "BLTrainedValue-v1",
+  "source": "offline evolving linear policy, synthetic Block Blast",
+  "features": ["free","fit_3x3","fit_horizontal_5","fit_vertical_5","fit_rectangles","isolated","lines_now","clear_preserves_streak","combo_deadline_miss","tray_placement_options","crowded_missing_3x3","almost_full_lines"],
+  "weights": [0.992569986, 4.37304916, 0.943227737, -0.398799401, 8.66745028, 1.24996841, 1.48660572, 22.7830367, 2.29535, 10.1158591, 3.60606477, 1.60226294],
+  "promoted_for_ios": false,
+  "warning": "No real game scoring or next-piece distribution verified"
+}
