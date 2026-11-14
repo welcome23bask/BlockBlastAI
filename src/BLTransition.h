@@ -16,6 +16,20 @@ int BLIsExpectedTransition(uint64_t oldBoard, const BLPiece oldTray[3],
 int BLInferObservedPlacement(uint64_t oldBoard,const BLPiece oldTray[3],
                               uint64_t newBoard,const BLPiece newTray[3],
                               BLMove *observed);
+// Maintain a separately verified streak anchor even if ReplayKit drops a
+// screenshot briefly. Unknown or conflicting observations reset confidence.
+typedef struct {
+    uint64_t board;
+    BLPiece tray[3];
+    BLComboContext streak;
+    double observedAt;
+    int anchored;
+} BLComboTracker;
+void BLComboTrackerReset(BLComboTracker *tracker);
+// Return 1 only when a uniquely identified legal placement was tracked.
+// A no-change observation preserves trusted state, but does not increment it.
+int BLComboTrackerObserve(BLComboTracker *tracker,uint64_t board,
+                          const BLPiece tray[3],double timestamp);
 #ifdef __cplusplus
 }
 #endif
