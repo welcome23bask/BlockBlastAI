@@ -27,6 +27,37 @@ static void tray_scenario(State *g,int scenario){
             g->p[p]=hard[random32()%(sizeof(hard)/sizeof(hard[0]))];
     }
 }
+// Last-chance combo safeguard for RESEARCH ONLY. A single line is enough.
+// Every substitute is proven legal and leaves all remaining visible pieces
+// placeable. In particular, never sacrifice the rest of the tray for a clear.
+static int v23_deadline_rescue(const State *g,BLMove *move){
+    if(!g->known||g->streak<=0||g->misses!=2||move->linesCleared>0)return 0;
+    double best=-1e30;BLMove chosen={0};int have=0;
+    for(int p=0;p<3;p++)if(g->p[p]>=0) {
+        Shape *sh=&shapes[g->p[p]];
+        for(int r=0;r<=8-sh->h;r++)for(int c=0;c<=8-sh->w;c++) {
+            U64 mask=sh->placed[r*8+c];
+            if(!mask||(mask&g->b))continue;
+            int lines=0;U64 next=place(g->b,mask,&lines);
+            if(!lines)continue;
+            int rest[3]={g->p[0],g->p[1],g->p[2]};
+            rest[p]=-1;
+            if(!can_complete_tray(next,rest))continue;
+            int sq3=countfit(next,0),h5=countfit(next,1),
+                v5=countfit(next,2);
+            int free=64-pop(next);
+            double value=70*sq3+8*h5+8*v5+10*free+
+                         40*lines-(sq3==0?180:0);
+            if(!have||value>best) {
+                best=value;have=1;
+                chosen=(BLMove){.pieceIndex=p,.row=r,.col=c,
+                    .linesCleared=lines,.before=g->b,.after=next};
+            }
+        }
+    }
+    if(!have)return 0;
+    *move=chosen;return 1;
+}
 static Result episode_complete(uint32_t seed,int scenario,const int weight[4],int original){
     seed_rng(seed);State g={0};tray_scenario(&g,scenario);
     BLSetTrainWeights(weight);Result out={0};
@@ -39,6 +70,7 @@ static Result episode_complete(uint32_t seed,int scenario,const int weight[4],in
         BLSolution plan=all.smartSurvival;
         if(!plan.movesFound)break;
         BLMove m=plan.moves[0];
+        if(!original)v23_deadline_rescue(&g,&m);
         if(m.pieceIndex<0||m.pieceIndex>2||g.p[m.pieceIndex]<0||
            m.row<0||m.row>7||m.col<0||m.col>7||m.before!=g.b){out.illegal++;break;}
         Shape *piece=&shapes[g.p[m.pieceIndex]];
