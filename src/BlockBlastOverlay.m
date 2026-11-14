@@ -9,6 +9,7 @@
 #import "BLScreenScan.h"
 #import "BLTransition.h"
 #import "BLDualStrategy.h"
+#import "BLV25Strategy.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -79,6 +80,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     BLComboTracker _comboTracker; // independent verified board+tray anchor
     BLStrategyMode _strategyMode;
     UISegmentedControl *_strategyTabs;
+    BOOL _experimentalV25;
+    UIButton *_v25Button;
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -196,6 +199,11 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     solve.titleLabel.font=[UIFont boldSystemFontOfSize:14];
     [_contentView addSubview:solve];
     _strategyMode=BLModeSmartSurvival; // smart survival + small combo is the default
+    // The experimental v2.5 mode is opt-in by installing THIS separate test dylib.
+    // It defaults ON here, but has an instant in-app fallback to the original
+    // v1.7 solver. The current camera, guide and combo tracking are unchanged.
+    id savedExperiment=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLExperimentV25Enabled"];
+    _experimentalV25=savedExperiment?[savedExperiment boolValue]:YES;
     id savedMode=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLStrategyPreferenceV16"];
     if(savedMode) {
         NSInteger mode=[savedMode integerValue];
@@ -216,14 +224,18 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v1.6 SMART SURVIVAL: keep the small combo; protect future space…" y:690 height:48 font:12];
+    _status=[self addLabel:@"v2.5 TEST: experimental whole-tray AI. Original v1.7 selectable below." y:690 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,811,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"SMART SURVIVAL keeps small line-clearing streaks when safe. YOLOv8n vision is optional and requires a trained Core ML model; native scanner remains fallback." y:859 height:50 font:10];
+    _info=[self addLabel:@"v2.5 is experimental: average simulated gains, but some losing test sets. Toggle to original v1.7 below. Same black-block scanner and yellow highlights." y:859 height:50 font:10];
     _info.textColor=BLColor(146,168,191);
+    _v25Button=[self roundedButton:@"" frame:CGRectMake(12,916,_panelWidth-24,38)
+                           action:@selector(toggleV25Experiment)];
+    [_contentView addSubview:_v25Button];
+    [self refreshV25Button];
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
     UILabel *dragText=[[UILabel alloc] initWithFrame:CGRectMake(12,0,270,29)];
@@ -290,7 +302,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _scroll.frame=CGRectMake(0,30,w,h-30);
     CGFloat ratio=w/_panelWidth;
     _contentView.transform=CGAffineTransformMakeScale(ratio,ratio);
-    _scroll.contentSize=CGSizeMake(w,927*ratio);
+    _scroll.contentSize=CGSizeMake(w,976*ratio);
 }
 - (void)savePanelFrame {
     [[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGRect(_panel.frame) forKey:@"BLPanelFrameV2"];
@@ -505,6 +517,25 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     if(bubbleTitle) [_bubble setTitle:bubbleTitle forState:UIControlStateNormal];
     [self refreshTiles];
     [self refreshGuides];
+}
+- (void)refreshV25Button {
+    BOOL on=_experimentalV25;
+    [_v25Button setTitle:on?@"🧪 v2.5 TEST AI: ON (tap for original)"
+                             :@"🛡 v1.7 ORIGINAL: ON (tap for v2.5)"
+               forState:UIControlStateNormal];
+    _v25Button.backgroundColor=on?BLColor(124,69,154):BLColor(14,118,110);
+}
+- (void)toggleV25Experiment {
+    _experimentalV25=!_experimentalV25;
+    [[NSUserDefaults standardUserDefaults] setBool:_experimentalV25
+                                            forKey:@"BLExperimentV25Enabled"];
+    [self refreshV25Button];
+    // Every old recommended move belongs to a different scoring function.
+    // Invalidate it so no out-of-date yellow highlights remain on the board.
+    [self invalidateDetection:_experimentalV25
+             ?@"EXPERIMENT v2.5 ON. Close panel to scan a new board."
+             :@"ORIGINAL v1.7 ON. Close panel to scan a new board."
+                       bubble:@"AI …"];
 }
 - (void)changeStrategy:(UISegmentedControl *)sender {
     BLStrategyMode choice=sender.selectedSegmentIndex==0?BLModeMaxLines:
@@ -738,11 +769,16 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             BLTraySnapshot traySnapshot; memcpy(traySnapshot.values,tray,sizeof(traySnapshot.values));
             BLComboContext comboSnapshot=self->_comboTracker.streak;
             BLStrategyMode selectedMode=self->_strategyMode;
+            BOOL experimentalV25=(selectedMode==BLModeSmartSurvival &&
+                                  self->_experimentalV25);
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-                BLTwoStrategies strategies=BLFindTwoStrategies(
-                    boardSnapshot,traySnapshot.values,comboSnapshot,180000);
+                BLTwoStrategies strategies=experimentalV25
+                    ?BLV25FindTwoStrategies(boardSnapshot,traySnapshot.values,
+                                            comboSnapshot,180000)
+                    :BLFindTwoStrategies(boardSnapshot,traySnapshot.values,
+                                         comboSnapshot,180000);
                 BLSolution answer=(selectedMode==BLModeMaxLines)
                     ?strategies.maxLines:(selectedMode==BLModeKeepCombo
                        ?strategies.keepCombo:strategies.smartSurvival);
@@ -759,7 +795,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                             comboSnapshot.streak,3-comboSnapshot.misses]
                         :@"Combo not yet verified.";
                     NSString *choiceName=selectedMode==BLModeMaxLines?@"MAX LINES":
-                        (selectedMode==BLModeKeepCombo?@"KEEP COMBO":@"SMART SURVIVAL");
+                        (selectedMode==BLModeKeepCombo?@"KEEP COMBO":
+                         (experimentalV25?@"v2.5 EXPERIMENT":@"v1.7 SMART SURVIVAL"));
                     NSString *safetyNote=(selectedMode==BLModeSmartSurvival &&
                         strategies.smartComboRejectedForSafety)
                         ?@"Combo alternative rejected: future-space risk.":@"";
@@ -907,8 +944,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshGuides];
     if (![self readPieces]) return;
     BLComboContext unknownCombo={0};
-    BLTwoStrategies strategies=BLFindTwoStrategies(
-        [self boardMask],_normalizedPieces,unknownCombo,180000);
+    BLTwoStrategies strategies=(_experimentalV25 &&
+        _strategyMode==BLModeSmartSurvival)
+        ?BLV25FindTwoStrategies([self boardMask],_normalizedPieces,unknownCombo,180000)
+        :BLFindTwoStrategies([self boardMask],_normalizedPieces,unknownCombo,180000);
     _solution=(_strategyMode==BLModeMaxLines)?strategies.maxLines:
         (_strategyMode==BLModeKeepCombo?strategies.keepCombo:strategies.smartSurvival);
     if (_solution.movesFound==0) {
