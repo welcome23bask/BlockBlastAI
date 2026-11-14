@@ -7,24 +7,24 @@ on:
       - '.github/workflows/tune-survival.yml'
 jobs:
   sweep:
-    name: Risk strength ${{ matrix.strength }} line ${{ matrix.line }}
+    name: Risk strength ${{ matrix.strength }} line ${{ matrix.line }} rescue-forecast ${{ matrix.forecast }}
     runs-on: macos-15
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {strength: 40, line: 5200}
-          - {strength: 80, line: 5200}
-          - {strength: 120, line: 5200}
-          - {strength: 40, line: 6500}
-          - {strength: 80, line: 6500}
-          - {strength: 120, line: 6500}
+          - {strength: 40, line: 6500, forecast: 0}
+          - {strength: 40, line: 6500, forecast: 4}
+          - {strength: 40, line: 6500, forecast: 10}
+          - {strength: 40, line: 6500, forecast: 18}
+          - {strength: 100, line: 5200, forecast: 4}
+          - {strength: 100, line: 5200, forecast: 10}
     steps:
       - uses: actions/checkout@v4
       - name: Compile frozen user-tested v1.1 and strength variant
         run: |
           clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v11_blink_solver.c -o /tmp/v11.o
-          clang -O3 -std=c11 -Isrc -DBL_SURVIVAL_STRENGTH=${{ matrix.strength }} -DBL_LINE_REWARD=${{ matrix.line }} -c src/BlockBlastSolver.c -o /tmp/new.o
+          clang -O3 -std=c11 -Isrc -DBL_SURVIVAL_STRENGTH=${{ matrix.strength }} -DBL_LINE_REWARD=${{ matrix.line }} -DBL_FUTURE_CLEAR_REWARD=${{ matrix.forecast }} -c src/BlockBlastSolver.c -o /tmp/new.o
           clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/v11.o /tmp/new.o -o /tmp/benchmark
       - name: Uniform pieces - 80 seeded full-length games
         run: |
@@ -34,7 +34,7 @@ jobs:
           /tmp/benchmark 80 1000 410000 1 | tee stress.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: v13-tune-${{ matrix.strength }}-${{ matrix.line }}
+          name: v13-tune-${{ matrix.strength }}-${{ matrix.line }}-${{ matrix.forecast }}
           path: |
             uniform.txt
             stress.txt
