@@ -1,0 +1,47 @@
+name: v1.7 BLACK BLOCK Vision - Screenshot and Color Regressions
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.7-black-block-vision]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/v17-black-tests.yml'
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify seven true-black cells and three orange 5-4-5 bars
+        run: |
+          clang -O3 -std=c11 -Wall -Wextra tests/test_black_theme.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/black
+          /tmp/black
+      - name: Verify green, pink, navy, wood and seven previous skins
+        run: |
+          set -euxo pipefail
+          for test in test_vision test_wood_theme test_pink_theme test_green_textured_theme test_palette_variants; do
+            clang -O3 -std=c11 tests/${test}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+      - name: Preserve SMART SURVIVAL, combo and move-legality behavior
+        run: |
+          set -euxo pipefail
+          clang -O3 -std=c11 tests/test_smart_survival.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/smart
+          /tmp/smart
+          clang -O3 -std=c11 tests/test_combo_tracking.c src/BLTransition.c src/BlockBlastSolver.c -o /tmp/combo
+          /tmp/combo
+          clang -O3 -std=c11 tests/test_dual_strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c -o /tmp/dual
+          /tmp/dual
+          node simulator/test.js
+      - name: Floating AI bubble remains visible while outlines blink
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("src/BlockBlastOverlay.m").read_text()
+          section=s.split("- (void)autoTick {",1)[1].split("- (void)togglePanel {",1)[0]
+          assert "_bubble.hidden=YES" not in section
+          assert "[self blinkGuidesBeforeCapture]" in section
+          assert "kBlinkHighlightsLikeV10=YES" in s
+          print("AI bubble visible; only the placement guides blink")
+          PY
