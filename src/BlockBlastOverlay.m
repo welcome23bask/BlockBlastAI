@@ -195,15 +195,18 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     solve.backgroundColor=BLColor(14,118,110);
     solve.titleLabel.font=[UIFont boldSystemFontOfSize:14];
     [_contentView addSubview:solve];
-    _strategyMode=BLModeKeepCombo; // preserve chains by default
-    id savedMode=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLStrategyPreferenceV15"];
-    if(savedMode) _strategyMode=([savedMode integerValue]==0)?BLModeMaxLines:BLModeKeepCombo;
-    _strategyTabs=[[UISegmentedControl alloc] initWithItems:@[@"BEST: MAX LINES",@"KEEP COMBO"]];
+    _strategyMode=BLModeSmartSurvival; // smart survival + small combo is the default
+    id savedMode=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLStrategyPreferenceV16"];
+    if(savedMode) {
+        NSInteger mode=[savedMode integerValue];
+        _strategyMode=(mode>=0 && mode<=2)?(BLStrategyMode)mode:BLModeSmartSurvival;
+    }
+    _strategyTabs=[[UISegmentedControl alloc] initWithItems:@[@"MAX LINES",@"KEEP COMBO",@"SMART SURVIVAL"]];
     _strategyTabs.frame=CGRectMake(12,557,_panelWidth-24,32);
     _strategyTabs.selectedSegmentIndex=(NSInteger)_strategyMode;
     _strategyTabs.selectedSegmentTintColor=BLColor(14,118,110);
     [_strategyTabs setTitleTextAttributes:@{NSForegroundColorAttributeName:UIColor.whiteColor,
-        NSFontAttributeName:[UIFont boldSystemFontOfSize:11]} forState:UIControlStateSelected];
+        NSFontAttributeName:[UIFont boldSystemFontOfSize:10]} forState:UIControlStateSelected];
     [_strategyTabs addTarget:self action:@selector(changeStrategy:) forControlEvents:UIControlEventValueChanged];
     [_contentView addSubview:_strategyTabs];
     UIButton *calibrate=[self roundedButton:@"📍 Calibrate" frame:CGRectMake(12,597,106,33) action:@selector(startCalibration)];
@@ -213,13 +216,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v1.5 TWO MODES: MAX LINES or KEEP COMBO (independent solver)…" y:690 height:48 font:12];
+    _status=[self addLabel:@"v1.6 SMART SURVIVAL: keep the small combo; protect future space…" y:690 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,811,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"Local three-piece search; choose MAX LINES or KEEP COMBO above. Blinking highlights and multi-theme scanner retained." y:859 height:50 font:10];
+    _info=[self addLabel:@"SMART SURVIVAL keeps small line-clearing streaks when safe. YOLOv8n vision is optional and requires a trained Core ML model; native scanner remains fallback." y:859 height:50 font:10];
     _info.textColor=BLColor(146,168,191);
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
@@ -504,11 +507,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshGuides];
 }
 - (void)changeStrategy:(UISegmentedControl *)sender {
-    BLStrategyMode choice=(sender.selectedSegmentIndex==0)?BLModeMaxLines:BLModeKeepCombo;
+    BLStrategyMode choice=sender.selectedSegmentIndex==0?BLModeMaxLines:
+        (sender.selectedSegmentIndex==1?BLModeKeepCombo:BLModeSmartSurvival);
     if(_strategyMode==choice)return;
     _strategyMode=choice;
     [[NSUserDefaults standardUserDefaults] setInteger:(NSInteger)choice
-                                              forKey:@"BLStrategyPreferenceV15"];
+                                              forKey:@"BLStrategyPreferenceV16"];
     // A previous AI answer used the OLD objective. Never show it as a hint
     // after the strategy changes. Confirm the board on fresh frames instead.
     ++_solveGeneration;
@@ -521,8 +525,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self->_bubble setTitle:@"AI …" forState:UIControlStateNormal];
     _moveLabel.text=@"";
     _status.text=(choice==BLModeMaxLines)
-        ?@"MAX LINES selected. Close the panel for a fresh 3-piece solution."
-        :@"KEEP COMBO selected. Close the panel for a fresh 3-piece solution.";
+        ?@"MAX LINES: biggest total clear this tray. Close for a fresh scan."
+        :(choice==BLModeKeepCombo
+          ?@"KEEP COMBO: early clears. Close for a fresh scan."
+          :@"SMART SURVIVAL: preserve even a one-line combo if safe. Close for a fresh scan.");
 }
 - (void)toggleAutomatic {
     _autoEnabled=!_autoEnabled;
@@ -741,7 +747,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                 BLTwoStrategies strategies=BLFindTwoStrategies(
                     boardSnapshot,traySnapshot.values,comboSnapshot,180000);
                 BLSolution answer=(selectedMode==BLModeMaxLines)
-                    ?strategies.maxLines:strategies.keepCombo;
+                    ?strategies.maxLines:(selectedMode==BLModeKeepCombo
+                       ?strategies.keepCombo:strategies.smartSurvival);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
@@ -754,14 +761,16 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                         ?[NSString stringWithFormat:@"Streak %d, clear within %d move(s).",
                             comboSnapshot.streak,3-comboSnapshot.misses]
                         :@"Combo not yet verified.";
+                    NSString *choiceName=selectedMode==BLModeMaxLines?@"MAX LINES":
+                        (selectedMode==BLModeKeepCombo?@"KEEP COMBO":@"SMART SURVIVAL");
+                    NSString *safetyNote=(selectedMode==BLModeSmartSurvival &&
+                        strategies.smartComboRejectedForSafety)
+                        ?@"Combo alternative rejected: future-space risk.":@"";
                     strongSelf->_status.text=[NSString stringWithFormat:
-                        @"%@: %d lines (%@). Other: %d lines. %@ %@",
-                        selectedMode==BLModeMaxLines?@"MAX LINES":@"KEEP COMBO",
-                        answer.totalLines,
-                        strategies.exhaustive?@"full search":@"budget-limited search",
-                        selectedMode==BLModeMaxLines
-                            ?strategies.keepCombo.totalLines:strategies.maxLines.totalLines,
-                        comboInfo,scanDetail?:@""];
+                        @"%@: %d line(s), %@. %@ %@ %@",
+                        choiceName,answer.totalLines,
+                        strategies.exhaustive?@"complete search":@"bounded search",
+                        comboInfo,safetyNote,scanDetail?:@""];
                     if(strongSelf->_previewing) {
                         [strongSelf showMove];
                         BLMove move=answer.moves[0];
@@ -903,7 +912,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     BLComboContext unknownCombo={0};
     BLTwoStrategies strategies=BLFindTwoStrategies(
         [self boardMask],_normalizedPieces,unknownCombo,180000);
-    _solution=(_strategyMode==BLModeMaxLines)?strategies.maxLines:strategies.keepCombo;
+    _solution=(_strategyMode==BLModeMaxLines)?strategies.maxLines:
+        (_strategyMode==BLModeKeepCombo?strategies.keepCombo:strategies.smartSurvival);
     if (_solution.movesFound==0) {
         _status.text=@"No legal placement found. Check the board and piece shapes.";
         _moveLabel.text=@"";
