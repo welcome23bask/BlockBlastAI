@@ -58,7 +58,7 @@ jobs:
         run: |
           clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v11_blink_solver.c -o /tmp/old.o
           clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/new.o
-          clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/old.o /tmp/new.o -o /tmp/longrun
+          clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/old.o /tmp/new.o -lm -o /tmp/longrun
       - name: Long-run uniform unseen pieces - 100 independent seeded sessions, max 1000 moves
         run: |
           /tmp/longrun 100 1000 100000 0 | tee /tmp/uniform_report.txt
