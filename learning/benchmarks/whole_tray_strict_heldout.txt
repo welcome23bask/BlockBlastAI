@@ -1,0 +1,6 @@
+# Completed fresh-seed benchmark, prior to interrupted redundant make benchmark re-run.
+# All numbers use independent seeds (offset 5000000) and 40 games per distribution.
+scenario=normal games=40 baseline_moves=126.050 learned_moves=126.050 baseline_p10=46 learned_p10=46 baseline_proxy=5054.9 learned_proxy=5030.1 baseline_combo_breaks_per_100=2.202 learned_combo_breaks_per_100=2.221 baseline_avoidable_skips=0 learned_avoidable_skips=0 illegal=0+0 overrides=1
+scenario=stress games=40 baseline_moves=29.975 learned_moves=29.975 baseline_p10=15 learned_p10=15 baseline_proxy=855.7 learned_proxy=855.7 baseline_combo_breaks_per_100=3.586 learned_combo_breaks_per_100=3.586 baseline_avoidable_skips=2 learned_avoidable_skips=2 illegal=0+0 overrides=1
+scenario=shifted_heavy games=40 baseline_moves=25.000 learned_moves=25.000 baseline_p10=16 learned_p10=16 baseline_proxy=750.0 learned_proxy=750.0 baseline_combo_breaks_per_100=2.600 learned_combo_breaks_per_100=2.600 baseline_avoidable_skips=0 learned_avoidable_skips=0 illegal=0+0 overrides=1
+VERDICT: NOT PROMOTED FOR IPHONE; no material survival improvement.
