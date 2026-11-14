@@ -199,7 +199,11 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v1.3 PINK+COMBO: blinking highlights + adaptive colors…" y:638 height:48 font:12];
+#ifdef BL_SAFE_BASELINE_SOLVER
+    _status=[self addLabel:@"PINK BLINK SAFE: original v1.1 AI + pink-theme detection…" y:638 height:48 font:12];
+#else
+    _status=[self addLabel:@"v1.3 PINK+COMBO experimental: blinking highlights…" y:638 height:48 font:12];
+#endif
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
@@ -710,7 +714,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
+#ifdef BL_SAFE_BASELINE_SOLVER
+                // Safe distribution: original user-validated v1.1 BLINK planner.
+                BLSolution answer=BLSolve(boardSnapshot,traySnapshot.values);
+#else
                 BLSolution answer=BLSolveWithCombo(boardSnapshot,traySnapshot.values,comboSnapshot);
+#endif
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
