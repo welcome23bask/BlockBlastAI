@@ -53,7 +53,7 @@ jobs:
           assert len(weights)==4 and all(-300<=x<=300 for x in weights)
           text=(p/'paired-results/holdout952.log').read_text()
           assert text.count('scenario=')==3
-          assert text.count('invalid=0')==6
+          assert text.count('illegal=0')==6
           assert 'TEN_X_VERDICT=NOT REACHED' in text or 'TEN_X_VERDICT=PASSED' in text
           print('Candidate weights',weights,'heldout complete; NO IPHONE RELEASE')
           PY
