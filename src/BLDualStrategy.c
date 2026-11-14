@@ -86,15 +86,15 @@ static void save_if_best(BLSearch *ctx,const BLPath *path) {
     int maybeCombo=ctx->haveCombo &&
          path->depth==ctx->comboPath.depth && comboOK==oldComboOK &&
          earlier(path->firstClear)==earlier(ctx->comboPath.firstClear);
+    if(maybeCombo && path->lines>ctx->comboPath.lines)betterCombo=1;
     if(!betterMax&&!maybeMax&&!betterCombo&&!maybeCombo)return;
     quality=future_quality(path->board);
     if(maybeMax && (quality>ctx->maxQuality ||
                     (quality==ctx->maxQuality &&
                      earlier(path->firstClear)<earlier(ctx->maxPath.firstClear))))
         betterMax=1;
-    if(maybeCombo && (quality>ctx->comboQuality ||
-                      (quality==ctx->comboQuality &&
-                       path->lines>ctx->comboPath.lines)))
+    if(maybeCombo && path->lines==ctx->comboPath.lines &&
+        quality>ctx->comboQuality)
         betterCombo=1;
     if(betterMax) {
         ctx->maxPath=*path;ctx->maxQuality=quality;ctx->haveMax=1;
