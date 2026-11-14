@@ -76,11 +76,12 @@ static void report(char *name,Stats *s,int games){
 int main(int argc,char **argv){
  int games=argc>1?atoi(argv[1]):2000;
  int moves=argc>2?atoi(argv[2]):120;
- if(games<1||games>100000||moves<1||moves>10000)return 2;
- fprintf(stderr,"Simulating baseline %d deterministic games (max %d moves/game)\n",games,moves);
- Stats base=evaluate(BLOldSolve,games,0,moves);
+ int offset=argc>3?atoi(argv[3]):0;
+ if(games<1||games>100000||moves<1||moves>10000||offset<0||offset>100000000)return 2;
+ fprintf(stderr,"Simulating baseline %d deterministic games (max %d moves/game, seed offset %d)\n",games,moves,offset);
+ Stats base=evaluate(BLOldSolve,games,offset,moves);
  fprintf(stderr,"Simulating candidate %d matching games\n",games);
- Stats cand=evaluate(BLSolve,games,0,moves);
+ Stats cand=evaluate(BLSolve,games,offset,moves);
  report("baseline",&base,games);report("candidate",&cand,games);
  double moveRatio=base.steps?100*((double)cand.steps/base.steps-1):0;
  double lineRatio=base.lines?100*((double)cand.lines/base.lines-1):0;
