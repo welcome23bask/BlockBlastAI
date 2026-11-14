@@ -1,0 +1,42 @@
+name: v1.4 Combo Guard - Exact Safety Tests
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.4-combo-guard]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'benchmark/combo_longrun.c'
+      - '.github/workflows/v14-combo-guard-linux.yml'
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Vision in pink, blue, wood and seven skin variations
+        run: |
+          set -euxo pipefail
+          for name in test_vision test_wood_theme test_pink_theme test_palette_variants; do
+            clang -O2 -std=c11 -Wall -Wextra tests/${name}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${name}
+            /tmp/${name}
+          done
+      - name: Original, Bazz and new hard-situation combo safety regressions
+        run: |
+          set -euxo pipefail
+          clang -O2 -std=c11 -Wall -Wextra tests/test_combo_tracking.c src/BlockBlastSolver.c src/BLTransition.c -o /tmp/combo
+          /tmp/combo
+          clang -O2 -std=c11 -Wall -Wextra tests/test_hard_combo_guard.c src/BlockBlastSolver.c src/BLTransition.c -o /tmp/hard
+          /tmp/hard
+          clang -O2 -std=c11 -Wall -Wextra tests/test_bazz_verified_moves.c src/BLTransition.c -o /tmp/bazz
+          /tmp/bazz
+          clang -O2 -std=c11 -Wall -Wextra tests/test_transition.c src/BlockBlastSolver.c src/BLTransition.c -o /tmp/transition
+          /tmp/transition
+          clang -O2 -std=c11 -Wall -Wextra tests/test_solver.c src/BlockBlastSolver.c -o /tmp/solver
+          /tmp/solver
+          clang -O2 -std=c11 -Wall -Wextra tests/test_solver_paths.c src/BlockBlastSolver.c -o /tmp/paths
+          /tmp/paths
+          clang -O2 -std=c11 -Wall -Wextra tests/test_full_tray_rescue.c src/BlockBlastSolver.c -o /tmp/rescue
+          /tmp/rescue
+      - name: Simulated browser game compatibility
+        run: node simulator/test.js
