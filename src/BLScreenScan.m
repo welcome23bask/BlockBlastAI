@@ -217,11 +217,17 @@ static BOOL BLDecodeImage(UIImage *image, CGSize screen, uint8_t **out,
     if (!image.CGImage || screen.width<240 || screen.height<350) return NO;
     size_t w=(size_t)lround(screen.width),h=(size_t)lround(screen.height);
     if(w>1600 || h>3000 || w*h>4500000) return NO;
-    UIGraphicsBeginImageContextWithOptions(CGSizeMake(w,h),YES,1.0);
-    [image drawInRect:CGRectMake(0,0,w,h)];
-    UIImage *upright=UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    if(!upright.CGImage) return NO;
+    // ReplayKit supplies an already-upright CGImage. Skip the redundant
+    // UIKit redraw and go straight to a single scaled pixel decode.
+    // Retain the slower normalization fallback for non-upright images.
+    UIImage *upright=image;
+    if(image.imageOrientation!=UIImageOrientationUp) {
+        UIGraphicsBeginImageContextWithOptions(CGSizeMake(w,h),YES,1.0);
+        [image drawInRect:CGRectMake(0,0,w,h)];
+        upright=UIGraphicsGetImageFromCurrentImageContext();
+        UIGraphicsEndImageContext();
+        if(!upright.CGImage) return NO;
+    }
     uint8_t *px=calloc(w*h,4);
     if(!px) return NO;
     CGColorSpaceRef cs=CGColorSpaceCreateDeviceRGB();
