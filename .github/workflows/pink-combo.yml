@@ -45,9 +45,25 @@ jobs:
           /tmp/rescue
       - name: Browser simulator
         run: node simulator/test.js
-      - name: Compile production iOS ARM64 dylib with blink overlays unchanged
+      - name: Compile SAFE pink scanner with exact user-tested v1.1 BLINK solver
         run: |
           mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -DBL_SAFE_BASELINE_SOLVER=1 \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo -framework CoreImage \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c benchmark/v11_blink_solver.c \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v13-PINK-BLINK-SAFE-iOS-arm64
+          path: dist/BlockBlastAI.dylib
+      - name: Compile EXPERIMENTAL pink scanner plus across-tray combo solver
+        run: |
           xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
             -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
             -install_name @rpath/BlockBlastAI.dylib \
@@ -55,12 +71,12 @@ jobs:
             -framework ReplayKit -framework CoreMedia -framework CoreVideo -framework CoreImage \
             src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
             src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
-            -o dist/BlockBlastAI.dylib
-          file dist/BlockBlastAI.dylib
+            -o dist/BlockBlastAI_Combo_Experimental.dylib
+          file dist/BlockBlastAI_Combo_Experimental.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v13-PINK-COMBO-iOS-arm64
-          path: dist/BlockBlastAI.dylib
+          name: BlockBlastAI-v13-PINK-COMBO-EXPERIMENTAL-iOS-arm64
+          path: dist/BlockBlastAI_Combo_Experimental.dylib
       - name: Paired long-run v1.1 baseline versus new combo logic
         run: |
           clang -std=c11 -O3 -Isrc -DBLSolve=BLOldSolve -c benchmark/v11_blink_solver.c -o /tmp/old.o
