@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/test_v25_iphone.c'
+      - 'tests/test_red_adaptive_theme.c'
       - '.github/workflows/v25-experimental-iphone.yml'
 jobs:
   iphone:
@@ -41,6 +42,11 @@ jobs:
           clang -O2 -std=c11 tests/test_smart_survival.c \
             src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/test-smart
           /tmp/test-smart
+      - name: Regression test red-background 3x3, mixed-lightness pieces and upside-down frame
+        run: |
+          clang -O2 -std=c11 -Wall -Wextra tests/test_red_adaptive_theme.c \
+            src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-red
+          /tmp/test-red
       - name: Test black-block visual recognition and prior skins
         run: |
           for test in test_black_theme test_green_textured_theme test_pink_theme test_vision; do
