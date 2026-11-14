@@ -9,6 +9,7 @@ on:
       - feature/v1.6-smart-survival-yolo
       - feature/v1.6-green-scan-stable-button
       - feature/v1.7-black-block-vision
+      - feature/v2.5-experimental-iphone
     paths:
       - 'src/**'
       - 'tests/**'
