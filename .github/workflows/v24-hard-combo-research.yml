@@ -1,0 +1,100 @@
+name: v2.4 Hard-Piece Generalization & Combo Safety Research
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2.4-hard-piece-combo-training]
+    paths:
+      - 'learning/train_hard_combo_v24.c'
+      - '.github/workflows/v24-hard-combo-research.yml'
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 28
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build frozen v1.7 and v2.4 three-piece search
+        run: |
+          set -eux
+          mkdir -p dist learning/v24-results
+          cc -O3 -std=c11 -Wall -Wextra -Isrc -DBLFindTwoStrategies=BLV17FindTwoStrategies \
+            -c src/BLDualStrategy.c -o dist/original.o
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+            -c learning/BLTrainableStrategy.c -o dist/trainable.o
+          cc -O3 -std=c11 -Wall -Wextra -Isrc \
+            -c src/BlockBlastSolver.c -o dist/engine.o
+          cc -O3 -std=c11 -Wall -Wextra -w -Isrc \
+            learning/train_hard_combo_v24.c dist/original.o dist/trainable.o dist/engine.o -lm \
+            -o dist/hard-trainer
+          cc -O3 -std=c11 -Wall -Wextra -w -Isrc \
+            learning/train_tenx.c dist/original.o dist/trainable.o dist/engine.o -lm \
+            -o dist/full-benchmark
+          cc -O3 -std=c11 -Wall -Wextra -w -Isrc \
+            learning/test_v23_deadline.c dist/original.o dist/trainable.o dist/engine.o -lm \
+            -o dist/deadline-test
+          dist/deadline-test
+      - name: Train against three generators with separate guard seeds
+        run: |
+          cd learning
+          ../dist/hard-trainer 4 8 5 | tee v24-results/training.log
+      - name: Full-search independent holdouts (never train on these epochs)
+        run: |
+          cd learning
+          for epoch in 971 982 993; do
+            ../dist/full-benchmark test 20 v24_paired_checkpoint.txt "$epoch" \
+              | tee "v24-results/holdout-${epoch}.log"
+          done
+      - name: Verify candidate and calculate consistent safety and robustness verdict
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          out=Path("learning/v24-results")
+          w=list(map(int,Path("learning/v24_paired_checkpoint.txt").read_text().split()))
+          assert len(w)==4 and all(-300<=a<=300 for a in w)
+          summaries=[]
+          for ep in [971,982,993]:
+              lines=(out/f"holdout-{ep}.log").read_text().splitlines()
+              o=[x for x in lines if x.startswith("v17_")]
+              c=[x for x in lines if x.startswith("candidate_")]
+              assert len(o)==len(c)==3
+              for scenario,(base,candidate) in enumerate(zip(o,c)):
+                  def val(s,k):
+                      m=re.search(r"(?<![a-z])"+re.escape(k)+r"=([0-9.]+)",s)
+                      assert m,(s,k)
+                      return float(m.group(1))
+                  b={k:val(base,k) for k in ("avg_moves","p10","proxy","breaks_per_100","avoidable_combo_misses","illegal")}
+                  a={k:val(candidate,k) for k in b}
+                  assert a["illegal"]==b["illegal"]==0
+                  summaries.append(dict(epoch=ep,scenario=scenario,original=b,trained=a,
+                      survival_ratio=a["avg_moves"]/b["avg_moves"],
+                      score_ratio=a["proxy"]/b["proxy"]))
+          # Crucial: no hand-picked winning scenario or result. All 9 groups
+          # must pass; failing research is still published with NO DEPLOY status.
+          passed=all(
+              x["survival_ratio"]>1.02 and
+              x["score_ratio"]>=0.98 and
+              x["trained"]["p10"]>=x["original"]["p10"] and
+              x["trained"]["breaks_per_100"]<=x["original"]["breaks_per_100"]+0.05 and
+              x["trained"]["avoidable_combo_misses"]<=x["original"]["avoidable_combo_misses"]
+              for x in summaries)
+          ten_x=all(
+              x["survival_ratio"]>=10 and x["score_ratio"]>=10 and
+              x["trained"]["p10"]>=10*x["original"]["p10"]
+              for x in summaries)
+          result={"trained_weights":w,"groups":summaries,
+                  "qualified_as_consistently_better":passed,
+                  "ten_x_confirmed":ten_x,
+                  "promoted_for_iphone":False,
+                  "note":"Simulated piece generators and score proxies, not official game scoring."}
+          (out/"verdict.json").write_text(json.dumps(result,indent=2))
+          print("v2.4 RESULT",json.dumps({"weights":w,"robust_pass":passed,"ten_x":ten_x}))
+          for x in summaries:print(x["epoch"],x["scenario"],"survival",round(x["survival_ratio"],3),
+                "score",round(x["score_ratio"],3))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v24-HARD-PIECE-COMBO-RESEARCH-NO-IPHONE
+          path: |
+            learning/v24_paired_checkpoint.txt
+            learning/v24-results/*.log
+            learning/v24-results/verdict.json
