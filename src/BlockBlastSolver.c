@@ -8,6 +8,12 @@
 #ifndef BL_SURVIVAL_STRENGTH
 #define BL_SURVIVAL_STRENGTH 100
 #endif
+#ifndef BL_LINE_REWARD
+#define BL_LINE_REWARD 5200
+#endif
+#ifndef BL_COMBO_REWARD
+#define BL_COMBO_REWARD 700
+#endif
 // Strength can be changed when compiling controlled A/B tests; normal iPhone
 // builds use 100. Shape frequencies are unknown: avoid pretending otherwise.
 #define DEPTH_BONUS INT64_C(10000000)
@@ -224,8 +230,8 @@ static int future_options(const BLState *s,const BLPreparedPiece prep[3],
 static int64_t grade(const BLState *s,const BLPreparedPiece prep[3],
                      const BLPiece pieces[3]) {
     return (int64_t)s->depth*DEPTH_BONUS +
-           (int64_t)s->totalLines*3200 +
-           (int64_t)s->comboBonus*520 +
+           (int64_t)s->totalLines*BL_LINE_REWARD +
+           (int64_t)s->comboBonus*BL_COMBO_REWARD +
            board_quality(s->board) +
            future_options(s,prep,pieces);
 }
