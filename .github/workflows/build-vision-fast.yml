@@ -1,4 +1,4 @@
-name: v1.1 Vision Smoke Tests and iPhone Build
+name: v1.1 Blink Replacement iPhone Build
 on:
   workflow_dispatch:
   push:
@@ -45,5 +45,5 @@ jobs:
       - name: Upload v1.1 iPhone artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v11-theme-fast-dylib
+          name: BlockBlastAI-v11-BLINK-replacement-dylib
           path: dist/BlockBlastAI.dylib
