@@ -28,7 +28,7 @@ static void percentile(Totals *t){
     qsort(temp,t->n,sizeof(int),smaller);
     t->p10=temp[(t->n-1)/10];
 }
-static Eval evaluate(const int gamma[6],int stage,int epoch,int count){
+static Eval v25_evaluate(const int gamma[6],int stage,int epoch,int count){
     Eval e={0};e.valid=1;
     const int originalWeights[4]={0};
     const int incumbentWeights[4]={120,120,0,-20};
@@ -60,7 +60,7 @@ static Eval evaluate(const int gamma[6],int stage,int epoch,int count){
     if(!e.valid)e.reward=-1000000;
     return e;
 }
-static void report(FILE *csv,const char *kind,int round,int epoch,int gamma,const Eval *e){
+static void v25_report(FILE *csv,const char *kind,int round,int epoch,int gamma,const Eval *e){
     for(int i=0;i<3;i++){
         const Totals *b=&e->original[i],*a=&e->candidate[i];
         double ratio=a->moves/(b->moves+1e-9),score=a->score/(b->score+1e-9);
@@ -91,15 +91,15 @@ int main(int argc,char **argv){
         int selected=0;double best=-DBL_MAX;
         for(int j=0;j<7;j++){
             gamma[round-1]=choices[j];
-            Eval a=evaluate(gamma,round,241+round,n);
-            Eval b=evaluate(gamma,round,261+round,n);
+            Eval a=v25_evaluate(gamma,round,241+round,n);
+            Eval b=v25_evaluate(gamma,round,261+round,n);
             double reward=.5*(a.reward+b.reward);
             if(a.valid&&b.valid&&reward>best){best=reward;selected=choices[j];}
         }
         gamma[round-1]=0;
-        Eval incumbent=evaluate(gamma,round,401+round,diagnosis);
+        Eval incumbent=v25_evaluate(gamma,round,401+round,diagnosis);
         gamma[round-1]=selected;
-        Eval candidate=evaluate(gamma,round,401+round,diagnosis);
+        Eval candidate=v25_evaluate(gamma,round,401+round,diagnosis);
         int accept=selected!=0&&candidate.valid &&
                    candidate.reward>=incumbent.reward+.008;
         for(int i=0;i<3;i++)
@@ -111,7 +111,7 @@ int main(int argc,char **argv){
                    round,selected,incumbent.reward,candidate.reward);
             selected=0;gamma[round-1]=0;candidate=incumbent;
         }
-        report(csv,"DIAGNOSTIC",round,401+round,selected,&candidate);
+        v25_report(csv,"DIAGNOSTIC",round,401+round,selected,&candidate);
         printf("BATCH_RESULT round=%d selected_weight=%d training_reward=%+.4f\n",round,selected,best);
         fflush(csv);
     }
@@ -121,8 +121,8 @@ int main(int argc,char **argv){
     int robust=1,tenx=1;
     for(int stage=0;stage<2;stage++){
         int epoch=891+17*stage;
-        Eval e=evaluate(gamma,6,epoch,final);
-        report(csv,"HOLDOFF",6,epoch,gamma[5],&e);
+        Eval e=v25_evaluate(gamma,6,epoch,final);
+        v25_report(csv,"HOLDOFF",6,epoch,gamma[5],&e);
         for(int i=0;i<3;i++){
             const Totals *a=&e.candidate[i],*b=&e.original[i];
             double survival=a->moves/(b->moves+1e-9),score=a->score/(b->score+1e-9);
