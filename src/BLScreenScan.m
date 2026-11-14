@@ -1,5 +1,6 @@
 #import "BLScreenScan.h"
 #import "BLVisionCore.h"
+#import "BLYOLOVision.h"
 #import <ReplayKit/ReplayKit.h>
 #import <CoreGraphics/CoreGraphics.h>
 #import <CoreMedia/CoreMedia.h>
@@ -256,7 +257,15 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
     int okay=BLVisionAnalyzeRGBA(pixels,(int)w,(int)h,&found);
     free(pixels);
     if(!okay) {
-        if(detail)*detail=@"Cannot safely identify the whole board and tray. Highlights cleared; wait for gameplay.";
+        // Optional trained YOLOv8n model: invoke only if installed and
+        // native theme-relative scanning has already failed. Do not replace
+        // the reliable old scanner with untrained COCO model detections.
+        if(BLYOLOModelAvailable() &&
+           BLYOLOTryDetect(image,screenSize,occupied,pieces,
+                           firstCenter,lastCenter,detail))return YES;
+        if(detail)*detail=BLYOLOModelAvailable()
+            ?@"Neither native scan nor custom YOLO vision safely detected this board."
+            :@"Native vision uncertain. Optional trained YOLO model not installed.";
         return NO;
     }
     for(int i=0;i<64;++i)occupied[i]=(found.board & (UINT64_C(1)<<i))!=0;
