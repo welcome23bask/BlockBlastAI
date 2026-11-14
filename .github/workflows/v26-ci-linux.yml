@@ -1,0 +1,25 @@
+name: v2.6 Fast Cross-Skin Vision Tests
+on:
+  push:
+    branches: [feature/v2.6-universal-vision]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/v26-ci-linux.yml'
+  workflow_dispatch:
+jobs:
+  vision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and validate 256 synthetic palette/occupied-board cases
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra tests/test_palette_vision.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-palettes
+          /tmp/test-palettes
+      - name: Ensure legacy black, green, pink, orientation and red regression still pass
+        run: |
+          for test in test_black_theme test_green_textured_theme test_pink_theme test_vision test_red_adaptive_theme; do
+            cc -O2 -std=c11 tests/${test}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
