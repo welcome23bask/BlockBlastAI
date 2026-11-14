@@ -6,6 +6,7 @@ on:
       - feature/v1.3-pink-combo-lab
       - feature/v1.4-combo-guard
       - feature/v1.5-dual-strategy
+      - feature/v1.6-smart-survival-yolo
     paths:
       - 'src/**'
       - 'tests/**'
