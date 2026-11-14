@@ -54,7 +54,7 @@ jobs:
             benchmark/
       - name: Compile independent v1.1 baseline versus v1.3 planner
         run: |
-          clang -O3 -std=c11 -Isrc -DBLSolve=BLV11Solve -c benchmark/v11_blink_solver.c -o /tmp/old.o
+          clang -O3 -std=c11 -Isrc -DBLSolve=BLOldSolve -c benchmark/v11_blink_solver.c -o /tmp/old.o
           clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/new.o
           clang -O3 -std=c11 benchmark/longrun_survival.c /tmp/old.o /tmp/new.o -o /tmp/longrun
       - name: Long-run uniform unseen pieces - 100 independent seeded sessions, max 1000 moves
