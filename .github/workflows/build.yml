@@ -72,12 +72,12 @@ jobs:
           [ ! -f benchmark/results_2000.txt ] || cp benchmark/results_2000.txt dist/replacements/benchmark/
           [ ! -f benchmark/holdout_1000.txt ] || cp benchmark/holdout_1000.txt dist/replacements/benchmark/
           cp .github/workflows/build.yml dist/replacements/.github/workflows/
-          (cd dist/replacements && zip -qr ../BlockBlastAI_v1.1_Replacement_Files.zip .)
+          (cd dist/replacements && zip -qr ../BlockBlastAI_v1.1_BLINK_Replacement_Files.zip .)
 
       - name: Upload unsigned dylib
         uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v11-theme-fast-iOS-arm64
+          name: BlockBlastAI-v11-BLINK-replacement-iOS-arm64
           path: dist/BlockBlastAI.dylib
 
       - name: Publish direct-download GitHub Release
