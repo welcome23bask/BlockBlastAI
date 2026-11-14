@@ -1,0 +1,32 @@
+name: v1.4 Real-Combo-Context Long Run Benchmark
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.4-combo-guard]
+    paths:
+      - 'benchmark/combo_longrun.c'
+      - '.github/workflows/v14-combo-longrun.yml'
+jobs:
+  paired-combo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build v1.3 and v1.4 from separate source snapshots
+        run: |
+          clang -O3 -std=c11 -Isrc -DBLSolve=BLV13Solve -DBLSolveWithCombo=BLV13SolveWithCombo -c benchmark/v13_combo_solver.c -o /tmp/old.o
+          clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/new.o
+          clang -O3 -std=c11 benchmark/combo_longrun.c /tmp/old.o /tmp/new.o -lm -o /tmp/combobench
+      - name: Fresh uniform pieces 80 games 1000 moves maximum
+        run: /tmp/combobench 80 1000 1230000 0 | tee uniform.txt
+      - name: Fresh large-piece stress 80 games 1000 moves maximum
+        run: /tmp/combobench 80 1000 2230000 1 | tee difficult.txt
+      - name: Fresh uniform second holdout 80 games 1000 moves maximum
+        run: /tmp/combobench 80 1000 3230000 0 | tee uniform_holdout.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v14-combo-history-benchmark-reports
+          path: |
+            uniform.txt
+            difficult.txt
+            uniform_holdout.txt
