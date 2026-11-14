@@ -1,0 +1,108 @@
+name: v2.5 Six Batches of Five Improvements and Holdouts
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2.5-six-round-thirty-improvements]
+    paths:
+      - 'learning/v25_features.h'
+      - 'learning/BLV25Strategy.c'
+      - 'learning/train_v25_six_rounds.c'
+      - 'learning/validate_v25.c'
+      - 'learning/test_v25_features.c'
+      - '.github/workflows/v25-six-batches.yml'
+jobs:
+  test_and_train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run six group feature unit tests
+        run: |
+          set -euxo pipefail
+          mkdir -p dist learning/v25-results
+          cc -O1 -std=c11 -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -Isrc -Ilearning learning/test_v25_features.c \
+            src/BlockBlastSolver.c -lm -o dist/v25-unit
+          ASAN_OPTIONS=detect_leaks=1 dist/v25-unit
+      - name: Compile unchanged v1.7 baseline and v2.5 research search
+        run: |
+          set -euxo pipefail
+          cc -O3 -std=c11 -Isrc -DBLFindTwoStrategies=BLV17FindTwoStrategies \
+            -c src/BLDualStrategy.c -o dist/original.o
+          cc -O3 -std=c11 -Isrc -c learning/BLV25Strategy.c -o dist/candidate.o
+          cc -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o dist/engine.o
+          cc -O3 -std=c11 -w -I. -Isrc -Ilearning \
+            learning/test_v23_deadline.c dist/original.o dist/candidate.o dist/engine.o -lm \
+            -o dist/deadline-test
+          dist/deadline-test
+          cc -O3 -std=c11 -w -I. -Isrc -Ilearning \
+            -DMAXMOVES=250 -DBL_TENX_NODE_BUDGET=3500 \
+            learning/train_v25_six_rounds.c dist/original.o dist/candidate.o dist/engine.o \
+            -lm -o dist/six-round-trainer
+          cc -O3 -std=c11 -w -I. -Isrc -Ilearning \
+            -DMAXMOVES=1400 -DBL_TENX_NODE_BUDGET=18000 \
+            learning/validate_v25.c dist/original.o dist/candidate.o dist/engine.o \
+            -lm -o dist/long-holdout
+      - name: Six iterative training and test rounds, five new signals per round
+        run: |
+          set -euxo pipefail
+          cd learning
+          ../dist/six-round-trainer 3 3 6 | tee v25-results/six-rounds.log
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('v25-results/six-rounds.log').read_text()
+          assert p.count('BATCH_RESULT round=')==6
+          assert p.count('DIAGNOSTIC round=')==18
+          weights=list(map(int,Path('v25_weights.txt').read_text().split()))
+          assert len(weights)==6
+          assert 'iphone_release=NO' in p
+          print('Six rounds completed:',weights)
+          PY
+      - name: Five new independent long-game holdouts on three generators
+        run: |
+          set -euxo pipefail
+          cd learning
+          for epoch in 1121 1143 1167 1199 1217; do
+            ../dist/long-holdout 14 "$epoch" | tee "v25-results/holdout-$epoch.log"
+          done
+      - name: Strict research-only gate and aggregate measured survival
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,re
+          root=Path('learning/v25-results')
+          rows=[];failures=0
+          for ep in [1121,1143,1167,1199,1217]:
+              log=(root/('holdout-%s.log'%ep)).read_text()
+              assert log.count('WITHHELD scenario=')==3
+              if 'VERDICT robust=FAIL' in log:failures+=1
+              for line in log.splitlines():
+                  if not line.startswith('WITHHELD'):continue
+                  get=lambda x:float(re.search(r'\b'+x+r'=([0-9.]+)',line).group(1))
+                  rows.append(dict(epoch=ep,scenario=int(get('scenario')),
+                       baseline_moves=get('baseline_avg'),
+                       trained_moves=get('candidate_avg'),
+                       survival_ratio=get('survival_ratio'),
+                       score_ratio=get('score_ratio')))
+          summary={}
+          for i in range(3):
+              ss=[x for x in rows if x['scenario']==i]
+              before=sum(x['baseline_moves'] for x in ss)
+              after=sum(x['trained_moves'] for x in ss)
+              summary[str(i)]=dict(games_per_model=70,baseline_avg=before/5,
+                    trained_avg=after/5,average_survival_gain_percent=100*(after/before-1))
+          out=dict(implemented_features=30,trained_batches=6,
+                   independent_paired_games=210,holdout_failed_epochs=failures,
+                   verified_ten_x=False,promoted_for_iphone=False,results=summary,
+                   warning='Synthetic game scoring and piece distribution.')
+          (root/'summary.json').write_text(json.dumps(out,indent=2))
+          print(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v25-30-Improvements-6-Test-Rounds-Research
+          path: |
+            learning/v25_weights.txt
+            learning/v25_batch_metrics.csv
+            learning/v25-results/*.log
+            learning/v25-results/summary.json
