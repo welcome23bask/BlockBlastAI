@@ -1,0 +1,36 @@
+name: v1.6 Paired Long-run Combo and Survival Holdouts
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v1.6-smart-survival-yolo]
+    paths:
+      - 'benchmark/v16_smart_compare.c'
+      - '.github/workflows/v16-holdout.yml'
+jobs:
+  paired:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile frozen v1.5 keep-combo and new v1.6 smart survival
+        run: |
+          clang -O3 -std=c11 -Isrc -DBLFindTwoStrategies=BLV15FindTwoStrategies -c benchmark/v15_dual_solver.c -o /tmp/v15.o
+          clang -O3 -std=c11 -Isrc -c src/BLDualStrategy.c -o /tmp/v16.o
+          clang -O3 -std=c11 -Isrc -c src/BlockBlastSolver.c -o /tmp/solver.o
+          clang -O3 -std=c11 benchmark/v16_smart_compare.c /tmp/v15.o /tmp/v16.o /tmp/solver.o -lm -o /tmp/compare
+      - name: 16 independent mixed-piece sessions up to 250 moves
+        run: |
+          /tmp/compare 16 250 6611800 0 | tee uniform.txt
+      - name: 16 independent large-piece stress sessions up to 250 moves
+        run: |
+          /tmp/compare 16 250 7711800 1 | tee stress.txt
+      - name: 16 independent holdout sessions up to 250 moves
+        run: |
+          /tmp/compare 16 250 8811800 0 | tee holdout.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v16-paired-survival-results
+          path: |
+            uniform.txt
+            stress.txt
+            holdout.txt
