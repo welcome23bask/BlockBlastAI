@@ -1,4 +1,4 @@
-// BlockBlastAI v1.1 BLINK replacement — v1.0 blinking highlights + adaptive theme detector.
+// BlockBlastAI v1.3 PINK+COMBO lab — preserves v1.0-style blinking capture/highlights.
 // Public UIKit/ReplayKit APIs only. Reads the screen to suggest moves; never touches or places pieces.
 // v0.8: stale-frame protection. Every detection must come from a fresh captured frame; capture
 // stalls/restarts clear the board, tray, solution, highlight and confirmation buffer.
@@ -75,6 +75,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     unsigned long _lastFrameCounter, _lastRestartCount;
     CFAbsoluteTime _lastFreshAt;
     NSInteger _frozenRepeats;
+    BLComboContext _verifiedCombo; // never use guessed score or hidden game state
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -198,7 +199,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,596,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v1.1 BLINK: v1.0 flashing highlights + adaptive colors…" y:638 height:48 font:12];
+    _status=[self addLabel:@"v1.3 PINK+COMBO: blinking highlights + adaptive colors…" y:638 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:696 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,756,130,37) action:@selector(previousMove)];
@@ -479,6 +480,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _stableAutoFrames=0;
     _observedAutoHash=0;
     _solvedAutoHash=0;
+    _verifiedCombo=(BLComboContext){0};
     ++_solveGeneration;
     _moveLabel.text=@"";
     if(reason) _status.text=reason;
@@ -661,6 +663,25 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             return;
         }
         if(signature!=self->_solvedAutoHash) {
+            if(self->_solvedAutoHash!=0 && (!sameBoard || !sameTray)) {
+                BLMove actuallyPlaced={0};
+                BOOL verified=BLInferObservedPlacement([self boardMask],
+                        self->_normalizedPieces,scannedBoard,tray,&actuallyPlaced);
+                if(verified) {
+                    // Never invent a streak from score pixels or an AI suggestion.
+                    self->_verifiedCombo=BLComboAdvance(
+                            self->_verifiedCombo,actuallyPlaced.linesCleared);
+                } else {
+                    int oldRemaining=0,newRemaining=0;
+                    for(int p=0;p<3;++p) {
+                        oldRemaining+=self->_normalizedPieces[p].count>0;
+                        newRemaining+=tray[p].count>0;
+                    }
+                    // A tray refill without board movement is not a move.
+                    BOOL trayOnly=(sameBoard && oldRemaining==0 && newRemaining==3);
+                    if(!trayOnly)self->_verifiedCombo=(BLComboContext){0};
+                }
+            }
             self->_solvedAutoHash=signature;
             memcpy(self->_board,board,sizeof(board));
             memset(self->_pieces,0,sizeof(self->_pieces));
@@ -685,10 +706,11 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             uint64_t generation=++self->_solveGeneration;
             uint64_t boardSnapshot=scannedBoard;
             BLTraySnapshot traySnapshot; memcpy(traySnapshot.values,tray,sizeof(traySnapshot.values));
+            BLComboContext comboSnapshot=self->_verifiedCombo;
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-                BLSolution answer=BLSolve(boardSnapshot,traySnapshot.values);
+                BLSolution answer=BLSolveWithCombo(boardSnapshot,traySnapshot.values,comboSnapshot);
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
