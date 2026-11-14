@@ -1,8 +1,15 @@
-// BlockBlastAI heuristic 3-piece beam solver. No I/O, allocation or network use.
+// BlockBlastAI v1.3 survival-first 3-piece beam solver.
+// Predicts future *shape accessibility*, not unseen future pieces.
+// No I/O, heap allocation, network calls or app-specific hooks.
 #include "BlockBlastSolver.h"
 #include <string.h>
 
-#define BEAM_WIDTH 192
+#define BEAM_WIDTH 256
+#ifndef BL_SURVIVAL_STRENGTH
+#define BL_SURVIVAL_STRENGTH 100
+#endif
+// Strength can be changed when compiling controlled A/B tests; normal iPhone
+// builds use 100. Shape frequencies are unknown: avoid pretending otherwise.
 #define DEPTH_BONUS INT64_C(10000000)
 
 typedef struct {
@@ -48,6 +55,85 @@ static uint64_t clear_lines(uint64_t placed,int *cleared) {
 
 // Estimate how well the resulting board can fit common future shapes.
 // The score intentionally values survival more than creating narrow 1-cell holes.
+
+// Shape footprints for the NEXT unseen tray, NOT predictions of the actual RNG.
+// Include difficult squares, long bars, broad rectangles and non-rectangles,
+// in both orientations where appropriate. These are representative risks,
+// not claimed frequencies or a reverse-engineered Block Blast generator.
+typedef struct { uint64_t cells; unsigned char w,h,importance; } BLStressShape;
+static const BLStressShape kFutureShapes[]={
+    {UINT64_C(0x70707),3,3,6},           // 3x3 square
+    {UINT64_C(0x1f),5,1,5},             // 1x5 bar
+    {UINT64_C(0x0101010101),1,5,5},    // 5x1 bar
+    {UINT64_C(0x707),3,2,4},           // 2x3 rectangle
+    {UINT64_C(0x30303),2,3,4},         // 3x2 rectangle
+    {UINT64_C(0x303),2,2,2},           // 2x2 square
+    {UINT64_C(0x0f),4,1,3},            // 1x4 bar
+    {UINT64_C(0x01010101),1,4,3},     // 4x1 bar
+    {UINT64_C(0x10103),2,3,3},        // left-L 4
+    {UINT64_C(0x20203),2,3,3},        // right-L 4
+    {UINT64_C(0x307),3,2,3},          // L 4 variant
+    {UINT64_C(0x607),3,2,3},          // mirrored L 4
+    {UINT64_C(0x306),3,2,3},          // zigzag
+    {UINT64_C(0x603),3,2,3}           // mirrored zigzag
+};
+static int count_fit(uint64_t occupied, const BLStressShape *shape) {
+    int fits=0;
+    for(int r=0;r<=8-(int)shape->h;++r)
+        for(int c=0;c<=8-(int)shape->w;++c)
+            if(!(occupied & (shape->cells << (r*8+c)))) ++fits;
+    return fits;
+}
+// A near-full board with lots of individually empty cells can still be doomed:
+// isolated empty components and a shortage of large-shape landing zones both
+// increase the chance that the next unknown tray is impossible to place.
+static int survival_shape_access(uint64_t occupied) {
+    int free=64-pc64(occupied),covered=0,missing=0,flex=0,largeMissing=0;
+    int n=(int)(sizeof(kFutureShapes)/sizeof(kFutureShapes[0]));
+    for(int i=0;i<n;++i) {
+        const BLStressShape *shape=&kFutureShapes[i];
+        int fits=count_fit(occupied,shape);
+        if(fits) {
+            covered += shape->importance;
+            int capped=fits>9?9:fits;
+            flex += shape->importance*capped;
+        } else {
+            missing += shape->importance;
+            if(i<5)largeMissing += shape->importance;
+        }
+    }
+    int congestion=free<24 ? (24-free) : 0;
+    // The progressive risk multiplier values shape access even before crisis.
+    // Strongly prefer several *different* landing zones, not just one 3x3 hole.
+    int score=covered*26+flex*11-missing*(45+congestion*7);
+    score-=largeMissing*(free<29?100+congestion*12:30);
+    if(free<18 && covered<20)score-= (18-free)*170;
+    return score*BL_SURVIVAL_STRENGTH/100;
+}
+static int fragmented_space_penalty(uint64_t occupied) {
+    uint64_t free=~occupied;
+    int components=0,fragmentPenalty=0;
+    const uint64_t notRight=UINT64_C(0x7f7f7f7f7f7f7f7f);
+    const uint64_t notLeft=UINT64_C(0xfefefefefefefefe);
+    while(free) {
+        uint64_t region=free & (~free+1);
+        uint64_t previous=0;
+        do {
+            previous=region;
+            region|=(((region&notRight)<<1)|((region&notLeft)>>1)|
+                      (region<<8)|(region>>8))&free;
+        } while(region!=previous);
+        int size=pc64(region);
+        ++components;
+        // Tiny separated voids cannot fit most useful shapes.
+        if(size<3)fragmentPenalty+=(4-size)*95;
+        else if(size<6)fragmentPenalty+=(6-size)*30;
+        free&=~region;
+    }
+    if(components>1)fragmentPenalty+=(components-1)*110;
+    return fragmentPenalty*BL_SURVIVAL_STRENGTH/100;
+}
+
 static int board_quality(uint64_t b) {
     int quality= -105*pc64(b),holes=0,rough=0,nearly=0;
     int fits2=0,fits3=0,lines4=0,rect23=0,rect32=0,lines5=0;
@@ -104,7 +190,14 @@ static int board_quality(uint64_t b) {
     quality += rect23*23 + rect32*23 + lines5*15;
     // Low capacity for either rectangle orientation is a future-tray risk.
     quality += (rect23<rect32?rect23:rect32)*24;
-    quality += nearly*35 - holes*125 - rough*13;
+    quality += nearly*25 - holes*200 - rough*18;
+    // Reward controllable free space and punish fragmentation. Large pieces
+    // can be impossible to place with 20+ scattered empty cells, so raw
+    // occupied-space count alone is not a sufficient survival heuristic.
+    int occupancy=pc64(b);
+    quality-=occupancy*occupancy*BL_SURVIVAL_STRENGTH/75;
+    quality+=survival_shape_access(b);
+    quality-=fragmented_space_penalty(b);
     return quality;
 }
 // Favor routes that preserve room for the *current* remaining tray pieces.
@@ -127,8 +220,8 @@ static int future_options(const BLState *s,const BLPreparedPiece prep[3],
 static int64_t grade(const BLState *s,const BLPreparedPiece prep[3],
                      const BLPiece pieces[3]) {
     return (int64_t)s->depth*DEPTH_BONUS +
-           (int64_t)s->totalLines*5200 +
-           (int64_t)s->comboBonus*700 +
+           (int64_t)s->totalLines*3200 +
+           (int64_t)s->comboBonus*520 +
            board_quality(s->board) +
            future_options(s,prep,pieces);
 }
