@@ -361,6 +361,7 @@ static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
     // post-tray board. The heuristic is not a guarantee of unseen pieces.
     int baseFirst=board_quality(baseline->moves[0].after);
     int baseFinal=board_quality(baseline->board);
+    int baseFuture=survival_shape_access(baseline->board);
     int baseFirstOccupancy=pc64(baseline->moves[0].after);
     int64_t highScore=INT64_MIN;
     BLState chosen={0};
@@ -378,15 +379,16 @@ static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
             uint64_t after=clear_lines(board|mask,&lines);
             if(lines<=0)continue;
             if(++candidates>40)break;
-            if(pc64(after)>baseFirstOccupancy+3)continue;
-            if(board_quality(after)<baseFirst-2500)continue;
+            if(pc64(after)>baseFirstOccupancy)continue;
+            if(board_quality(after)<baseFirst)continue;
             BLState seed=root;
             seed.depth=1;seed.used=(unsigned char)(1u<<p);
             seed.board=after;
             seed.totalLines=lines;
             seed.comboRun=(unsigned char)(root.comboRun<63?root.comboRun+1:63);
             seed.misses=0;
-            seed.comboBonus=(int)seed.comboRun*(int)seed.comboRun;
+            int bonusStreak=seed.comboRun>6?6:seed.comboRun;
+            seed.comboBonus=bonusStreak*bonusStreak;
             BLMove *first=&seed.moves[0];
             first->pieceIndex=p;first->row=r;first->col=c;
             first->before=board;first->after=after;first->linesCleared=lines;
@@ -397,7 +399,8 @@ static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
             rescue_full_tray(seed,goal,prep,pieces,&rescue);
             if(!rescue.solutions)continue;
             BLState found=rescue.best;
-            if(board_quality(found.board)<baseFinal-3500)continue;
+            if(board_quality(found.board)<baseFinal)continue;
+            if(survival_shape_access(found.board)<baseFuture)continue;
             int64_t score=grade(&found,prep,pieces)
                          +(int64_t)survival_shape_access(found.board);
             if(score>highScore) {highScore=score;chosen=found;}
