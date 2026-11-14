@@ -15,7 +15,7 @@
 #define BL_COMBO_REWARD 700
 #endif
 #ifndef BL_FUTURE_CLEAR_REWARD
-#define BL_FUTURE_CLEAR_REWARD 0
+#define BL_FUTURE_CLEAR_REWARD 10
 #endif
 // Strength can be changed when compiling controlled A/B tests; normal iPhone
 // builds use 100. Shape frequencies are unknown: avoid pretending otherwise.
