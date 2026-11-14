@@ -1,0 +1,82 @@
+name: v2.6 Universal Vision iPhone Beta
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2.6-universal-vision]
+    paths:
+      - 'src/**'
+      - 'tests/test_v25_iphone.c'
+      - 'tests/test_red_adaptive_theme.c'
+      - 'tests/test_palette_vision.c'
+      - '.github/workflows/v26-universal-vision.yml'
+      - '.github/workflows/v25-experimental-iphone.yml'
+jobs:
+  iphone:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify accepted weights, opt-in toggle and intact vision
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('src/BLV25Strategy.c').read_text()
+          h=Path('src/v25_features.h').read_text()
+          ui=Path('src/BlockBlastOverlay.m').read_text()
+          original=Path('src/BLDualStrategy.c').read_text()
+          assert 'static const int blTrainWeights[4]={120,120,0,-20};' in s
+          assert 'static const int v25_weights[6]={0,0,0,1,0,0};' in h
+          assert 'BLV25FindTwoStrategies(' in ui and 'BLFindTwoStrategies(' in ui
+          assert 'toggleV25Experiment' in ui
+          assert 'BLExperimentV25Enabled' in ui
+          assert 'BLV25Rescue' in s
+          assert 'static int survival_value' in original
+          assert '[self blinkGuidesBeforeCapture]' in ui
+          assert '_bubble.hidden=YES' not in ui.split('- (void)autoTick {',1)[1].split('- (void)togglePanel {',1)[0]
+          print('PASS: v2.5 selected coefficients, original fallback, combo rescue, persistent bubble and yellow guides')
+          PY
+      - name: Check exact legal moves, full-tray and one-line combo rescue
+        run: |
+          clang -O2 -std=c11 -Wall -Wextra -I src \
+            tests/test_v25_iphone.c src/BLDualStrategy.c src/BLV25Strategy.c \
+            src/BlockBlastSolver.c -lm -o /tmp/test-v25-iphone
+          /tmp/test-v25-iphone
+          clang -O2 -std=c11 tests/test_smart_survival.c \
+            src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/test-smart
+          /tmp/test-smart
+      - name: Regression test red-background 3x3, mixed-lightness pieces and upside-down frame
+        run: |
+          clang -O2 -std=c11 -Wall -Wextra tests/test_red_adaptive_theme.c \
+            src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-red
+          /tmp/test-red
+      - name: Test black-block visual recognition and prior skins
+        run: |
+          for test in test_black_theme test_green_textured_theme test_pink_theme test_vision; do
+            clang -O2 -std=c11 tests/${test}.c src/BLVisionCore.c \
+              src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+      - name: Exercise 128 synthetic palette combinations
+        run: |
+          clang -O2 -std=c11 -Wall -Wextra tests/test_palette_vision.c \
+            src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-palettes
+          /tmp/test-palettes
+      - name: Compile full arm64 iPhone dynamic library with experimental toggle
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLV25Strategy.c src/BLYOLOVision.m \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+          test -s dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v26-UNIVERSAL-VISION-BETA
+          path: dist/BlockBlastAI.dylib
