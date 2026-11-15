@@ -56,23 +56,29 @@ int BLVisionContrastBoard(const uint8_t *im,int w,int h,
         if(d<low)low=d;
         if(d>high)high=d;
     }
-    if(high-low<65)return 0; // uniform or ambiguous board: don't guess
-    double a=low,b=high;
-    for(int iter=0;iter<12;iter++){
-        int ca=0,cb=0,sa=0,sb=0;
-        for(int i=0;i<64;i++){
-            if(fabs(distances[i]-a)<=fabs(distances[i]-b)){
-                sa+=distances[i];++ca;
-            }else{sb+=distances[i];++cb;}
-        }
-        if(ca<3||cb<1)return 0;
-        a=(double)sa/ca;b=(double)sb/cb;
+    if(high-low<75)return 0; // uniform or ambiguous board
+    // Multi-colored skins form MANY bright clusters. A 2-means classifier
+    // may wrongly put dark-red occupied pieces in the empty class when
+    // blue/white blocks are much brighter. Instead locate the FIRST
+    // substantial contrast gap above the darkest board-center population.
+    int sorted[64];
+    memcpy(sorted,distances,sizeof(sorted));
+    for(int i=1;i<64;i++){
+        int v=sorted[i],j=i-1;
+        while(j>=0&&sorted[j]>v){sorted[j+1]=sorted[j];--j;}
+        sorted[j+1]=v;
     }
-    if(b-a<65)return 0;
+    int cut=-1;
+    for(int i=3;i<64;i++){
+        if(sorted[i]-sorted[i-1]>=45 &&
+           sorted[i-1]-sorted[0]<=65) {
+            cut=i;
+            break;
+        }
+    }
+    if(cut<0)return 0;
+    double middle=(sorted[cut-1]+sorted[cut])*.5;
     uint64_t result=0;int near=0,far=0,uncertain=0;
-    double middle=(a+b)*.5;
-    // Leave a sufficiently wide gap in distance space to prevent
-    // bevel/shadow/selection animation from flipping borderline cells.
     for(int i=0;i<64;i++){
         double d=distances[i];
         if(fabs(d-middle)<12.0)++uncertain;
@@ -86,6 +92,6 @@ int BLVisionContrastBoard(const uint8_t *im,int w,int h,
     for(int c=0;c<8;c++)if((result&(UINT64_C(0x0101010101010101)<<c)) ==
                                        (UINT64_C(0x0101010101010101)<<c))return 0;
     *out=result;
-    if(margin)*margin=(int)lround(b-a);
+    if(margin)*margin=sorted[cut]-sorted[cut-1];
     return 1;
 }
