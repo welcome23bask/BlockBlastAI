@@ -13,4 +13,9 @@ int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
                     float lastX,float lastY,const float trayX[3],
                     const float trayY[3],const float trayPitch[3],
                     float screenWidth,float screenHeight,BLDragPlan *out);
+
+// Every target cell of the selected piece must be CERTAINLY EMPTY in
+// independent per-cell RGB evidence from the SAME confirmed frame.
+int BLAutoTargetIsProvenEmpty(const BLPiece tray[3],const BLMove *move,
+                             uint64_t certainlyEmptyMask);
 #endif
