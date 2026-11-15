@@ -124,6 +124,9 @@ static int scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *out) {
         }
         if(shape.count==0)return 0;
         found.pieces[p]=shape;
+        found.trayFirstX[p]=(float)(xmin+small*.5);
+        found.trayFirstY[p]=(float)(ymin+small*.5);
+        found.trayCellPitch[p]=(float)small;
         ++found.detectedPieces;
     }
     // A scan without any identifiable tray pieces is not actionable.
@@ -221,7 +224,11 @@ static int black_theme_scan(const uint8_t *im,int w,int h,int flip,BLVisionResul
             p.x[p.count]=col;p.y[p.count]=row;++p.count;
         }
         if(!p.count)return 0;
-        result.pieces[slot]=p;++result.detectedPieces;
+        result.pieces[slot]=p;
+        result.trayFirstX[slot]=(float)(xMin+small*.5);
+        result.trayFirstY[slot]=(float)(yMin+small*.5);
+        result.trayCellPitch[slot]=(float)small;
+        ++result.detectedPieces;
     }
     if(result.detectedPieces==0)return 0;
     *out=result;
