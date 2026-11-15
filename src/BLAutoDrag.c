@@ -52,3 +52,22 @@ int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
     *out=(BLDragPlan){x0,y0,x1,y1,px,py,p};
     return 1;
 }
+
+int BLAutoTargetIsProvenEmpty(const BLPiece tray[3],const BLMove *move,
+                             uint64_t certainlyEmptyMask) {
+    if(!tray||!move||move->pieceIndex<0||move->pieceIndex>=3)return 0;
+    const BLPiece *piece=&tray[move->pieceIndex];
+    if(piece->count<=0||piece->count>25)return 0;
+    uint64_t targets=0;
+    for(int k=0;k<piece->count;k++) {
+        int col=move->col+piece->x[k];
+        int row=move->row+piece->y[k];
+        if(col<0||col>=8||row<0||row>=8)return 0;
+        uint64_t cell=UINT64_C(1)<<(row*8+col);
+        if((targets&cell)!=0)return 0;
+        targets|=cell;
+    }
+    // The scanner's own board is not sufficient; a second pixel
+    // classifier must independently certify every destination EMPTY.
+    return targets!=0 && (targets&certainlyEmptyMask)==targets;
+}
