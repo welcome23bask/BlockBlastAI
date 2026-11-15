@@ -1,0 +1,54 @@
+#include "BLAutoDrag.h"
+#include "BLGuideSafety.h"
+#include <string.h>
+#include <math.h>
+#include <stdlib.h>
+int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
+                    const BLMove *move,float fx,float fy,
+                    float lx,float ly,const float tx[3],
+                    const float ty[3],const float tp[3],
+                    float w,float h,BLDragPlan *out) {
+    if(!tray||!move||!tx||!ty||!tp||!out)return 0;
+    if(move->pieceIndex<0||move->pieceIndex>2 ||
+       move->before!=board)return 0;
+    const int p=move->pieceIndex;
+    if(tray[p].count<1||tray[p].count>25)return 0;
+    float pitchX=(lx-fx)/7.f,pitchY=(ly-fy)/7.f;
+    if(!isfinite(pitchX)||!isfinite(pitchY) ||
+       pitchX<20||pitchY<20||
+       fabsf(pitchX-pitchY)>fmaxf(pitchX,pitchY)*.10f ||
+       w<240||h<350||!isfinite(w)||!isfinite(h))return 0;
+    if(tp[p]<pitchX*.25f || tp[p]>pitchX*.80f ||
+       !isfinite(tp[p])||!isfinite(tx[p])||!isfinite(ty[p]))
+        return 0;
+    BLSolution verify={0};
+    verify.movesFound=1;
+    verify.moves[0]=*move;
+    if(!BLGuideValidateSolution(board,tray,&verify))return 0;
+    // Select an occupied local tile close to the shape centroid, never
+    // the empty center of an L or U piece.
+    float sumX=0,sumY=0;
+    for(int k=0;k<tray[p].count;k++){
+        sumX+=tray[p].x[k];sumY+=tray[p].y[k];
+    }
+    float midX=sumX/tray[p].count,midY=sumY/tray[p].count;
+    int best=-1;float dmin=1e20f;
+    for(int k=0;k<tray[p].count;k++){
+        float dx=tray[p].x[k]-midX,dy=tray[p].y[k]-midY;
+        float d=dx*dx+dy*dy;
+        if(d<dmin){dmin=d;best=k;}
+    }
+    if(best<0)return 0;
+    int px=tray[p].x[best],py=tray[p].y[best];
+    float x0=tx[p]+px*tp[p],y0=ty[p]+py*tp[p];
+    float x1=fx+(move->col+px)*pitchX;
+    float y1=fy+(move->row+py)*pitchY;
+    if(x0<8||x0>w-8||y0<ly+pitchY*.8f||y0>h-8 ||
+       x1<8||x1>w-8||y1<8||y1>h-8)return 0;
+    // Screen geometry and tray slot must agree. Do not dispatch a touch
+    // starting on a different slot or system control.
+    float slotMiddle=w*((float)p+.5f)/3.f;
+    if(fabsf(x0-slotMiddle)>w*.28f)return 0;
+    *out=(BLDragPlan){x0,y0,x1,y1,px,py,p};
+    return 1;
+}
