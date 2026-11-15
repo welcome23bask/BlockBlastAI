@@ -19,7 +19,23 @@ if (( a < 17 || a > 2000 || b < 17 || b > 2000 || a == b )); then
   echo "Holdout epochs must be distinct and between 17 and 2000." >&2; exit 2
 fi
 for e in "$a" "$b"; do
-  case "$e" in 92|93|989|1201|1202) echo "Previously used/planned epoch: $e" >&2; exit 2;; esac
+  case "$e" in 92|93|989|1201|1202|1901|1902|1903|1904|1905|1906)
+    echo "Previously used/planned epoch: $e" >&2; exit 2;;
+  esac
+done
+# A source checkpoint may deliberately remain unchanged after failed gates.
+# Never mistake a repeated checkpoint epoch for a fresh training seed.
+train_epoch="${TENX_TRAIN_SEED_EPOCH:-}"
+if [[ ! "$train_epoch" =~ ^[0-9]+$ ]] ||
+   ((train_epoch < 17 || train_epoch > 2000 ||
+      train_epoch == a || train_epoch == b)); then
+  echo "Supply a distinct provisional TENX_TRAIN_SEED_EPOCH in 17..2000." >&2
+  exit 2
+fi
+for used in 1716 1901 1902 1903 1904 1905 1906; do
+  if (( train_epoch == used )); then
+    echo "Training seed epoch previously used/planned: $used" >&2; exit 2
+  fi
 done
 rev="$(git rev-parse HEAD)"
 work="$(mktemp -d)"
@@ -51,8 +67,11 @@ cc -O3 -std=c11 -Wall -Wextra -Isrc learning/train_tenx.c v17.o trained.o solver
 cp learning/tenx_checkpoint.txt tenx_checkpoint.txt
 echo "SOURCE_REVISION=$rev"
 echo "BASELINE_CHECKPOINT=$(cat tenx_checkpoint.txt)"
-# One bounded epoch; training seeds are derived from the checkpoint epoch 16.
-./tenx_lab train 1 3 | tee training.txt
+echo "PROVISIONAL_TRAIN_SEED_EPOCH=$train_epoch"
+echo "PROVISIONAL_HOLDOUT_EPOCHS=$a,$b"
+# One bounded epoch with a new training namespace, even though unchanged
+# checkpoint weights may still resume at logical epoch 16.
+TENX_TRAIN_SEED_EPOCH="$train_epoch" ./tenx_lab train 1 3 | tee training.txt
 echo "TRAINED_CHECKPOINT=$(cat tenx_checkpoint.txt)"
 echo "CANDIDATE_WEIGHTS=$(cat tenx_candidate_weights.txt)"
 # Caller must verify these epoch IDs were never used for training or testing.
