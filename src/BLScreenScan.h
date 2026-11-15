@@ -26,6 +26,8 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
 BOOL BLAutoDetectDetailed(UIImage *image,CGSize screenSize,BOOL occupied[64],
                           BLPiece pieces[3],CGPoint *firstCenter,
                           CGPoint *lastCenter,CGPoint trayFirstCenters[3],
-                          CGFloat trayPitches[3],NSString ** _Nullable detail);
+                          CGFloat trayPitches[3],uint64_t * _Nullable provenEmptyMask,
+                          BOOL * _Nullable themeVerified,
+                          NSString ** _Nullable detail);
 NS_ASSUME_NONNULL_END
 #endif
