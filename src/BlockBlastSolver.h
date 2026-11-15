@@ -31,15 +31,18 @@ typedef struct {
 // A combo is trusted only after we have witnessed at least one legal clear
 // transition on the device. We do not infer score or initial streak from pixels.
 // A clear on any of the next three moves maintains the observed chain.
+// Track verified combo streaks up to 100. This does not alter game mechanics.
+#define BL_COMBO_STREAK_MAX 100
+
 typedef struct {
-    int streak;          // verified count of consecutive clearing events (capped)
+    int streak;          // verified count of consecutive clearing events (capped at 100)
     int misses;          // non-clearing placements since last clear: 0, 1, 2
     int known;           // zero until a real clear is observed
 } BLComboContext;
 static inline BLComboContext BLComboAdvance(BLComboContext c,int linesCleared) {
     if(linesCleared>0) {
         c.known=1;
-        if(c.streak<63)++c.streak;
+        if(c.streak<BL_COMBO_STREAK_MAX)++c.streak;
         c.misses=0;
     } else if(c.known) {
         ++c.misses;
