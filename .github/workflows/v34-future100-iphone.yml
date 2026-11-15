@@ -70,7 +70,7 @@ jobs:
           assert 'BLNoClearProofIsReady' in overlay
           assert 'no clear available' in overlay
           assert 'BLTrainedVisionOpinionRGBA' in scanner
-          assert 'if(trainedOpinion<0)' in scanner
+          assert 'if(trainedOpinion<0 && !lumaVerified)' in scanner
           assert 'if(clearPlan.found)clearPlan.completeSearch=0;' in overlay
           print('PASS timed deep search and no false no-clear after incomplete/invalid candidate')
           PY
