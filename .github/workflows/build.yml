@@ -12,6 +12,7 @@ on:
       - feature/v2.5-experimental-iphone
       - feature/v2.9-original-ui-smart-engine
       - feature/v3.0-three-move-combo-vision
+      - feature/v3.1-diagonal-piece-safety-fix
     paths:
       - 'src/**'
       - 'tests/**'
