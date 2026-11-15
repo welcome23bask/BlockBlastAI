@@ -754,7 +754,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         // without storing the status bar, score or unrelated screen areas.
         if(self->_stableAutoFrames>=3 &&
            CFAbsoluteTimeGetCurrent()-self->_trainingStableSince>=0.65 &&
-           [BLTrainingCollector shared].isEnabled) {
+           [[BLTrainingCollector shared] isEnabled]) {
             [[BLTrainingCollector shared] observeStableFrame:image
                                                       board:scannedBoard
                                                      pieces:tray
@@ -956,7 +956,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
 #pragma mark - Opt-in training data collection
 - (void)refreshVisionTrainingUI {
     BLTrainingCollector *collector=[BLTrainingCollector shared];
-    BOOL enabled=collector.isEnabled;
+    BOOL enabled=[collector isEnabled];
     [_trainingButton setTitle:enabled?@"📸 TRAINING: ON (tap to stop)":
                                   @"📸 TRAINING: OFF (tap to enable)"
                     forState:UIControlStateNormal];
@@ -967,9 +967,9 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
 }
 - (void)toggleVisionTraining {
     BLTrainingCollector *collector=[BLTrainingCollector shared];
-    [collector setEnabled:!collector.isEnabled];
+    [collector setEnabled:![collector isEnabled]];
     [self refreshVisionTrainingUI];
-    if(collector.isEnabled && !_autoEnabled)
+    if([collector isEnabled] && !_autoEnabled)
         _trainingStatus.text=@"Training ON. Turn AUTO SCAN on and close the panel to collect.";
 }
 - (void)exportVisionTraining {
