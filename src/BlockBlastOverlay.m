@@ -13,6 +13,7 @@
 #import "BLFrameSafety.h"
 #import "BLThreeMoveClear.h"
 #import "BLGuideSafety.h"
+#import "BLTrainingCollector.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -86,6 +87,9 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     BLComboTracker _comboTracker; // independent verified board+tray anchor
     BLStrategyMode _strategyMode;
     UISegmentedControl *_strategyTabs;
+    UIButton *_trainingButton;
+    UILabel *_trainingStatus;
+    CFAbsoluteTime _trainingStableSince;
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -152,7 +156,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _scroll=[[UIScrollView alloc] initWithFrame:CGRectZero];
     _scroll.alwaysBounceVertical=YES;
     [_panel addSubview:_scroll];
-    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,927)];
+    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,1100)];
     _contentView.layer.anchorPoint=CGPointZero;
     _contentView.layer.position=CGPointZero;
     [_scroll addSubview:_contentView];
@@ -231,6 +235,28 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     [_contentView addSubview:prev]; [_contentView addSubview:next];
     _info=[self addLabel:@"Original v1.7 camera, board position, interface and highlights. New v2.5 Smart Survival chooses placements; impossible board reads are ignored." y:859 height:50 font:10];
     _info.textColor=BLColor(146,168,191);
+
+    [self addLabel:@"VISION TRAINING · local screenshots only" y:928 height:20 font:12];
+    _trainingButton=[self roundedButton:@"📸 TRAINING: OFF (tap to enable)"
+                             frame:CGRectMake(12,953,_panelWidth-24,33)
+                            action:@selector(toggleVisionTraining)];
+    [_contentView addSubview:_trainingButton];
+    UIButton *export=[self roundedButton:@"📦 Export training ZIP"
+                       frame:CGRectMake(12,991,195,34)
+                      action:@selector(exportVisionTraining)];
+    [_contentView addSubview:export];
+    UIButton *clearTraining=[self roundedButton:@"Clear samples"
+                            frame:CGRectMake(215,991,_panelWidth-227,34)
+                            action:@selector(clearVisionTraining)];
+    [_contentView addSubview:clearTraining];
+    _trainingStatus=[self addLabel:@"" y:1030 height:52 font:11];
+    _trainingStatus.numberOfLines=3;
+
+    [[NSNotificationCenter defaultCenter] addObserver:self
+                                             selector:@selector(refreshVisionTrainingUI)
+                                                 name:BLTrainingCollectorDidChangeNotification
+                                               object:nil];
+    [self refreshVisionTrainingUI];
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
     UILabel *dragText=[[UILabel alloc] initWithFrame:CGRectMake(12,0,270,29)];
@@ -297,7 +323,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _scroll.frame=CGRectMake(0,30,w,h-30);
     CGFloat ratio=w/_panelWidth;
     _contentView.transform=CGAffineTransformMakeScale(ratio,ratio);
-    _scroll.contentSize=CGSizeMake(w,927*ratio);
+    _scroll.contentSize=CGSizeMake(w,1100*ratio);
 }
 - (void)savePanelFrame {
     [[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGRect(_panel.frame) forKey:@"BLPanelFrameV2"];
@@ -713,6 +739,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         else {
             self->_observedAutoHash=signature;
             self->_stableAutoFrames=1;
+            self->_trainingStableSince=CFAbsoluteTimeGetCurrent();
             self->_showGuides=NO;
         }
         NSInteger required=expectedMove?1:(transitional?kUncertainTransitionFrames:kConfirmFrames);
@@ -720,6 +747,19 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
             self->_showGuides=NO;
             [self refreshGuides];
             return;
+        }
+        // Training is an explicit opt-in independent of solving. Only save
+        // after >=3 matching, distinct ReplayKit frames over >=0.65 sec,
+        // with the game unoccluded, board/tray geometry validated, and
+        // without storing the status bar, score or unrelated screen areas.
+        if(self->_stableAutoFrames>=3 &&
+           CFAbsoluteTimeGetCurrent()-self->_trainingStableSince>=0.65 &&
+           [BLTrainingCollector shared].isEnabled) {
+            [[BLTrainingCollector shared] observeStableFrame:image
+                                                      board:scannedBoard
+                                                     pieces:tray
+                                                      first:first last:last
+                                                 screenSize:self.view.bounds.size];
         }
         if(signature!=self->_solvedAutoHash) {
             // Observe only after stable, independently confirmed game frames.
@@ -913,6 +953,70 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         }
     }
 }
+#pragma mark - Opt-in training data collection
+- (void)refreshVisionTrainingUI {
+    BLTrainingCollector *collector=[BLTrainingCollector shared];
+    BOOL enabled=collector.isEnabled;
+    [_trainingButton setTitle:enabled?@"📸 TRAINING: ON (tap to stop)":
+                                  @"📸 TRAINING: OFF (tap to enable)"
+                    forState:UIControlStateNormal];
+    _trainingButton.backgroundColor=enabled?BLColor(14,118,110):BLColor(64,74,94);
+    _trainingStatus.text=[NSString stringWithFormat:@"%lu/%lu saved locally. %@",
+        (unsigned long)collector.savedCount,(unsigned long)collector.limit,
+        collector.status];
+}
+- (void)toggleVisionTraining {
+    BLTrainingCollector *collector=[BLTrainingCollector shared];
+    [collector setEnabled:!collector.isEnabled];
+    [self refreshVisionTrainingUI];
+    if(collector.isEnabled && !_autoEnabled)
+        _trainingStatus.text=@"Training ON. Turn AUTO SCAN on and close the panel to collect.";
+}
+- (void)exportVisionTraining {
+    _trainingStatus.text=@"Preparing local ZIP for the iPhone Files/Share sheet…";
+    __weak BLController *weakSelf=self;
+    [[BLTrainingCollector shared] createArchive:^(NSURL *url,NSError *error) {
+        BLController *strongSelf=weakSelf;
+        if(!strongSelf)return;
+        if(!url||error) {
+            strongSelf->_trainingStatus.text=error.localizedDescription ?:
+                @"Training export failed.";
+            return;
+        }
+        UIActivityViewController *share=[[UIActivityViewController alloc]
+                                          initWithActivityItems:@[url]
+                                          applicationActivities:nil];
+        if(share.popoverPresentationController) {
+            share.popoverPresentationController.sourceView=strongSelf->_trainingButton;
+            share.popoverPresentationController.sourceRect=strongSelf->_trainingButton.bounds;
+        }
+        [strongSelf presentViewController:share animated:YES completion:nil];
+        [strongSelf refreshVisionTrainingUI];
+    }];
+}
+- (void)clearVisionTraining {
+    UIAlertController *confirm=[UIAlertController
+        alertControllerWithTitle:@"Delete local training screenshots?"
+                        message:@"This permanently removes collected screenshots and provisional labels from this device. Export the ZIP first if you want to keep them."
+                 preferredStyle:UIAlertControllerStyleAlert];
+    [confirm addAction:[UIAlertAction actionWithTitle:@"Cancel"
+                                               style:UIAlertActionStyleCancel handler:nil]];
+    __weak BLController *weakSelf=self;
+    [confirm addAction:[UIAlertAction actionWithTitle:@"Delete samples"
+                                               style:UIAlertActionStyleDestructive
+                                             handler:^(UIAlertAction *action) {
+        [[BLTrainingCollector shared] deleteAllWithCompletion:^(NSError *error) {
+            BLController *strongSelf=weakSelf;
+            if(error)strongSelf->_trainingStatus.text=error.localizedDescription;
+            else [strongSelf refreshVisionTrainingUI];
+        }];
+    }]];
+    [self presentViewController:confirm animated:YES completion:nil];
+}
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
 - (void)dragBubble:(UIPanGestureRecognizer *)recognizer {
     CGPoint delta=[recognizer translationInView:self.view];
     CGPoint center=_bubble.center;
