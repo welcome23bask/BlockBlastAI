@@ -3,6 +3,8 @@
 #import <CoreGraphics/CoreGraphics.h>
 #include <math.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 NSString * const BLTrainingCollectorDidChangeNotification=@"BLTrainingCollectorDidChange";
 static const NSUInteger kTrainingMaximum=200;
