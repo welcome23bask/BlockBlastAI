@@ -14,6 +14,7 @@ on:
       - feature/v3.0-three-move-combo-vision
       - feature/v3.1-diagonal-piece-safety-fix
       - feature/v3.2-opt-in-vision-capture
+      - feature/v3.3-vision-train-five-rechecks
     paths:
       - 'src/**'
       - 'tests/**'
