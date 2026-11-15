@@ -1,0 +1,71 @@
+name: v2.8 ORIGINAL Tracking + SMART AI iPhone
+on:
+  push:
+    branches: [feature/v2.8-original-tracking-smart-ai]
+    paths:
+      - 'src/**'
+      - 'tests/test_v28_original_tracking.c'
+      - '.github/workflows/v28-original-tracking.yml'
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate legal P3 highlights on pink screenshot fixture and both AI strategies
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -I src tests/test_v28_original_tracking.c \
+            src/BLGuideSafety.c src/BLDualStrategy.c src/BLV25Strategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/test-v28
+          /tmp/test-v28
+      - name: Test original v1.7 camera on black green pink red and flipped board fixtures
+        run: |
+          for test in test_black_theme test_green_textured_theme test_pink_theme test_vision; do
+            cc -O2 -std=c11 tests/${test}.c src/BLVisionCore.c src/BLAdaptiveTheme.c \
+              -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+      - name: Validate other original solver and transition safety regression suites
+        run: |
+          cc -O2 -std=c11 -I src tests/test_smart_survival.c \
+            src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/test-smart
+          /tmp/test-smart
+  iphone:
+    needs: regression
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify restored original frame-to-board and guide safety path
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          screen=Path("src/BLScreenScan.m").read_text()
+          ui=Path("src/BlockBlastOverlay.m").read_text()
+          assert "int okay=BLVisionAnalyzeRGBA(pixels,(int)w,(int)h,&found);" in screen
+          assert "BLStructureAnalyzeRGBA" not in screen
+          assert "BLV25FindTwoStrategies" in ui
+          assert "BLGuideValidateSolution(boardSnapshot,traySnapshot.values,&answer)" in ui
+          assert "_previewIndex==0&&_solution.movesFound>0" in ui
+          print("PASS original live tracking + new strategy + safe first-move-only guides")
+          PY
+      - name: Compile full original-tracking smart AI ARM64 iPhone dylib
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLV25Strategy.c src/BLGuideSafety.c \
+            src/BLYOLOVision.m -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+          test -s dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v28-ORIGINAL-TRACKING-SMART-IPHONE
+          path: dist/BlockBlastAI.dylib
