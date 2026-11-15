@@ -77,6 +77,19 @@ int main(void) {
     BLVisionResult upright={0};
     assert(BLVisionAnalyzeRGBA(frame,W,H,&upright));
     check(&upright,0);
+    // Empty wood boards are valid from the first frame; no random
+    // placement should be necessary before suggesting a move.
+    board_tile(0,0,80,45,25);
+    board_tile(1,3,80,45,25);
+    board_tile(6,6,80,45,25);
+    BLVisionResult zero={0};
+    assert(BLVisionAnalyzeRGBA(frame,W,H,&zero));
+    assert(zero.board==0 && zero.detectedPieces==3);
+    assert(zero.pieces[0].count==9);
+    // Restore occupied examples before checking the mirrored image.
+    board_tile(0,0,211,62,60);
+    board_tile(1,3,148,91,204);
+    board_tile(6,6,58,181,68);
     uint8_t *mirror=malloc((size_t)W*H*4);assert(mirror);
     for(int y=0;y<H;++y)
         memcpy(mirror+4*(size_t)y*W,frame+4*(size_t)(H-1-y)*W,W*4);
