@@ -8,6 +8,7 @@
 #import "BlockBlastSolver.h"
 #import "BLScreenScan.h"
 #import "BLTransition.h"
+#import "BLGuideSafety.h"
 #import "BLDualStrategy.h"
 #import "BLV25Strategy.h"
 #include <math.h>
@@ -417,6 +418,9 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _showCalibrationGrid=NO;
     if(!_calibrated) { _status.text=@"Calibrate first to align the on-game highlights."; return; }
     if(!_previewing) { _status.text=@"Enter 3 pieces and Solve before showing highlights."; return; }
+    // Only the first suggestion represents the physical board *right now*.
+    // Later sequence moves are plans for future board states, never live guides.
+    _previewIndex=0;
     _showGuides=YES;
     [self refreshGuides];
     _panel.hidden=YES;
@@ -425,7 +429,9 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     for(UIView *v in [_guideLayer.subviews copy]) [v removeFromSuperview];
     _guideLayer.frame=self.view.bounds;
     BOOL showGrid=(_calibrated&&_showCalibrationGrid);
-    BOOL showMove=(_calibrated&&_showGuides&&_previewing&&_solution.movesFound>0);
+    BOOL showMove=(_calibrated&&_showGuides&&_previewing&&
+        _previewIndex==0&&_solution.movesFound>0&&
+        BLGuideValidateSolution([self boardMask],_normalizedPieces,&_solution));
     _guideLayer.hidden=!(showGrid||showMove);
     if(_guideLayer.hidden) return;
     CGFloat dx=(_gridLast.x-_gridFirst.x)/7.0;
@@ -481,7 +487,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
 }
 - (void)restoreGuidesAfterCapture {
     if(_calibrated && _showGuides && _previewing &&
-       !_showCalibrationGrid && _solution.movesFound>0 &&
+       !_showCalibrationGrid && _previewIndex==0 &&
+       BLGuideValidateSolution([self boardMask],_normalizedPieces,&_solution) &&
        _guideLayer.subviews.count>0) {
         _guideLayer.hidden=NO;
     } else [self refreshGuides];
@@ -809,6 +816,17 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
                        signature!=strongSelf->_solvedAutoHash ||
                        !strongSelf->_autoEnabled || !strongSelf->_panel.hidden)return;
+                    // The original v1.7 vision controls what is occupied.
+                    // New Smart Survival only chooses among legal moves.
+                    // Never draw even a single outline if the independent
+                    // move replay disagrees with the scanned board or tray.
+                    if(answer.movesFound>0 &&
+                       !BLGuideValidateSolution(boardSnapshot,traySnapshot.values,&answer)) {
+                        [strongSelf invalidateDetection:
+                          @"Unsafe AI result: move overlaps the board, tray shape or predicted clears. Scan again."
+                          bubble:@"AI …"];
+                        return;
+                    }
                     strongSelf->_solution=answer;
                     strongSelf->_previewing=(answer.movesFound>0);
                     strongSelf->_showGuides=strongSelf->_previewing;
