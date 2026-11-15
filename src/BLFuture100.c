@@ -192,7 +192,7 @@ static int worthwhile(uint64_t board,const BLPiece tray[3],
     int total=total_pieces(tray);
     if(!candidate||candidate->movesFound!=total ||
        base->movesFound!=total ||
-       actual_lines(candidate)<actual_lines(base) ||
+       actual_lines(candidate)<=actual_lines(base) ||
        !BLGuideValidateSolution(board,tray,candidate))return 0;
     int lastTry=3;
     if(combo.known&&combo.streak>0 && combo.misses>=0&&combo.misses<=2)
@@ -214,14 +214,9 @@ static int worthwhile(uint64_t board,const BLPiece tray[3],
     // justify changing a real move when the immediate line reward ties.
     // In that case demand a material gain for shapes in the user's saved
     // tray samples, or don't disturb the known-good Smart Survival route.
-    if(actual_lines(candidate)==actual_lines(base)) {
-        // Do not gamble on unseen future-piece frequencies for an equal
-        // immediate clear count. Restore at least one previously unavailable
-        // critical landing type (3x3, long bar, or 2x3 rectangle).
-        if((after.criticalAccess&~before.criticalAccess)==0)return 0;
-        if(after.observedAccess<=before.observedAccess &&
-           after.observedMobility<before.observedMobility+8)return 0;
-    }
+    // A known complete-tray route changes only when there is a strictly
+    // greater verified line-clear count AND a material future-shape gain.
+    // Do not gamble on tied lines using unknown future-piece probabilities.
     // Small disconnected empty pockets cannot hold most possible pieces.
     // Reject a candidate that increases the number of stranded cells.
     if(after.tinyEmptyCells>before.tinyEmptyCells)return 0;
@@ -242,9 +237,48 @@ BLSolution BLFuture100GuardedChoice(uint64_t board,const BLPiece tray[3],
     BLSolution blank={0};
     if(upgraded)*upgraded=0;
     if(!tray||!baseline)return blank;
-    if(!BLGuideValidateSolution(board,tray,baseline))return *baseline;
     int total=total_pieces(tray);
-    if(total<1||total>3||baseline->movesFound!=total)return *baseline;
+    if(total<1||total>3)return *baseline;
+    int baselineLegal=(baseline->movesFound>0 &&
+                       BLGuideValidateSolution(board,tray,baseline));
+    if(!baselineLegal || baseline->movesFound<total) {
+        // Budget-limited search can return a partial route even when a
+        // DIFFERENT objective has found a complete, legal tray route.
+        // Prefer that proven survival rescue, but do not lose a current
+        // verified clear or break an expiring combo to do so.
+        const BLSolution *options[2]={candidateA,candidateB};
+        const BLSolution *bestComplete=0;
+        int bestObserved=-1,bestLines=-1,bestMobility=-1;
+        int lastTry=3;
+        if(combo.known && combo.streak>0 &&
+           combo.misses>=0 && combo.misses<=2)
+            lastTry-=combo.misses;
+        int baselineClear=baselineLegal ? first_clear(baseline):0;
+        for(int i=0;i<2;++i){
+            const BLSolution *c=options[i];
+            if(!c||c->movesFound!=total||
+               !BLGuideValidateSolution(board,tray,c))continue;
+            int candidateClear=first_clear(c);
+            if(baselineClear>0 && baselineClear<=lastTry &&
+               (candidateClear==0 || candidateClear>baselineClear))continue;
+            if(baselineLegal && actual_lines(c)<actual_lines(baseline))
+                continue;
+            BLFuture100Quality q=BLFuture100Measure(c->moves[total-1].after);
+            int l=actual_lines(c);
+            if(q.observedAccess>bestObserved ||
+               (q.observedAccess==bestObserved && l>bestLines) ||
+               (q.observedAccess==bestObserved && l==bestLines &&
+                q.observedMobility>bestMobility)){
+                bestComplete=c;bestObserved=q.observedAccess;
+                bestLines=l;bestMobility=q.observedMobility;
+            }
+        }
+        if(bestComplete){
+            if(upgraded)*upgraded=1;
+            return *bestComplete;
+        }
+        return *baseline; // no fully validated rescue; preserve old safety
+    }
     BLFuture100Quality best=BLFuture100Measure(baseline->moves[total-1].after);
     BLSolution result=*baseline;
     const BLSolution *options[2]={candidateA,candidateB};
