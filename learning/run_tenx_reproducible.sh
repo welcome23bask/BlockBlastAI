@@ -7,9 +7,20 @@ branch="$(git branch --show-current)"
 if [[ "$branch" != "feature/v2.2-10x-research-gate" ]]; then
   echo "ERROR: expected research branch, got $branch" >&2; exit 2
 fi
-if ! git diff --quiet || ! git diff --cached --quiet; then
+if ! git diff --quiet || ! git diff --cached --quiet || [[ -n "$(git ls-files --others --exclude-standard)" ]]; then
   echo "ERROR: working tree must be clean for reproducibility" >&2; exit 2
 fi
+# Validate holdout arguments BEFORE spending time on training.
+if [[ "$#" != 2 || ! "${1:-}" =~ ^[0-9]+$ || ! "${2:-}" =~ ^[0-9]+$ ]]; then
+  echo "Supply TWO distinct, previously unused holdout epochs (17..2000)." >&2; exit 2
+fi
+a="$1"; b="$2"
+if (( a < 17 || a > 2000 || b < 17 || b > 2000 || a == b )); then
+  echo "Holdout epochs must be distinct and between 17 and 2000." >&2; exit 2
+fi
+for e in "$a" "$b"; do
+  case "$e" in 92|93|989|1201|1202) echo "Previously used/planned epoch: $e" >&2; exit 2;; esac
+done
 rev="$(git rev-parse HEAD)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
@@ -30,18 +41,9 @@ echo "BASELINE_CHECKPOINT=$(cat tenx_checkpoint.txt)"
 ./tenx_lab train 1 1 | tee training.txt
 echo "TRAINED_CHECKPOINT=$(cat tenx_checkpoint.txt)"
 echo "CANDIDATE_WEIGHTS=$(cat tenx_candidate_weights.txt)"
-# Held-out epochs 1201 and 1202 are distinct from training epochs 0..16
-# and prior documented holdouts 92,93,989,1201/1202 only if they have
-# NOT previously been executed. Choose fresh unused epochs before running.
-if [[ "${1:-}" == "" || "${2:-}" == "" ]]; then
-  echo "Supply TWO previously unused distinct holdout epochs (0..2000)." >&2
-  exit 2
-fi
-a="$1"; b="$2"
-[[ "$a" =~ ^[0-9]+$ && "$b" =~ ^[0-9]+$ ]] || exit 2
-(( a >= 17 && a <= 2000 && b >= 17 && b <= 2000 && a != b )) || exit 2
+# Caller must verify these epoch IDs were never used for training or testing.
+# The exclusions below cover only previously documented epochs, not every log.
 for e in "$a" "$b"; do
-  case "$e" in 92|93|989|1201|1202) echo "Previously used/planned epoch: $e" >&2; exit 2;; esac
   ./tenx_lab test 30 tenx_candidate_weights.txt "$e" | tee "holdout-$e.txt"
 done
 python3 - "$a" "$b" <<'PY'
@@ -53,8 +55,11 @@ for epoch in sys.argv[1:]:
     assert s.count("p10_ratio=")==3
     assert s.count("illegal=0")==6
     assert "nan" not in s.lower()
-    assert "TEN_X_VERDICT=" in s
-    print(f"HOLDOUT_{epoch}="+s.split("TEN_X_VERDICT=")[-1].strip())
+    verdicts=re.findall(r"^TEN_X_VERDICT=(.+)$",s,re.M)
+    assert len(verdicts)==1, "Missing or duplicated verdict"
+    assert verdicts[0]=="ALL HELDOUT GATES PASSED", f"Holdout {epoch} failed: {verdicts[0]}"
+    print(f"HOLDOUT_{epoch}=ALL HELDOUT GATES PASSED")
+print("Both synthetic holdouts passed the built-in gates; independent replication and real-game validation remain separate requirements.")
 print("No result is an official Block Blast score.")
 PY
 echo "Research run completed in temporary directory; no checkpoint was promoted."
