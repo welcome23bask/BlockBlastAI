@@ -1,0 +1,20 @@
+name: v2.7 Source Export for Local Screenshot Validation
+on:
+  push:
+    branches: [feature/v2.7-structure-contrast]
+    paths:
+      - '.github/workflows/v27-source-export.yml'
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v27-source-for-private-screenshot-validation
+          path: |
+            src/BLStructureVision.c
+            src/BLStructureVision.h
+            src/BLVisionCore.h
+            src/BlockBlastSolver.h
