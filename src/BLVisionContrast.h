@@ -11,6 +11,22 @@ extern "C" {
 int BLVisionContrastBoard(const uint8_t *rgba,int width,int height,
                           const BLVisionResult *geometry,uint64_t *board,
                           int *margin);
+// Luminance-class evidence for dark-background / brighter-block themes.
+// Unlike seam-distance clustering, this detects dark-green, purple and
+// peach blocks even when their seam RGB distance resembles empty cells.
+// A failure is NOT evidence that all 64 cells are empty.
+typedef struct {
+    uint64_t filled;
+    uint64_t definitelyEmpty; // cells close to visually measured empty RGB
+    int separation;           // observed empty-to-filled luminance gap
+    int emptySamples;
+} BLVisionLumaEvidence;
+int BLVisionLumaFromCenters(const uint8_t centers[64][3],
+                            BLVisionLumaEvidence *out);
+int BLVisionLumaBoard(const uint8_t *rgba,int width,int height,
+                      const BLVisionResult *geometry,
+                      BLVisionLumaEvidence *out);
+
 #ifdef __cplusplus
 }
 #endif
