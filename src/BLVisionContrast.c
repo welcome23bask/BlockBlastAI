@@ -53,7 +53,8 @@ int BLVisionContrastBoard(const uint8_t *im,int w,int h,
         uint8_t rgb[3];sample(im,w,h,x,y,flip,rgb);
         int d=d3(rgb,background);
         distances[row*8+col]=d;
-        if(d<low)low=d;if(d>high)high=d;
+        if(d<low)low=d;
+        if(d>high)high=d;
     }
     if(high-low<65)return 0; // uniform or ambiguous board: don't guess
     double a=low,b=high;
