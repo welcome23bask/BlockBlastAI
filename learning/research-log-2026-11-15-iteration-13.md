@@ -1,0 +1,9 @@
+# Research iteration 13 — 2026-11-15 10:14 UTC (blocked executable test)
+
+Branch: feature/v2.2-10x-research-gate. Audited source HEAD before this entry: 339cc03d9d20e799f3a9e65990e259fd6572150b.
+
+Connected GitHub reads confirmed checkpoint `16 120 120 30 60` and candidate weights `120 120 30 60`. The latest branch Actions run remains #43639191903 (success, 2026-11-14 20:46 UTC) on older SHA `9c4d80bda51e6b86c4ff66d20d71e47bb97541d4`. Its workflow checks holdout epoch 93, accepts a failed TEN_X_VERDICT, and does not run the stricter `learning/run_tenx_reproducible.sh`. That runner requires a clean checkout, one bounded training epoch, two distinct holdout epochs and passing verdicts; it preserves evidence outside the checkout. Its seed exclusions do not prove freshness against every historical run, and the two holdouts alone are not independent external replication.
+
+Attempted exact-source access with `git ls-remote https://github.com/welcome23bask/BlockBlastAI.git HEAD` in the execution container. It failed: `Could not resolve host: github.com`. The GitHub connector can read files and commit logs but offers no general workflow dispatch or executable checkout. No exact-source compilation, training, new simulation, independent replication or performance improvement was possible. No Actions minutes were spent. Checkpoint and candidate weights were not promoted; main, deployment, and iPhone dylib untouched.
+
+Next action: obtain network-enabled exact-source checkout, audit all historical training and evaluation seed IDs, execute bounded corrected runner on truly unused epochs with normal/heavy/shifted-heavy 8x8 three-piece legality, and independently repeat all survival, estimated-score, p10, invalid-placement, combo-break and avoidable-deadline gates. Never equate proxy scores with actual Block Blast scores. The 10x claim is unverified.
