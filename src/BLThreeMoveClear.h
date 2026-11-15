@@ -21,6 +21,11 @@ typedef struct {
 
 BLThreeMovePlan BLFindThreeMoveClear(uint64_t board,const BLPiece pieces[3],
                                      BLComboContext combo,uint32_t budget);
+// Use a larger search (up to 1.5M nodes) but cap wall-clock work to
+// hardBoardThinkingMs. Never claim "no clear" if the search was truncated.
+BLThreeMovePlan BLFindThreeMoveClearTimed(uint64_t board,const BLPiece pieces[3],
+                                          BLComboContext combo,uint32_t budget,
+                                          uint32_t hardBoardThinkingMs);
 #ifdef __cplusplus
 }
 #endif
