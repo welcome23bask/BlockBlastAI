@@ -1,6 +1,5 @@
 #import "BLScreenScan.h"
 #import "BLVisionCore.h"
-#import "BLStructureVision.h"
 #import "BLYOLOVision.h"
 #import <ReplayKit/ReplayKit.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -201,7 +200,6 @@ void BLStopScreenCapture(void) {
     ++sFrameTicket;
     BLDeliverPending(nil,BLError(6,@"Screen capture paused."));
     BLRecycleStream();
-    BLStructureReset(); // recalibrate contrast when capture is deliberately paused
 }
 
 BOOL BLDetectBoard(UIImage *image, CGPoint firstCenter, CGPoint lastCenter,
@@ -256,7 +254,7 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
         return NO;
     }
     BLVisionResult found={0};
-    int okay=BLStructureAnalyzeRGBA(pixels,(int)w,(int)h,&found);
+    int okay=BLVisionAnalyzeRGBA(pixels,(int)w,(int)h,&found);
     free(pixels);
     if(!okay) {
         // Optional trained YOLOv8n model: invoke only if installed and
@@ -267,7 +265,7 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
                            firstCenter,lastCenter,detail))return YES;
         if(detail)*detail=BLYOLOModelAvailable()
             ?@"Neither native scan nor custom YOLO vision safely detected this board."
-            :@"Structure/contrast scan uncertain. Wait for a stable frame or recalibrate.";
+            :@"Native vision uncertain. Optional trained YOLO model not installed.";
         return NO;
     }
     for(int i=0;i<64;++i)occupied[i]=(found.board & (UINT64_C(1)<<i))!=0;
