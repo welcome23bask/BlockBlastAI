@@ -1,0 +1,31 @@
+name: v2.8 Fast iPhone ARM64 Build (Original Vision + Smart AI)
+on:
+  push:
+    branches: [feature/v2.8-original-tracking-smart-ai]
+    paths:
+      - '.github/workflows/v28-fast-iphone.yml'
+jobs:
+  iphone:
+    runs-on: macos-14
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile hybrid iPhone dynamic library
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLV25Strategy.c src/BLGuideSafety.c \
+            src/BLYOLOVision.m -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+          test -s dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v28-ORIGINAL-TRACKING-SMART-BUILD
+          path: dist/BlockBlastAI.dylib
