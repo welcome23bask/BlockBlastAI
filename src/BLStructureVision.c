@@ -90,6 +90,14 @@ static int edge_score(const uint8_t *im,int w,int h,int x,int y,int size,int fli
     int edgeTotal=sums[0]+sums[1]+sums[2]+sums[3];
     return edgeTotal+minSide+mini(seams,1200)/3;
 }
+static int board_geometry_rank(int edge,int y,int side,int height) {
+    // The real 8x8 board occupies a stable part of the portrait layout,
+    // independent of which seasonal skin is being used. Geometry is primary:
+    // this is a tie-breaker against an equally square score animation/header.
+    double center=((double)y+side*.5)/height;
+    int penalty=roundi(12000.0*fabs(center-.44));
+    return edge-penalty;
+}
 static int locate(const uint8_t *im,int w,int h,int flip,int *x0,int *y0,int *size) {
     int best=0,bx=0,by=0,bs=0;
     int lowS=roundi(w*.79),highS=roundi(w*.955);
@@ -98,7 +106,7 @@ static int locate(const uint8_t *im,int w,int h,int flip,int *x0,int *y0,int *si
         int mid=(w-s)/2;
         int range=maxi(14,roundi(w*.09));
         for(int y=lowY;y<=highY;y+=4)for(int x=mid-range;x<=mid+range;x+=4){
-            int score=edge_score(im,w,h,x,y,s,flip);
+            int score=board_geometry_rank(edge_score(im,w,h,x,y,s,flip),y,s,h);
             if(score>best){best=score;bx=x;by=y;bs=s;}
         }
     }
@@ -107,7 +115,7 @@ static int locate(const uint8_t *im,int w,int h,int flip,int *x0,int *y0,int *si
     for(int s=maxi(12,bs-5);s<=bs+5;++s)
         for(int y=by-5;y<=by+5;++y)
             for(int x=bx-5;x<=bx+5;++x){
-                int score=edge_score(im,w,h,x,y,s,flip);
+                int score=board_geometry_rank(edge_score(im,w,h,x,y,s,flip),y,s,h);
                 if(score>best){best=score;bx=x;by=y;bs=s;}
             }
     if(bs<8*20)return 0;
