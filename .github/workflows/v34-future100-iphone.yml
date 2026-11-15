@@ -1,4 +1,4 @@
-name: v3.4 100 Future Shape Survival Checks iPhone
+name: v3.4 Combo 100 + Fifty Fresh Board Scans iPhone
 on:
   push:
     branches: [feature/v3.4-100-shape-survival-safety]
@@ -45,7 +45,7 @@ jobs:
             -lm -o /tmp/test-v31
           /tmp/test-v31
 
-      - name: Five fresh scan confirmation and learned RGB vision regression
+      - name: Fifty fresh scan confirmation and learned RGB vision regression
         run: |
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_no_clear_review.c src/BLNoClearReview.c -o /tmp/test-5-checks
           /tmp/test-5-checks
@@ -66,11 +66,35 @@ jobs:
           assert 'BLFindThreeMoveClearTimed(boardSnapshot' in overlay
           assert 'BLNoClearReviewBegin' in overlay
           assert 'BLNoClearReviewObserve' in overlay
-          assert 'five' in overlay.lower()
+          assert '50 fresh' in overlay.lower()
+          assert 'BLNoClearProofIsReady' in overlay
+          assert 'no clear available' in overlay
           assert 'BLTrainedVisionOpinionRGBA' in scanner
           assert 'if(trainedOpinion<0)' in scanner
           assert 'if(clearPlan.found)clearPlan.completeSearch=0;' in overlay
           print('PASS timed deep search and no false no-clear after incomplete/invalid candidate')
+          PY
+      - name: Prove 100-streak tracking and no-clear notification safety across entire tray
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_combo100.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLV25Strategy.c \
+            src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/test-combo100
+          /tmp/test-combo100
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_no_clear_full_tray.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLNoClearReview.c \
+            -lm -o /tmp/test-no-clear-full-tray
+          /tmp/test-no-clear-full-tray
+          python3 - <<'PY'
+          from pathlib import Path
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLNoClearProofIsReady' in overlay
+          assert 'BL_NO_CLEAR_RECHECKS 50U' in Path('src/BLNoClearReview.h').read_text()
+          assert 'BL_COMBO_STREAK_MAX 100' in Path('src/BlockBlastSolver.h').read_text()
+          assert 'BLFindThreeMoveClearTimed' in overlay
+          assert 'BLComboContext fullTrayWindow={0};' in overlay
+          assert '_noClearBanner.hidden=NO;' in overlay
+          assert 'no clear available' in overlay
+          print('PASS exact on-game no-clear wording only after all-tray proof and fifty new frames')
           PY
       - name: Validate 100 different future shapes and 100 seeded strategy scenarios
         run: |
@@ -165,5 +189,5 @@ jobs:
           test -s dist/BlockBlastAI.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v34-FUTURE100-SMART-IPHONE
+          name: BlockBlastAI-v34-COMBO100-50SCANS-IPHONE
           path: dist/BlockBlastAI.dylib
