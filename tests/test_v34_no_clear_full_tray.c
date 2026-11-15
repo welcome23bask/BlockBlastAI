@@ -13,7 +13,7 @@ static BLPiece square(void) {
     return p;
 }
 static BLComboContext last_try(void) {
-    return (BLComboContext){.known=1,.streak=100,.misses=2};
+    return (BLComboContext){.known=1,.streak=1000,.misses=2};
 }
 int main(void) {
     BLPiece tray[3]={square(),square(),square()};
@@ -51,6 +51,6 @@ int main(void) {
     assert(!BLNoClearProofIsReady(&empty,&review));
     BLNoClearReviewReset(&review);
     assert(!BLNoClearProofIsReady(&impossible,&review));
-    puts("PASS 100-combo late clear not mislabeled, 50 scans + exhaustive proof required, truncated search never alerts");
+    puts("PASS 1000-combo late clear not mislabeled, 50 scans + exhaustive proof required, truncated search never alerts");
     return 0;
 }
