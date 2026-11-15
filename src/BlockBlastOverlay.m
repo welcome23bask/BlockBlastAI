@@ -11,6 +11,8 @@
 #import "BLDualStrategy.h"
 #import "BLV25Strategy.h"
 #import "BLFrameSafety.h"
+#import "BLThreeMoveClear.h"
+#import "BLGuideSafety.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -65,6 +67,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     BLSolution _solution;
     int _previewIndex;
     BOOL _previewing;
+    int _plannedClearStep, _clearTriesLeft;
+    BOOL _clearPlanAvailable;
     CGFloat _panelWidth;
     BOOL _autoEnabled, _autoBusy;
     NSInteger _autoErrors, _stableAutoFrames;
@@ -497,6 +501,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _previewing=NO;
     _showGuides=NO;
     _previewIndex=0;
+    _plannedClearStep=0;_clearTriesLeft=3;_clearPlanAvailable=NO;
     memset(&_solution,0,sizeof(_solution));
     memset(_normalizedPieces,0,sizeof(_normalizedPieces));
     memset(_pieces,0,sizeof(_pieces));
@@ -670,7 +675,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
             BLIsExpectedTransition([self boardMask],self->_normalizedPieces,
                                    &self->_solution,scannedBoard,tray));
         if(BLBoardHasUnclearedLine(scannedBoard)) {
-            [self invalidateDetection:@"AI paused — an uncleared full row or column indicates an animation or false scan. Retrying." bubble:@"AI …"];
+            [self invalidateDetection:@"Board vision disagrees with settled game state; retrying without a risky highlight." bubble:@"AI …"];
             return;
         }
         if(!goodGeom) {
@@ -775,6 +780,24 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 if(answer.movesFound>0 &&
                    !BLNextGuideSafe(boardSnapshot,traySnapshot.values,&answer))
                     answer.movesFound=0;
+                // Keep the v2.5 future-space intelligence as the fallback.
+                // Above it, search ALL legal known-piece orders for a real
+                // clearing path within the three-placement combo deadline.
+                // Do not invent future tray pieces or fake clear chances.
+                BLThreeMovePlan clearPlan={0};
+                if(smartMode) {
+                    clearPlan=BLFindThreeMoveClear(boardSnapshot,
+                            traySnapshot.values,comboSnapshot,600000);
+                    if(clearPlan.found &&
+                       BLGuideValidateSolution(boardSnapshot,
+                                               traySnapshot.values,
+                                               &clearPlan.solution) &&
+                       BLNextGuideSafe(boardSnapshot,
+                                       traySnapshot.values,
+                                       &clearPlan.solution))
+                        answer=clearPlan.solution;
+                    else clearPlan.found=0;
+                }
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
@@ -786,23 +809,51 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                     }
                     strongSelf->_solution=answer;
                     strongSelf->_previewIndex=0;
+                    strongSelf->_plannedClearStep=clearPlan.found?clearPlan.firstClear:0;
+                    strongSelf->_clearTriesLeft=clearPlan.triesLeft?clearPlan.triesLeft:3;
+                    strongSelf->_clearPlanAvailable=clearPlan.found;
                     strongSelf->_previewing=(answer.movesFound>0);
                     strongSelf->_showGuides=strongSelf->_previewing;
                     NSString *comboInfo=comboSnapshot.known && comboSnapshot.streak>0
-                        ?[NSString stringWithFormat:@"Streak %d, clear within %d move(s).",
+                        ?[NSString stringWithFormat:@"Combo %d: %d try/tries left.",
                             comboSnapshot.streak,3-comboSnapshot.misses]
-                        :@"Combo not yet verified.";
+                        :@"Three tries after every confirmed clear.";
                     NSString *choiceName=selectedMode==BLModeMaxLines?@"MAX LINES":
-                        (selectedMode==BLModeKeepCombo?@"KEEP COMBO":@"SMART SURVIVAL v2.9");
+                        (selectedMode==BLModeKeepCombo?@"KEEP COMBO":@"SMART SURVIVAL + 3-TRY CLEAR");
                     NSString *safetyNote=(selectedMode==BLModeSmartSurvival &&
                         strategies.smartComboRejectedForSafety)
                         ?@"Combo alternative rejected: future-space risk.":@"";
+                    NSString *clearStatus=@"";
+                    if(smartMode) {
+                        if(clearPlan.found)
+                            clearStatus=[NSString stringWithFormat:
+                                @"REAL CLEAR in move %d of %d available.",
+                                clearPlan.firstClear,clearPlan.triesLeft];
+                        else
+                            clearStatus=clearPlan.completeSearch
+                                ?@"No clear with current pieces; preserve space."
+                                :@"Clear search not exhaustive; prioritizing survival.";
+                    }
                     strongSelf->_status.text=[NSString stringWithFormat:
-                        @"%@: %d line(s), %@. %@ %@ %@",
-                        choiceName,answer.totalLines,
-                        strategies.exhaustive?@"complete search":@"bounded search",
-                        comboInfo,safetyNote,scanDetail?:@""];
+                        @"%@: %@ %@ %@ %@",
+                        choiceName,clearStatus,comboInfo,safetyNote,scanDetail?:@""];
                     if(strongSelf->_previewing) {
+                        if(clearPlan.found) {
+                            NSMutableArray<NSString *> *route=[NSMutableArray array];
+                            for(int i=0;i<answer.movesFound;++i) {
+                                BLMove m=answer.moves[i];
+                                [route addObject:[NSString stringWithFormat:
+                                    @"%d) P%d R%d C%d%@",i+1,m.pieceIndex+1,
+                                    m.row+1,m.col+1,m.linesCleared?@" CLEAR":@""]];
+                            }
+                            strongSelf->_info.text=[NSString stringWithFormat:
+                                @"3-TRY CLEAR ROUTE: %@. Use Next move in panel to preview each future board. Live outlines show only the next legal move.",
+                                [route componentsJoinedByString:@" → "]];
+                        } else if(smartMode) {
+                            strongSelf->_info.text=clearPlan.completeSearch
+                                ?@"No verified clear with available pieces before the deadline. Smart Survival protects usable space; do not assume future tray shapes."
+                                :@"Search bounded; no confirmed clear route. Showing safest legal move; rescan after placing it.";
+                        }
                         [strongSelf showMove];
                         BLMove move=answer.moves[0];
                         [strongSelf->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
@@ -955,6 +1006,18 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         :BLFindTwoStrategies(board,_normalizedPieces,unknownCombo,180000);
     _solution=(_strategyMode==BLModeMaxLines)?strategies.maxLines:
         (_strategyMode==BLModeKeepCombo?strategies.keepCombo:strategies.smartSurvival);
+    _clearPlanAvailable=NO;_plannedClearStep=0;_clearTriesLeft=3;
+    if(_strategyMode==BLModeSmartSurvival) {
+        BLThreeMovePlan plan=BLFindThreeMoveClear(board,_normalizedPieces,unknownCombo,600000);
+        if(plan.found &&
+           BLGuideValidateSolution(board,_normalizedPieces,&plan.solution) &&
+           BLNextGuideSafe(board,_normalizedPieces,&plan.solution)) {
+            _solution=plan.solution;
+            _clearPlanAvailable=YES;
+            _plannedClearStep=plan.firstClear;
+            _clearTriesLeft=plan.triesLeft;
+        }
+    }
     if(!BLNextGuideSafe(board,_normalizedPieces,&_solution)) {
         BLTwoStrategies trusted=BLFindTwoStrategies(board,_normalizedPieces,
                                                    unknownCombo,180000);
@@ -971,13 +1034,21 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     }
     _previewing=YES;
     _previewIndex=0;
-    _status.text=[NSString stringWithFormat:@"Suggested sequence: %d/3 pieces, %d line(s) cleared. Preview below.",_solution.movesFound,_solution.totalLines];
+    _status.text=_clearPlanAvailable
+      ?[NSString stringWithFormat:@"CLEAR at move %d of %d tries. Preview each step below. Re-scan after each placement.",_plannedClearStep,_clearTriesLeft]
+      :@"No confirmed 3-try clear with known tray; Smart Survival picks a safe legal move.";
     [self showMove];
 }
 - (void)showMove {
     if (!_previewing || _solution.movesFound==0) return;
     BLMove m=_solution.moves[_previewIndex];
-    _moveLabel.text=[NSString stringWithFormat:@"Step %d/%d: PIECE %d → ROW %d, COLUMN %d\n(%d line(s) clear after this move)",_previewIndex+1,_solution.movesFound,m.pieceIndex+1,m.row+1,m.col+1,m.linesCleared];
+    NSString *clearNote=_clearPlanAvailable
+        ?[NSString stringWithFormat:@" • CLEAR at step %d/%d",_plannedClearStep,_clearTriesLeft]
+        :@" • Survival fallback";
+    _moveLabel.text=[NSString stringWithFormat:
+        @"Preview %d/%d: P%d → ROW %d, COLUMN %d\n%d line(s) on this move%@",
+        _previewIndex+1,_solution.movesFound,m.pieceIndex+1,
+        m.row+1,m.col+1,m.linesCleared,clearNote];
     [self refreshTiles];
     [self refreshGuides];
 }
@@ -1000,10 +1071,15 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         for(int i=0;i<piece.count;++i) suggestion |= UINT64_C(1) << ((m.row+piece.y[i])*8+(m.col+piece.x[i]));
     }
     for (int i=0;i<64;++i) {
-        BOOL filled=_board[i];
-        BOOL highlighted=(_previewIndex==0 && _previewing &&
-                          BLNextGuideSafe([self boardMask],_normalizedPieces,&_solution)) &&
-                          !!(suggestion & (UINT64_C(1)<<i));
+        BOOL fullSequenceLegal=_previewing &&
+            BLGuideValidateSolution([self boardMask],_normalizedPieces,&_solution);
+        // The panel's Next/Previous buttons show each HYPOTHETICAL future
+        // board after the earlier planned placements/line clears.
+        // The on-game overlay still highlights ONLY step 1.
+        BOOL filled=(_previewing && _previewIndex>0 && fullSequenceLegal)
+            ? !!(occupied & (UINT64_C(1)<<i)) : _board[i];
+        BOOL highlighted=fullSequenceLegal &&
+            !!(suggestion & (UINT64_C(1)<<i));
         _boardButtons[i].backgroundColor=highlighted ? BLColor(248,181,57) : (filled ? BLColor(43,200,178) : BLColor(43,58,78));
         _boardButtons[i].enabled=!_previewing;
     }
