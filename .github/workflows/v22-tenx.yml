@@ -34,10 +34,10 @@ jobs:
         run: |
           set -o pipefail
           # Epochs are provisional: the full historical seed ledger must still be audited.
-          # Iteration 17: train against paired v1.7 reference, weight p10 and combo safety.
-          # Three games per generator, seven candidates, one epoch; research only.
+          # Iteration 18: feasibility-first (no worse combo breaks or avoidable misses) versus v1.7.
+          # Distinct provisional training epoch 1818; three games per generator, seven candidates, one epoch.
           # The runner rejects failing verdicts. Never promote a candidate from this job.
-          bash learning/run_tenx_reproducible.sh 1905 1906 2>&1 | tee /tmp/tenx-research-console.txt
+          TENX_TRAIN_SEED_EPOCH=1818 bash learning/run_tenx_reproducible.sh 1907 1908 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -49,7 +49,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional seeds 1905 and 1906; verify historical non-use before acceptance.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 1818 and holdouts 1907,1908; full historical non-use audit still pending.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
