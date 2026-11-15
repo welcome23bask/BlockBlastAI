@@ -648,6 +648,140 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         [self refreshGuides];
     }
 }
+// AUTO PLAY is separate from AUTO SCAN. It never submits a second
+// synthetic gesture without a stable post-move game-state verification.
+- (void)stopAutoPlayWithReason:(NSString *)reason {
+    _autoPlayEnabled=NO;
+    _autoAwaiting=NO;
+    [_autoPlayButton setTitle:@"🤖 AUTOMATIC PLAY: OFF (tap to enable)"
+                    forState:UIControlStateNormal];
+    _autoPlayButton.backgroundColor=BLColor(80,65,98);
+    if(reason) {
+        _autoPlayStatus.text=reason;
+        _status.text=reason;
+    }
+}
+- (void)toggleAutoPlay {
+    if(_autoPlayEnabled) {
+        [self stopAutoPlayWithReason:@"Automatic stopped by user. Manual highlights remain available."];
+        return;
+    }
+    if(![BLInProcessTouch isAvailable]) {
+        [self stopAutoPlayWithReason:
+          @"Automatic unavailable: iOS/iGameGod touch injection is unsupported. Use manual highlights."];
+        return;
+    }
+    if(!_autoEnabled) {
+        [self stopAutoPlayWithReason:
+          @"Automatic needs AUTO SCAN: ON. Enable scanning first."];
+        return;
+    }
+    _autoPlayEnabled=YES;
+    _autoAwaiting=NO;
+    _autoVerifiedPlacements=0;
+    _autoRetryAfter=0;
+    _stableAutoFrames=0;
+    _observedAutoHash=0;
+    ++_solveGeneration;
+    _solvedAutoHash=0;
+    _previewing=NO;
+    _showGuides=NO;
+    _strategyMode=BLModeSmartSurvival;
+    _strategyTabs.selectedSegmentIndex=2;
+    [self refreshGuides];
+    [_autoPlayButton setTitle:@"🤖 AUTOMATIC PLAY: ON (tap to stop)"
+                    forState:UIControlStateNormal];
+    _autoPlayButton.backgroundColor=BLColor(8,120,107);
+    _autoPlayStatus.text=@"Automatic armed. Close panel for five agreeing fresh scans.";
+    _status.text=_autoPlayStatus.text;
+}
+- (void)startOneAutomaticDrag {
+    if(!_autoPlayEnabled||_autoPlacing||_autoAwaiting||_autoBusy||
+       !_panel.hidden || !_autoEnabled || _stableAutoFrames<5 ||
+       !_previewing || _solution.movesFound<1)return;
+    if(![BLInProcessTouch isAvailable]) {
+        [self stopAutoPlayWithReason:@"Automatic touch method became unavailable."];
+        return;
+    }
+    uint64_t board=[self boardMask];
+    if(!BLNextGuideSafe(board,_normalizedPieces,&_solution)) {
+        [self stopAutoPlayWithReason:@"Automatic stopped: solution failed the legal-move check."];
+        return;
+    }
+    BLMove move=_solution.moves[0];
+    float tx[3],ty[3],tp[3];
+    for(int p=0;p<3;p++){
+        tx[p]=(float)_autoTrayFirst[p].x;
+        ty[p]=(float)_autoTrayFirst[p].y;
+        tp[p]=(float)_autoTrayPitch[p];
+    }
+    BLDragPlan plan={0};
+    if(!BLAutoBuildDrag(board,_normalizedPieces,&move,
+          (float)_gridFirst.x,(float)_gridFirst.y,
+          (float)_gridLast.x,(float)_gridLast.y,
+          tx,ty,tp,(float)self.view.bounds.size.width,
+          (float)self.view.bounds.size.height,&plan)) {
+        [self stopAutoPlayWithReason:
+           @"Automatic stopped: exact tray touch coordinates were not verified."];
+        return;
+    }
+    _autoPlacing=YES;
+    _autoPendingSignature=_solvedAutoHash;
+    _autoPendingMove=move;
+    memcpy(_autoPendingTray,_normalizedPieces,sizeof(_autoPendingTray));
+    _autoDragAt=CFAbsoluteTimeGetCurrent();
+    _showGuides=NO;
+    [self refreshGuides];
+    _autoPlayStatus.text=@"Automatic: dragging one piece, then verifying game state.";
+    CGPoint source=CGPointMake(plan.fromX,plan.fromY);
+    CGPoint destination=CGPointMake(plan.toX,plan.toY);
+    NSInteger finger=[BLInProcessTouch touchAt:source
+                          phase:UITouchPhaseBegan slot:0];
+    if(finger<1) {
+        _autoPlacing=NO;
+        [self stopAutoPlayWithReason:
+             @"Automatic stopped: touch injection did not start."];
+        return;
+    }
+    _autoTouchSlot=finger;
+    const int steps=14;
+    for(int i=1;i<=steps;i++){
+        int step=i;
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                       (int64_t)((0.05+step*.026)*NSEC_PER_SEC)),
+                       dispatch_get_main_queue(), ^{
+            if(!self->_autoPlacing)return;
+            CGFloat portion=(CGFloat)step/(CGFloat)steps;
+            CGPoint point=CGPointMake(source.x+(destination.x-source.x)*portion,
+                                     source.y+(destination.y-source.y)*portion);
+            if(!self->_autoPlayEnabled && step<steps) {
+                [BLInProcessTouch touchAt:point phase:UITouchPhaseCancelled
+                                     slot:self->_autoTouchSlot];
+                self->_autoTouchSlot=0;
+                self->_autoPlacing=NO;
+                return;
+            }
+            if(step==steps){
+                [BLInProcessTouch touchAt:destination phase:UITouchPhaseEnded
+                                   slot:self->_autoTouchSlot];
+                self->_autoTouchSlot=0;
+                self->_autoPlacing=NO;
+                if(self->_autoPlayEnabled) {
+                    self->_autoAwaiting=YES;
+                    self->_autoDragAt=CFAbsoluteTimeGetCurrent();
+                }
+            } else {
+                NSInteger ok=[BLInProcessTouch touchAt:point
+                             phase:UITouchPhaseMoved slot:self->_autoTouchSlot];
+                if(!ok){
+                    self->_autoPlacing=NO;
+                    [self stopAutoPlayWithReason:
+                         @"Automatic stopped: touch stream failed."];
+                }
+            }
+        });
+    }
+}
 - (void)autoTick {
     if(!_autoEnabled || _autoBusy || _autoPlacing ||
        !_panel.hidden || !_calibrationLayer.hidden) return;
