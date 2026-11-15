@@ -175,45 +175,7 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
             int lr=(int)lround((lymax-lymin+1)/small);
             if(lc>=1&&lc<=5&&lr>=1&&lr<=5 &&
                lightHits>=lc*lr*65) {
-                // A light-only crop may DELETE real darker rows of a piece.
-                // In the red Block Blast theme the first two rows of a 3x3
-                // square are bright, while the third row is darker. The old
-                // crop mistook the true 3x3 for a 3x2, producing an illegal
-                // six-square guide. Only crop away weak, disconnected texture.
-                int rawCols=(int)lround((xmax-xmin+1)/small);
-                int rawRows=(int)lround((ymax-ymin+1)/small);
-                int preserveRaw=0;
-                if(rawCols>=1&&rawCols<=5&&rawRows>=1&&rawRows<=5) {
-                    for(int row=0;row<rawRows&&!preserveRaw;++row)
-                        for(int col=0;col<rawCols&&!preserveRaw;++col) {
-                            int x=(int)lround(xmin+(col+.5)*small);
-                            int y=(int)lround(ymin+(row+.5)*small);
-                            // Compare against the bright *bounds* with a
-                            // small tolerance, not brighter pixel centers.
-                            int outside=(x<lxmin-small*.15 || x>lxmax+small*.15 ||
-                                         y<lymin-small*.15 || y>lymax+small*.15);
-                            if(!outside || !tile_center(im,w,h,x,y,flip,trayBg,
-                                                        threshold+12))continue;
-                            // The dark block must touch an already-confirmed
-                            // block inside the bright region. This prevents
-                            // isolated background speckles from enlarging it.
-                            const int dirs[4][2]={{-1,0},{1,0},{0,-1},{0,1}};
-                            for(int k=0;k<4;++k) {
-                                int nc=col+dirs[k][0],nr=row+dirs[k][1];
-                                if(nc<0||nc>=rawCols||nr<0||nr>=rawRows)continue;
-                                int nx=(int)lround(xmin+(nc+.5)*small);
-                                int ny=(int)lround(ymin+(nr+.5)*small);
-                                if(nx<lxmin-small*.15 || nx>lxmax+small*.15 ||
-                                   ny<lymin-small*.15 || ny>lymax+small*.15)
-                                    continue;
-                                if(tile_center(im,w,h,nx,ny,flip,trayBg,
-                                               threshold+12)) {preserveRaw=1;break;}
-                            }
-                        }
-                }
-                if(!preserveRaw) {
-                    xmin=lxmin;xmax=lxmax;ymin=lymin;ymax=lymax;
-                }
+                xmin=lxmin;xmax=lxmax;ymin=lymin;ymax=lymax;
             }
         }
         int cols=(int)lround((xmax-xmin+1)/small);
