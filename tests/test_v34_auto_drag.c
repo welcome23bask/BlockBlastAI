@@ -41,6 +41,10 @@ int main(void) {
     tp[1]=17.6f;
     assert(!BLAutoBuildDrag(0,tray,&m,323,220,43,500,tx,ty,tp,390,850,&plan));
     assert(!BLAutoBuildDrag(UINT64_C(1),tray,&m,43,220,323,500,tx,ty,tp,390,850,&plan));
+    // A fragment of false-colored tray "pieces" must never be dragged.
+    tray[1].x[3]=4; // disconnect rightmost tile from the first three
+    assert(!BLAutoBuildDrag(0,tray,&m,43,220,323,500,tx,ty,tp,390,850,&plan));
+    tray[1].x[3]=3;
     puts("PASS verified source-tile to target-cell drag geometry, with failures closed");
     return 0;
 }
