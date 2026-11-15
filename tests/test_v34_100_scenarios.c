@@ -61,9 +61,11 @@ int main(void){
             assert(!(old.criticalAccess&~new.criticalAccess));
             assert(new.observedAccess>=old.observedAccess);
             assert(new.observedMobility>=old.observedMobility);
-            if(lines(&result)==lines(&base))
+            if(lines(&result)==lines(&base)) {
+                assert((new.criticalAccess&~old.criticalAccess)!=0);
                 assert(new.observedAccess>old.observedAccess ||
                        new.observedMobility>=old.observedMobility+8);
+            }
             assert(new.tinyEmptyCells<=old.tinyEmptyCells);
             if(new.emptyRegions>old.emptyRegions)
                 assert(new.largestEmptyRegion>=old.largestEmptyRegion);
