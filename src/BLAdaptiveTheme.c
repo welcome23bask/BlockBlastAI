@@ -193,7 +193,11 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
             shape.x[shape.count]=col;shape.y[shape.count]=row;++shape.count;
         }
         if(!shape.count)return 0;
-        found.pieces[slot]=shape;++found.detectedPieces;
+        found.pieces[slot]=shape;
+        found.trayFirstX[slot]=(float)(xmin+small*.5);
+        found.trayFirstY[slot]=(float)(ymin+small*.5);
+        found.trayCellPitch[slot]=(float)small;
+        ++found.detectedPieces;
     }
     if(found.detectedPieces<1)return 0;
     float anchor=(found.firstY+found.lastY)/(2.0f*h);
