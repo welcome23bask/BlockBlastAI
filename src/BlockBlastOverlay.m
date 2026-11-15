@@ -94,6 +94,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     CFAbsoluteTime _trainingStableSince;
     BLNoClearReview _noClearReview;
     BOOL _noClearSearchComplete;
+    BOOL _plannedClearAfterDeadline;
+    UILabel *_noClearBanner; // only appears for 50-frame, exhaustive proof
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -134,6 +136,24 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _bubble.backgroundColor=BLColor(13,23,40);
     _bubble.titleLabel.font=[UIFont boldSystemFontOfSize:15];
     [self.view addSubview:_bubble];
+    _noClearBanner=[[UILabel alloc] initWithFrame:
+        CGRectMake(16,MAX(45,height*0.075),MAX(180,width-32),64)];
+    _noClearBanner.autoresizingMask=UIViewAutoresizingFlexibleWidth;
+    _noClearBanner.text=@"no clear available\n50 fresh scans • all visible pieces checked";
+    _noClearBanner.textAlignment=NSTextAlignmentCenter;
+    _noClearBanner.font=[UIFont boldSystemFontOfSize:15];
+    _noClearBanner.textColor=UIColor.whiteColor;
+    _noClearBanner.backgroundColor=BLColor(112,41,29);
+    _noClearBanner.layer.cornerRadius=12;
+    _noClearBanner.layer.borderColor=BLColor(249,170,96).CGColor;
+    _noClearBanner.layer.borderWidth=2;
+    _noClearBanner.clipsToBounds=YES;
+    _noClearBanner.numberOfLines=2;
+    _noClearBanner.adjustsFontSizeToFitWidth=YES;
+    _noClearBanner.minimumScaleFactor=0.8;
+    _noClearBanner.userInteractionEnabled=NO;
+    _noClearBanner.hidden=YES;
+    [self.view addSubview:_noClearBanner];
     UIPanGestureRecognizer *pan=[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(dragBubble:)];
     [_bubble addGestureRecognizer:pan];
 
@@ -231,7 +251,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v3.4 Smart Survival · 100-shape guard · 5-scan verification · Vision Trainer" y:690 height:48 font:12];
+    _status=[self addLabel:@"v3.4 Smart Survival · Combo 100 · 50-scan clear review · Vision Trainer" y:690 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
@@ -541,6 +561,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _solvedAutoHash=0;
     BLNoClearReviewReset(&_noClearReview);
     _noClearSearchComplete=NO;
+    _plannedClearAfterDeadline=NO;
+    _noClearBanner.hidden=YES;
     // Clear stale recommendations, not the independently confirmed streak.
     // The next stable frame must prove continuity or reset the tracker.
     ++_solveGeneration;
@@ -557,6 +579,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _strategyMode=choice;
     BLNoClearReviewReset(&_noClearReview);
     _noClearSearchComplete=NO;
+    _plannedClearAfterDeadline=NO;
+    _noClearBanner.hidden=YES;
     [[NSUserDefaults standardUserDefaults] setInteger:(NSInteger)choice
                                               forKey:@"BLStrategyPreferenceV29"];
     // A previous AI answer used the OLD objective. Never show it as a hint
@@ -580,6 +604,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _autoEnabled=!_autoEnabled;
     BLNoClearReviewReset(&_noClearReview);
     _noClearSearchComplete=NO;
+    _plannedClearAfterDeadline=NO;
+    _noClearBanner.hidden=YES;
     _stableAutoFrames=0;
     if(!_autoEnabled) {
         BLStopScreenCapture();
@@ -775,6 +801,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
             // Any changed board or tray invalidates a previous negative claim.
             BLNoClearReviewReset(&self->_noClearReview);
             self->_noClearSearchComplete=NO;
+            self->_plannedClearAfterDeadline=NO;
+            self->_noClearBanner.hidden=YES;
             // Observe only after stable, independently confirmed game frames.
             // In contrast to v1.3, failed video reads do not silently wipe a
             // genuine streak; illegal/multiple unseen moves or stale captures
@@ -851,6 +879,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 // clearing path within the three-placement combo deadline.
                 // Do not invent future tray pieces or fake clear chances.
                 BLThreeMovePlan clearPlan={0};
+                BLThreeMovePlan anyTrayClear={0};
+                BOOL lateClear=NO;
                 if(smartMode) {
                     // Difficult boards get the deeper exhaustive search,
                     // bounded by ~2 seconds of additional solver thinking.
@@ -869,6 +899,34 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                         if(clearPlan.found)clearPlan.completeSearch=0;
                         clearPlan.found=0;
                     }
+                    if(!clearPlan.found) {
+                        // Second, independent planning pass: search all 1–3
+                        // visible placements for ANY genuine line clear,
+                        // even when a known streak cannot be saved in the
+                        // remaining combo window. This prevents a false
+                        // "no clear available" on a late-but-legal clear.
+                        BLComboContext fullTrayWindow={0};
+                        anyTrayClear=BLFindThreeMoveClearTimed(
+                            boardSnapshot,traySnapshot.values,
+                            fullTrayWindow,1500000,1900);
+                        if(anyTrayClear.found &&
+                           BLGuideValidateSolution(boardSnapshot,
+                               traySnapshot.values,&anyTrayClear.solution) &&
+                           BLNextGuideSafe(boardSnapshot,
+                               traySnapshot.values,&anyTrayClear.solution)) {
+                            lateClear=YES;
+                            // Never replace a potentially combo-saving move
+                            // if the original deadline-specific search was
+                            // truncated and could have missed that route.
+                            if(clearPlan.completeSearch)
+                                answer=anyTrayClear.solution;
+                        } else {
+                            if(anyTrayClear.found)anyTrayClear.completeSearch=0;
+                            anyTrayClear.found=0;
+                        }
+                    } else {
+                        anyTrayClear=clearPlan;
+                    }
                 }
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
@@ -881,23 +939,29 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                     }
                     strongSelf->_solution=answer;
                     strongSelf->_previewIndex=0;
-                    strongSelf->_plannedClearStep=clearPlan.found?clearPlan.firstClear:0;
+                    strongSelf->_plannedClearStep=clearPlan.found?clearPlan.firstClear:
+                        (lateClear&&clearPlan.completeSearch?anyTrayClear.firstClear:0);
                     strongSelf->_clearTriesLeft=clearPlan.triesLeft?clearPlan.triesLeft:3;
-                    strongSelf->_clearPlanAvailable=clearPlan.found;
+                    strongSelf->_clearPlanAvailable=clearPlan.found ||
+                        (lateClear && clearPlan.completeSearch);
+                    strongSelf->_plannedClearAfterDeadline=
+                        !clearPlan.found && lateClear && clearPlan.completeSearch;
                     strongSelf->_previewing=(answer.movesFound>0);
                     strongSelf->_showGuides=strongSelf->_previewing;
-                    if(smartMode && !clearPlan.found) {
-                        // Never say "no clear" until five additional fresh
-                        // frames confirm the exact same entire board+tray.
+                    if(smartMode && !clearPlan.found && !anyTrayClear.found &&
+                       anyTrayClear.visiblePieces>0) {
+                        // The exact "no clear available" banner is forbidden
+                        // unless the ALL-TRAY search was exhaustive, followed
+                        // by 50 new distinct and stable ReplayKit captures.
                         BLNoClearReviewBegin(&strongSelf->_noClearReview,
                             signature,BLCaptureFrameCounter(),CFAbsoluteTimeGetCurrent());
-                        strongSelf->_noClearSearchComplete=clearPlan.completeSearch;
+                        strongSelf->_noClearSearchComplete=anyTrayClear.completeSearch;
                     } else {
                         BLNoClearReviewReset(&strongSelf->_noClearReview);
                         strongSelf->_noClearSearchComplete=NO;
                     }
                     NSString *comboInfo=comboSnapshot.known && comboSnapshot.streak>0
-                        ?[NSString stringWithFormat:@"Combo %d: %d try/tries left.",
+                        ?[NSString stringWithFormat:@"Combo %d/100: %d try/tries left.",
                             comboSnapshot.streak,3-comboSnapshot.misses]
                         :@"Three tries after every confirmed clear.";
                     NSString *choiceName=selectedMode==BLModeMaxLines?@"MAX LINES":
@@ -909,10 +973,16 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                     if(smartMode) {
                         if(clearPlan.found)
                             clearStatus=[NSString stringWithFormat:
-                                @"REAL CLEAR in move %d of %d available.",
+                                @"REAL CLEAR in move %d of %d combo tries.",
                                 clearPlan.firstClear,clearPlan.triesLeft];
+                        else if(lateClear)
+                            clearStatus=[NSString stringWithFormat:
+                                @"REAL CLEAR exists at move %d, outside current combo deadline.",
+                                anyTrayClear.firstClear];
+                        else if(anyTrayClear.visiblePieces>0)
+                            clearStatus=@"Deep double-check complete; rechecking 50 fresh board+tray scans…";
                         else
-                            clearStatus=@"Rechecking board 5 times after deep search…";
+                            clearStatus=@"Waiting for a verified visible tray.";
                     }
                     strongSelf->_status.text=[NSString stringWithFormat:
                         @"%@: %@ %@ %@ %@ %@",
@@ -920,7 +990,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                         shapeUpgrade?@"VERIFIED FULL-TRAY / 100-SHAPE SAFETY":@"",
                         scanDetail?:@""];
                     if(strongSelf->_previewing) {
-                        if(clearPlan.found) {
+                        if(clearPlan.found || (lateClear && clearPlan.completeSearch)) {
                             NSMutableArray<NSString *> *route=[NSMutableArray array];
                             for(int i=0;i<answer.movesFound;++i) {
                                 BLMove m=answer.moves[i];
@@ -929,10 +999,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                                     m.row+1,m.col+1,m.linesCleared?@" CLEAR":@""]];
                             }
                             strongSelf->_info.text=[NSString stringWithFormat:
-                                @"3-TRY CLEAR ROUTE: %@. Use Next move in panel to preview each future board. Live outlines show only the next legal move.",
+                                @"%@: %@. Use Next move to preview each future board. Live outlines show only the next legal move.",
+                                strongSelf->_plannedClearAfterDeadline?
+                                   @"CLEAR AFTER COMBO DEADLINE (streak may end)":
+                                   @"COMBO-SAVING CLEAR ROUTE",
                                 [route componentsJoinedByString:@" → "]];
                         } else if(smartMode) {
-                            strongSelf->_info.text=@"Deep clear search finished. Rechecking five fresh board/tray scans before making any no-clear claim. Legal survival move is shown meanwhile.";
+                            strongSelf->_info.text=@"No complete clear route confirmed in either search. Rechecking 50 distinct new board+tray frames before any no-clear claim. A legal survival move is available meanwhile.";
                         }
                         [strongSelf showMove];
                         BLMove move=answer.moves[0];
@@ -947,30 +1020,43 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 });
             });
         } else {
-            // Same confirmed state seen again on a fresh frame. A negative
-            // conclusion is withheld until five ADDITIONAL, independently
-            // captured frames match and at least two seconds have elapsed.
+            // Fifty NEW verified ReplayKit frames, on top of the
+            // solver's initial frame. Repeated timestamps/counters don't
+            // count, and state changes reset this review at the top of tick.
             if(self->_noClearReview.active) {
                 int verified=BLNoClearReviewObserve(&self->_noClearReview,
                     signature,counter,CFAbsoluteTimeGetCurrent());
                 if(verified==1) {
-                    self->_status.text=self->_noClearSearchComplete
-                        ?@"NO CLEAR FOUND: verified 5 fresh scans and complete 3-try search. Smart Survival protects board space."
-                        :@"No CONFIRMED clear after 5 scans and bounded deep search. Search was incomplete; showing safest legal move.";
-                    self->_info.text=self->_noClearSearchComplete
-                        ?@"Board and tray rechecked five times for at least two seconds. No legal clear exists with these visible pieces inside the remaining combo window."
-                        :@"Board and tray rechecked five times; solver hit a search limit. No impossible-clear claim. Continue with the safest verified legal move.";
+                    if(self->_noClearSearchComplete) {
+                        // Exact user-requested phrase appears ON THE GAME.
+                        // Only an exhaustive ALL-visible-pieces search earns
+                        // this notification; the native image can still be
+                        // consistently wrong, so cross-AI review is useful.
+                        self->_noClearBanner.hidden=NO;
+                        [self->_bubble setTitle:@"NO CLEAR" forState:UIControlStateNormal];
+                        self->_status.text=@"no clear available — 50 fresh scans and complete all-visible-piece search. Compare with another AI.";
+                        self->_info.text=@"No legal line clear with the currently visible tray pieces in any placement order. A consistent vision error is still possible; screenshot this result for comparison.";
+                    } else {
+                        self->_status.text=@"Clear unconfirmed after 50 fresh scans; deep search hit a limit. No false impossibility claim.";
+                        self->_info.text=@"Search was incomplete. Do not treat this as 'no clear available'. Compare other AIs or place a verified safe move.";
+                        [self->_bubble setTitle:@"AI ?" forState:UIControlStateNormal];
+                    }
                 } else if(verified==0) {
                     self->_status.text=[NSString stringWithFormat:
-                        @"Deep thinking: rechecking %u/5 fresh scans (2-second minimum)…",
+                        @"Double-check: %u/50 distinct board+tray scans — examining possible clears…",
                         self->_noClearReview.checks];
+                    [self->_bubble setTitle:[NSString stringWithFormat:
+                        @"%u/50",self->_noClearReview.checks]
+                                  forState:UIControlStateNormal];
                 }
             }
             // Any failure in between would have cleared _previewing, so
             // this can no longer repaint an old answer.
             self->_showGuides=self->_previewing &&
                 BLNextGuideSafe([self boardMask],self->_normalizedPieces,&self->_solution);
-            if(self->_previewing && self->_solution.movesFound>0) {
+            if(self->_previewing && self->_solution.movesFound>0 &&
+               !self->_noClearReview.active && self->_noClearBanner.hidden &&
+               !self->_noClearReview.complete) {
                 BLMove move=self->_solution.moves[self->_previewIndex];
                 [self->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
                                forState:UIControlStateNormal];
@@ -1206,7 +1292,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     if (!_previewing || _solution.movesFound==0) return;
     BLMove m=_solution.moves[_previewIndex];
     NSString *clearNote=_clearPlanAvailable
-        ?[NSString stringWithFormat:@" • CLEAR at step %d/%d",_plannedClearStep,_clearTriesLeft]
+        ?(_plannedClearAfterDeadline?@" • CLEAR AFTER COMBO DEADLINE":
+           [NSString stringWithFormat:@" • CLEAR at step %d/%d",_plannedClearStep,_clearTriesLeft])
         :@" • Survival fallback";
     _moveLabel.text=[NSString stringWithFormat:
         @"Preview %d/%d: P%d → ROW %d, COLUMN %d\n%d line(s) on this move%@",
