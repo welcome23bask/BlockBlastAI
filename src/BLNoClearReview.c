@@ -26,3 +26,11 @@ int BLNoClearReviewObserve(BLNoClearReview *state,uint64_t signature,
     }
     return 0;
 }
+
+int BLNoClearProofIsReady(const BLThreeMovePlan *fullTrayResult,
+                          const BLNoClearReview *review) {
+    return fullTrayResult && review && !fullTrayResult->found &&
+           fullTrayResult->completeSearch && fullTrayResult->visiblePieces>0 &&
+           review->complete && !review->active &&
+           review->checks>=BL_NO_CLEAR_RECHECKS;
+}
