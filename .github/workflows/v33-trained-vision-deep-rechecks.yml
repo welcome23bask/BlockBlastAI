@@ -1,0 +1,117 @@
+name: v3.3 Trained Vision + Five Fresh Scans iPhone
+on:
+  push:
+    branches: [feature/v3.3-vision-train-five-rechecks]
+    paths:
+      - 'src/**'
+      - 'tests/test_training_zip.c'
+      - 'docs/vision-v3.3-trained-and-five-checks.md'
+      - 'scripts/train_v33_color_verifier.py'
+      - 'tests/test_v33_*.c'
+      - '.github/workflows/v33-trained-vision-deep-rechecks.yml'
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify ZIP writer is readable, correct, and path-safe
+        run: |
+          cc -O2 -std=gnu11 -Wall -Wextra -Werror tests/test_training_zip.c src/BLTrainingZIP.c -o /tmp/test-training-zip
+          archive=$(/tmp/test-training-zip)
+          python3 - "$archive" <<'PY'
+          import sys,zipfile,json
+          path=sys.argv[1]
+          with zipfile.ZipFile(path) as z:
+              assert z.testzip() is None
+              assert sorted(z.namelist())==['sample.jpg','sample.json']
+              assert z.read('sample.jpg').startswith(bytes.fromhex('ffd8ffe0'))
+              labels=json.loads(z.read('sample.json'))
+              assert labels['reviewed'] is False and labels['trainable'] is False
+          print('PASS iPhone-readable ZIP, CRC, metadata, traversal rejection')
+          PY
+      - name: Original skin, shape, three-try, and diagonal-piece regressions
+        run: |
+          for test in test_vision test_wood_theme test_pink_theme test_black_theme test_green_textured_theme; do
+            cc -O2 -std=c11 tests/${test}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+          cc -O2 -std=c11 tests/test_v31_diagonal_screenshot.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLFrameSafety.c \
+            src/BLV25Strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/test-v31
+          /tmp/test-v31
+
+      - name: Five fresh scan confirmation and learned RGB vision regression
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_no_clear_review.c src/BLNoClearReview.c -o /tmp/test-5-checks
+          /tmp/test-5-checks
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_trained_vision.c src/BLTrainedVision.c -lm -o /tmp/test-learned-vision
+          /tmp/test-learned-vision
+          python3 - <<'PY'
+          from pathlib import Path
+          solver=Path('src/BLThreeMoveClear.c').read_text()
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          scanner=Path('src/BLScreenScan.m').read_text()
+          assert 'BLFindThreeMoveClearTimed' in solver
+          assert 'monotonicMs()>=ctx->deadlineMs' in solver
+          assert 'BLFindThreeMoveClearTimed(boardSnapshot' in overlay
+          assert 'BLNoClearReviewBegin' in overlay
+          assert 'BLNoClearReviewObserve' in overlay
+          assert 'five' in overlay.lower()
+          assert 'BLTrainedVisionOpinionRGBA' in scanner
+          assert 'if(trainedOpinion<0)' in scanner
+          assert 'if(clearPlan.found)clearPlan.completeSearch=0;' in overlay
+          print('PASS timed deep search and no false no-clear after incomplete/invalid candidate')
+          PY
+      - name: Inspect user consent, crop, stability and unreviewed metadata controls
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          c=Path('src/BLTrainingCollector.m').read_text()
+          ui=Path('src/BlockBlastOverlay.m').read_text()
+          assert '_enabled=NO' in c
+          assert '@"reviewed":@NO' in c and '@"trainable":@NO' in c
+          assert 'CGRectIntersection(pixelCrop' in c
+          assert 'kTrainingMaximum=200' in c
+          assert 'kTrainingMinimumGap=1.5' in c
+          assert 'BLCapturedPieceLabels' in c
+          assert 'BLTrainingWriteZIP' in c
+          assert '_stableAutoFrames>=3' in ui
+          assert '_trainingStableSince>=0.65' in ui
+          assert 'toggleVisionTraining' in ui
+          assert 'exportVisionTraining' in ui
+          assert 'deleteAllWithCompletion' in ui
+          assert 'BLV25FindTwoStrategies' in ui
+          assert 'BLFindThreeMoveClear' in ui
+          print('PASS: explicit opt-in, sandbox-only capture, data review, original smart solver')
+          PY
+  iphone:
+    needs: regression
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile iPhone ARM64 training-enabled library
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLV25Strategy.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLThreeMoveClear.c src/BLYOLOVision.m \
+            src/BLTrainingCollector.m src/BLTrainingZIP.c \
+            src/BLNoClearReview.c src/BLTrainedVision.c \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+          test -s dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v33-TRAINED-VISION-5CHECK-DEEP-IPHONE
+          path: dist/BlockBlastAI.dylib
