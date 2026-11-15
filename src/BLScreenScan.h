@@ -21,5 +21,11 @@ BOOL BLDetectBoard(UIImage *image, CGPoint firstCenter, CGPoint lastCenter,
 BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
                   BLPiece pieces[3], CGPoint *firstCenter, CGPoint *lastCenter,
                   NSString ** _Nullable detail);
+// Returns precise source tile centers for autonomous dragging. A zero
+// source pitch means scanning worked but automated placement is unsupported.
+BOOL BLAutoDetectDetailed(UIImage *image,CGSize screenSize,BOOL occupied[64],
+                          BLPiece pieces[3],CGPoint *firstCenter,
+                          CGPoint *lastCenter,CGPoint trayFirstCenters[3],
+                          CGFloat trayPitches[3],NSString ** _Nullable detail);
 NS_ASSUME_NONNULL_END
 #endif
