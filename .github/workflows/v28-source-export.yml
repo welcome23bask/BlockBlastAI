@@ -1,0 +1,22 @@
+name: v2.8 Local Screenshot Validation Source
+on:
+  push:
+    branches: [feature/v2.8-original-tracking-smart-ai]
+    paths:
+      - '.github/workflows/v28-source-export.yml'
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v28-local-vision-validation
+          path: |
+            src/BLVisionCore.c
+            src/BLVisionCore.h
+            src/BLAdaptiveTheme.c
+            src/BLAdaptiveTheme.h
+            src/BlockBlastSolver.h
+            src/BLGuideSafety.c
+            src/BLGuideSafety.h
