@@ -1,0 +1,9 @@
+# Iteration 24 — evidence audit and bounded next-step gate
+
+Reviewed Actions run 43756868749 (source 04fadbddf9a5bcdcdfb53809a711df5b9de2425c), job 132942758688. Training epoch 1821 ran; all 21 candidates rejected on combo safety, no illegal candidates. Holdouts 1913 and 1914 each used 30 games per generator. Normal survival 2.5786x/1.7708x, estimated score 2.9152x/1.9546x, p10 1.4848x/1.3103x. Heavy survival 1.3067x/1.0523x, estimated score 1.6008x/1.0918x, p10 1.0625x/1.0000x. Shifted-heavy survival 1.0115x/1.0734x, estimated score 0.9538x/1.2512x, p10 1.0625x/1.2143x. Invalid placements zero throughout. Shifted-heavy combo breaks per 100 moves: baseline 3.030/2.596 vs candidate 3.616/1.998. Avoidable deadlines: normal 0 vs 7 on first holdout, heavy 0 vs 1 on second holdout. No pass. Artifact 14178497501 preserves evidence.
+
+Failure classification: gameplay/selection gate, not compilation or infrastructure. Worst generator shifted-heavy; urgent combo protection and whole-tray safety remain unresolved. The previously proposed threshold change is a hypothesis, not evidence. Full historical seed audit is incomplete, so epochs cannot be certified unused.
+
+Next safe experiment: first confirm there are no active Actions jobs, audit the complete seed ledger, and inspect the current branch workflow. Then test one distinct bounded strategy focused on shifted-heavy: penalize moves that reduce the number of legal full-tray completions, while retaining urgent-combo preservation, comparing unchanged v1.7 on paired unseen holdouts and independently repeating any apparent pass. Do not rerun identical failed settings. Keep checkpoint, main, deployment and dylib unchanged.
+
+No new training or simulation was run in this audit because current active Actions status and seed uniqueness could not be established from the available connector methods. Do not treat this log as an improvement claim.
