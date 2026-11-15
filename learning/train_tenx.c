@@ -112,10 +112,18 @@ static int train(int argc,char **argv){
         double best=-1e100;int chosen[4]={0};
         // Provisional disjoint training epoch namespace; historical ledger
         // must be audited before claiming these seeds are never used.
-        const int training_seed_epoch=1700+epoch;
+        // Override only for a new bounded research iteration so that
+        // repeatedly resuming an unpromoted checkpoint cannot reuse the
+        // previous iteration's training seeds as if they were new.
+        const char *override=getenv("TENX_TRAIN_SEED_EPOCH");
+        const int training_seed_epoch=override?atoi(override):1700+epoch;
+        if(training_seed_epoch<17||training_seed_epoch>2000)return 2;
+        printf("training_seed_epoch=%d (provisional, audit historical ledger)\n",
+               training_seed_epoch);
         TenXStats reference[3];
         for(int scenario=0;scenario<3;scenario++)
             reference[scenario]=measure(zero,seeds,training_seed_epoch,scenario,1);
+        int feasible=0,rejectedCombo=0,rejectedIllegal=0;
         for(int attempt=0;attempt<7;attempt++){
             int trial[4];memcpy(trial,w,sizeof(trial));
             if(attempt){
@@ -125,13 +133,31 @@ static int train(int argc,char **argv){
                 if(trial[idx]<-250)trial[idx]=-250;
             }
             double score=0;
+            int comboUnsafe=0,illegalUnsafe=0;
             for(int scenario=0;scenario<3;scenario++){
                 TenXStats s=measure(trial,seeds,training_seed_epoch,scenario,0);
-                score+=tenx_fitness(s,reference[scenario]);
+                const TenXStats ref=reference[scenario];
+                // A candidate must not break combos more often per move
+                // or miss more verified avoidable three-try deadlines than
+                // the paired original baseline, even when mean survival
+                // happens to improve on a small training sample.
+                double candidateBreakRate=s.breaks/(s.moves+1e-9);
+                double baselineBreakRate=ref.breaks/(ref.moves+1e-9);
+                if(s.illegal)illegalUnsafe=1;
+                if(s.skips>ref.skips || candidateBreakRate>baselineBreakRate+1e-9)
+                    comboUnsafe=1;
+                score+=tenx_fitness(s,ref);
             }
+            if(comboUnsafe){++rejectedCombo;continue;}
+            if(illegalUnsafe){++rejectedIllegal;continue;}
+            ++feasible;
             if(score>best){best=score;memcpy(chosen,trial,sizeof(chosen));}
         }
-        memcpy(w,chosen,sizeof(w));
+        if(feasible)memcpy(w,chosen,sizeof(w));
+        else best=-1.0; // retain the previous research checkpoint, not zero
+        printf("candidate_safety_gate feasible=%d/7 rejected_combo=%d "
+               "rejected_illegal=%d no_feasible=%d\n",feasible,
+               rejectedCombo,rejectedIllegal,!feasible);
         FILE *checkpoint=fopen("tenx_checkpoint.pending","w");if(!checkpoint)abort();
         fprintf(checkpoint,"%d %d %d %d %d\n",epoch+1,w[0],w[1],w[2],w[3]);
         fclose(checkpoint);
