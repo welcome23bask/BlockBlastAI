@@ -252,7 +252,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v3.4 Smart Survival · Combo 100 · 50-scan clear review · Vision Trainer" y:690 height:48 font:12];
+    _status=[self addLabel:@"v3.4 Smart Survival · Combo 1000 · 50-scan clear review · Vision Trainer" y:690 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
@@ -966,7 +966,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                         memset(&strongSelf->_noClearEvidence,0,sizeof(strongSelf->_noClearEvidence));
                     }
                     NSString *comboInfo=comboSnapshot.known && comboSnapshot.streak>0
-                        ?[NSString stringWithFormat:@"Combo %d/100: %d try/tries left.",
+                        ?[NSString stringWithFormat:@"Combo %d/1000: %d try/tries left.",
                             comboSnapshot.streak,3-comboSnapshot.misses]
                         :@"Three tries after every confirmed clear.";
                     NSString *choiceName=selectedMode==BLModeMaxLines?@"MAX LINES":
