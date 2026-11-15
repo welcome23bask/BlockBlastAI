@@ -1,6 +1,7 @@
 #ifndef BL_NO_CLEAR_REVIEW_H
 #define BL_NO_CLEAR_REVIEW_H
 #include <stdint.h>
+#include "BLThreeMoveClear.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,6 +25,10 @@ void BLNoClearReviewBegin(BLNoClearReview *review, uint64_t signature,
 // The same frame counter NEVER contributes two confirmations.
 int BLNoClearReviewObserve(BLNoClearReview *review, uint64_t signature,
                            unsigned long frameCounter, double now);
+// Only an EXHAUSTIVE full-visible-tray search, with no found clear, plus
+// fifty distinct matched fresh captures, may show "no clear available".
+int BLNoClearProofIsReady(const BLThreeMovePlan *fullTrayResult,
+                          const BLNoClearReview *review);
 #ifdef __cplusplus
 }
 #endif
