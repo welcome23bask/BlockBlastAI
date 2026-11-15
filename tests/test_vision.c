@@ -63,6 +63,15 @@ int main(void){
     assert(b.detectedPieces==3);
     assert(near(b.firstY,a.firstY) && near(b.lastY,a.lastY));
     free(flip);
+    // Original blue-skin scanner must accept a fully empty 8x8 board
+    // while still recognizing the three waiting tray shapes.
+    rect(23,216,408,601,33,44,90);
+    BLVisionResult emptyBoard={0};
+    assert(BLVisionAnalyzeRGBA(img,W,H,&emptyBoard));
+    assert(emptyBoard.board==0);
+    assert(emptyBoard.detectedPieces==3);
+    assert(emptyBoard.pieces[0].count==6 && emptyBoard.pieces[1].count==3 &&
+           emptyBoard.pieces[2].count==6);
     // Purple is a common Block Blast tray color, and must never be mistaken
     // for the light-blue background or ignored as a phantom piece.
     rect(0,625,W,884,57,85,148);
