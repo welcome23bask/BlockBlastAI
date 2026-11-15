@@ -8,9 +8,9 @@
 #import "BlockBlastSolver.h"
 #import "BLScreenScan.h"
 #import "BLTransition.h"
-#import "BLGuideSafety.h"
 #import "BLDualStrategy.h"
 #import "BLV25Strategy.h"
+#import "BLGuideSafety.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -27,7 +27,33 @@ static const NSInteger kConfirmFrames=2;
 static const NSInteger kUncertainTransitionFrames=3;
 // C Blocks cannot capture raw local arrays. A value-type wrapper copies all
 // three pieces safely onto the background solver work item.
-typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashes despite a forced pixel change
+typedef struct { BLPiece values[3]; } BLTraySnapshot;
+
+// An actual settled Block Blast board cannot contain an already full row
+// or column: the game clears each complete line immediately. Treat one as
+// a transient/incorrect scan, never a position to render or solve.
+static BOOL BLBoardHasUnclearedLine(uint64_t mask) {
+    for(int row=0;row<8;++row){
+        uint64_t bits=UINT64_C(0xff)<<(row*8);
+        if((mask&bits)==bits)return YES;
+    }
+    for(int col=0;col<8;++col){
+        uint64_t bits=UINT64_C(0x0101010101010101)<<col;
+        if((mask&bits)==bits)return YES;
+    }
+    return NO;
+}
+// Validate what the player can place NOW. Later planned moves refer to
+// later boards and must not prevent a correct first-step highlight.
+static BOOL BLNextGuideSafe(uint64_t board,const BLPiece tray[3],
+                           const BLSolution *candidate) {
+    if(!candidate || candidate->movesFound<1 || candidate->movesFound>3 ||
+       BLBoardHasUnclearedLine(board))return NO;
+    BLSolution first={0};
+    first.movesFound=1;
+    first.moves[0]=candidate->moves[0];
+    return BLGuideValidateSolution(board,tray,&first)!=0;
+}         // identical hashes despite a forced pixel change
 @interface BLPassThroughWindow : UIWindow
 @end
 @implementation BLPassThroughWindow
@@ -81,8 +107,6 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     BLComboTracker _comboTracker; // independent verified board+tray anchor
     BLStrategyMode _strategyMode;
     UISegmentedControl *_strategyTabs;
-    BOOL _experimentalV25;
-    UIButton *_v25Button;
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -149,7 +173,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _scroll=[[UIScrollView alloc] initWithFrame:CGRectZero];
     _scroll.alwaysBounceVertical=YES;
     [_panel addSubview:_scroll];
-    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,976)];
+    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,927)];
     _contentView.layer.anchorPoint=CGPointZero;
     _contentView.layer.position=CGPointZero;
     [_scroll addSubview:_contentView];
@@ -200,12 +224,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     solve.titleLabel.font=[UIFont boldSystemFontOfSize:14];
     [_contentView addSubview:solve];
     _strategyMode=BLModeSmartSurvival; // smart survival + small combo is the default
-    // The experimental v2.5 mode is opt-in by installing THIS separate test dylib.
-    // It defaults ON here, but has an instant in-app fallback to the original
-    // v1.7 solver. The current camera, guide and combo tracking are unchanged.
-    id savedExperiment=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLExperimentV25Enabled"];
-    _experimentalV25=savedExperiment?[savedExperiment boolValue]:YES;
-    id savedMode=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLStrategyPreferenceV16"];
+    id savedMode=[[NSUserDefaults standardUserDefaults] objectForKey:@"BLStrategyPreferenceV29"];
     if(savedMode) {
         NSInteger mode=[savedMode integerValue];
         _strategyMode=(mode>=0 && mode<=2)?(BLStrategyMode)mode:BLModeSmartSurvival;
@@ -225,18 +244,14 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v2.5 TEST: experimental whole-tray AI. Original v1.7 selectable below." y:690 height:48 font:12];
+    _status=[self addLabel:@"v2.9 ORIGINAL scanning + new Smart Survival. Empty boards supported." y:690 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,811,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"v2.5 is experimental: average simulated gains, but some losing test sets. Toggle to original v1.7 below. Same black-block scanner and yellow highlights." y:859 height:50 font:10];
+    _info=[self addLabel:@"Original v1.7 camera, board position, interface and highlights. New v2.5 Smart Survival chooses placements; impossible board reads are ignored." y:859 height:50 font:10];
     _info.textColor=BLColor(146,168,191);
-    _v25Button=[self roundedButton:@"" frame:CGRectMake(12,916,_panelWidth-24,38)
-                           action:@selector(toggleV25Experiment)];
-    [_contentView addSubview:_v25Button];
-    [self refreshV25Button];
     _dragStrip=[[UIView alloc] initWithFrame:CGRectZero];
     _dragStrip.backgroundColor=BLColor(38,60,84);
     UILabel *dragText=[[UILabel alloc] initWithFrame:CGRectMake(12,0,270,29)];
@@ -303,7 +318,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _scroll.frame=CGRectMake(0,30,w,h-30);
     CGFloat ratio=w/_panelWidth;
     _contentView.transform=CGAffineTransformMakeScale(ratio,ratio);
-    _scroll.contentSize=CGSizeMake(w,976*ratio);
+    _scroll.contentSize=CGSizeMake(w,927*ratio);
 }
 - (void)savePanelFrame {
     [[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGRect(_panel.frame) forKey:@"BLPanelFrameV2"];
@@ -418,10 +433,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     _showCalibrationGrid=NO;
     if(!_calibrated) { _status.text=@"Calibrate first to align the on-game highlights."; return; }
     if(!_previewing) { _status.text=@"Enter 3 pieces and Solve before showing highlights."; return; }
-    // Only the first suggestion represents the physical board *right now*.
-    // Later sequence moves are plans for future board states, never live guides.
-    _previewIndex=0;
-    _showGuides=YES;
+    _previewIndex=0; // never display a future move on today's board
+    _showGuides=BLNextGuideSafe([self boardMask],_normalizedPieces,&_solution);
     [self refreshGuides];
     _panel.hidden=YES;
 }
@@ -431,7 +444,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     BOOL showGrid=(_calibrated&&_showCalibrationGrid);
     BOOL showMove=(_calibrated&&_showGuides&&_previewing&&
         _previewIndex==0&&_solution.movesFound>0&&
-        BLGuideValidateSolution([self boardMask],_normalizedPieces,&_solution));
+        BLNextGuideSafe([self boardMask],_normalizedPieces,&_solution));
     _guideLayer.hidden=!(showGrid||showMove);
     if(_guideLayer.hidden) return;
     CGFloat dx=(_gridLast.x-_gridFirst.x)/7.0;
@@ -488,7 +501,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
 - (void)restoreGuidesAfterCapture {
     if(_calibrated && _showGuides && _previewing &&
        !_showCalibrationGrid && _previewIndex==0 &&
-       BLGuideValidateSolution([self boardMask],_normalizedPieces,&_solution) &&
+       BLNextGuideSafe([self boardMask],_normalizedPieces,&_solution) &&
        _guideLayer.subviews.count>0) {
         _guideLayer.hidden=NO;
     } else [self refreshGuides];
@@ -525,32 +538,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshTiles];
     [self refreshGuides];
 }
-- (void)refreshV25Button {
-    BOOL on=_experimentalV25;
-    [_v25Button setTitle:on?@"🧪 v2.5 TEST AI: ON (tap for original)"
-                             :@"🛡 v1.7 ORIGINAL: ON (tap for v2.5)"
-               forState:UIControlStateNormal];
-    _v25Button.backgroundColor=on?BLColor(124,69,154):BLColor(14,118,110);
-}
-- (void)toggleV25Experiment {
-    _experimentalV25=!_experimentalV25;
-    [[NSUserDefaults standardUserDefaults] setBool:_experimentalV25
-                                            forKey:@"BLExperimentV25Enabled"];
-    [self refreshV25Button];
-    // Every old recommended move belongs to a different scoring function.
-    // Invalidate it so no out-of-date yellow highlights remain on the board.
-    [self invalidateDetection:_experimentalV25
-             ?@"EXPERIMENT v2.5 ON. Close panel to scan a new board."
-             :@"ORIGINAL v1.7 ON. Close panel to scan a new board."
-                       bubble:@"AI …"];
-}
 - (void)changeStrategy:(UISegmentedControl *)sender {
     BLStrategyMode choice=sender.selectedSegmentIndex==0?BLModeMaxLines:
         (sender.selectedSegmentIndex==1?BLModeKeepCombo:BLModeSmartSurvival);
     if(_strategyMode==choice)return;
     _strategyMode=choice;
     [[NSUserDefaults standardUserDefaults] setInteger:(NSInteger)choice
-                                              forKey:@"BLStrategyPreferenceV16"];
+                                              forKey:@"BLStrategyPreferenceV29"];
     // A previous AI answer used the OLD objective. Never show it as a hint
     // after the strategy changes. Confirm the board on fresh frames instead.
     ++_solveGeneration;
@@ -700,6 +694,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         BOOL expectedMove=(self->_previewing && self->_solvedAutoHash!=0 &&
             BLIsExpectedTransition([self boardMask],self->_normalizedPieces,
                                    &self->_solution,scannedBoard,tray));
+        if(BLBoardHasUnclearedLine(scannedBoard)) {
+            [self invalidateDetection:@"AI paused — an uncleared full row or column indicates an animation or false scan. Retrying." bubble:@"AI …"];
+            return;
+        }
         if(!goodGeom) {
             [self invalidateDetection:@"AI paused — board coordinates changed unexpectedly. Waiting for a stable capture." bubble:@"AI …"];
             return;
@@ -737,29 +735,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             self->_stableAutoFrames=1;
             self->_showGuides=NO;
         }
-        // Treat vision as verification of the game state, not the source of
-        // truth on every frame. The recommended move carries a predicted
-        // board+tray state; any other change must match a legal placement.
-        // Unexpected animations or skin transitions require extra stable
-        // observations before a safe re-sync can replace trusted state.
-        BOOL verifiedTransition=expectedMove;
-        BOOL refillOnly=NO;
-        if(self->_solvedAutoHash!=0 && (!sameBoard||!sameTray)) {
-            BLMove observedMove={0};
-            verifiedTransition|=BLInferObservedPlacement([self boardMask],
-                                 self->_normalizedPieces,scannedBoard,tray,
-                                 &observedMove);
-            int oldVisible=0,newVisible=0;
-            for(int p=0;p<3;++p) {
-                oldVisible+=(self->_normalizedPieces[p].count>0);
-                newVisible+=(tray[p].count>0);
-            }
-            refillOnly=(sameBoard && oldVisible==0 && newVisible==3);
-        }
         NSInteger required=expectedMove?1:(transitional?kUncertainTransitionFrames:kConfirmFrames);
-        if(self->_solvedAutoHash!=0 && (!sameBoard||!sameTray) &&
-           !verifiedTransition && !refillOnly)
-            required=MAX(required,5);
         if(self->_stableAutoFrames<required) {
             self->_showGuides=NO;
             [self refreshGuides];
@@ -798,12 +774,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             BLTraySnapshot traySnapshot; memcpy(traySnapshot.values,tray,sizeof(traySnapshot.values));
             BLComboContext comboSnapshot=self->_comboTracker.streak;
             BLStrategyMode selectedMode=self->_strategyMode;
-            BOOL experimentalV25=(selectedMode==BLModeSmartSurvival &&
-                                  self->_experimentalV25);
             NSString *scanDetail=[info copy];
             __weak BLController *weakSelf=self;
             dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED,0), ^{
-                BLTwoStrategies strategies=experimentalV25
+                // Original v1.7 scanner/UI, with only the decision engine
+                // upgraded. No vision, tracking or calibration rewrites.
+                BOOL smartMode=(selectedMode==BLModeSmartSurvival);
+                BLTwoStrategies strategies=smartMode
                     ?BLV25FindTwoStrategies(boardSnapshot,traySnapshot.values,
                                             comboSnapshot,180000)
                     :BLFindTwoStrategies(boardSnapshot,traySnapshot.values,
@@ -811,23 +788,29 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                 BLSolution answer=(selectedMode==BLModeMaxLines)
                     ?strategies.maxLines:(selectedMode==BLModeKeepCombo
                        ?strategies.keepCombo:strategies.smartSurvival);
+                // A confused AI must never block valid empty-board moves:
+                // if an experimental suggestion is invalid or absent, fall
+                // back to the trusted original legal-move solver.
+                if(smartMode && !BLNextGuideSafe(boardSnapshot,traySnapshot.values,&answer)) {
+                    BLTwoStrategies backup=BLFindTwoStrategies(
+                         boardSnapshot,traySnapshot.values,comboSnapshot,180000);
+                    answer=backup.smartSurvival;
+                    strategies=backup;
+                }
+                if(answer.movesFound>0 &&
+                   !BLNextGuideSafe(boardSnapshot,traySnapshot.values,&answer))
+                    answer.movesFound=0;
                 dispatch_async(dispatch_get_main_queue(), ^{
                     BLController *strongSelf=weakSelf;
                     if(!strongSelf || generation!=strongSelf->_solveGeneration ||
                        signature!=strongSelf->_solvedAutoHash ||
                        !strongSelf->_autoEnabled || !strongSelf->_panel.hidden)return;
-                    // The original v1.7 vision controls what is occupied.
-                    // New Smart Survival only chooses among legal moves.
-                    // Never draw even a single outline if the independent
-                    // move replay disagrees with the scanned board or tray.
-                    if(answer.movesFound>0 &&
-                       !BLGuideValidateSolution(boardSnapshot,traySnapshot.values,&answer)) {
-                        [strongSelf invalidateDetection:
-                          @"Unsafe AI result: move overlaps the board, tray shape or predicted clears. Scan again."
-                          bubble:@"AI …"];
+                    if(BLBoardHasUnclearedLine(boardSnapshot)) {
+                        [strongSelf invalidateDetection:@"AI paused — invalid board detected." bubble:@"AI …"];
                         return;
                     }
                     strongSelf->_solution=answer;
+                    strongSelf->_previewIndex=0;
                     strongSelf->_previewing=(answer.movesFound>0);
                     strongSelf->_showGuides=strongSelf->_previewing;
                     NSString *comboInfo=comboSnapshot.known && comboSnapshot.streak>0
@@ -835,8 +818,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
                             comboSnapshot.streak,3-comboSnapshot.misses]
                         :@"Combo not yet verified.";
                     NSString *choiceName=selectedMode==BLModeMaxLines?@"MAX LINES":
-                        (selectedMode==BLModeKeepCombo?@"KEEP COMBO":
-                         (experimentalV25?@"v2.5 EXPERIMENT":@"v1.7 SMART SURVIVAL"));
+                        (selectedMode==BLModeKeepCombo?@"KEEP COMBO":@"SMART SURVIVAL v2.9");
                     NSString *safetyNote=(selectedMode==BLModeSmartSurvival &&
                         strategies.smartComboRejectedForSafety)
                         ?@"Combo alternative rejected: future-space risk.":@"";
@@ -861,7 +843,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         } else {
             // Same confirmed state seen again on a fresh frame. Any failure in between
             // would have cleared _previewing, so this can no longer repaint an old answer.
-            self->_showGuides=self->_previewing;
+            self->_showGuides=self->_previewing &&
+                BLNextGuideSafe([self boardMask],self->_normalizedPieces,&self->_solution);
             if(self->_previewing && self->_solution.movesFound>0) {
                 BLMove move=self->_solution.moves[self->_previewIndex];
                 [self->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
@@ -891,7 +874,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         // Auto scan cannot run while the panel covers the tray, so whatever is drawn
         // here may already be out of date (e.g. after you played the suggested move).
         _showGuides=NO; [self refreshGuides];
-        _autoLabel.text=@"⏸ AUTO paused while panel is open — board below may be OUT OF DATE";
+        if(BLBoardHasUnclearedLine([self boardMask])) {
+            [self invalidateDetection:@"Rejected impossible full-board reading; close panel to rescan." bubble:@"AI …"];
+        }
+        _autoLabel.text=@"⏸ AUTO paused while panel is open — showing last verified board; close to rescan";
     } else if(_panel.hidden) {
         _autoLabel.text=@"AUTO: Board + pieces detected automatically (manual fallback below)";
         if(_autoEnabled) {
@@ -984,12 +970,24 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
     [self refreshGuides];
     if (![self readPieces]) return;
     BLComboContext unknownCombo={0};
-    BLTwoStrategies strategies=(_experimentalV25 &&
-        _strategyMode==BLModeSmartSurvival)
-        ?BLV25FindTwoStrategies([self boardMask],_normalizedPieces,unknownCombo,180000)
-        :BLFindTwoStrategies([self boardMask],_normalizedPieces,unknownCombo,180000);
+    uint64_t board=[self boardMask];
+    if(BLBoardHasUnclearedLine(board)) {
+        _status.text=@"Board is impossible (full uncleared line). Check current screenshot.";
+        return;
+    }
+    BLTwoStrategies strategies=_strategyMode==BLModeSmartSurvival
+        ?BLV25FindTwoStrategies(board,_normalizedPieces,unknownCombo,180000)
+        :BLFindTwoStrategies(board,_normalizedPieces,unknownCombo,180000);
     _solution=(_strategyMode==BLModeMaxLines)?strategies.maxLines:
         (_strategyMode==BLModeKeepCombo?strategies.keepCombo:strategies.smartSurvival);
+    if(!BLNextGuideSafe(board,_normalizedPieces,&_solution)) {
+        BLTwoStrategies trusted=BLFindTwoStrategies(board,_normalizedPieces,
+                                                   unknownCombo,180000);
+        _solution=trusted.smartSurvival;
+    }
+    if(_solution.movesFound>0 &&
+       !BLNextGuideSafe(board,_normalizedPieces,&_solution))
+        _solution.movesFound=0;
     if (_solution.movesFound==0) {
         _status.text=@"No legal placement found. Check the board and piece shapes.";
         _moveLabel.text=@"";
@@ -1027,8 +1025,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
         for(int i=0;i<piece.count;++i) suggestion |= UINT64_C(1) << ((m.row+piece.y[i])*8+(m.col+piece.x[i]));
     }
     for (int i=0;i<64;++i) {
-        BOOL filled=_previewing ? !!(occupied & (UINT64_C(1)<<i)) : _board[i];
-        BOOL highlighted=_previewing && !!(suggestion & (UINT64_C(1)<<i));
+        BOOL filled=_board[i];
+        BOOL highlighted=(_previewIndex==0 && _previewing &&
+                          BLNextGuideSafe([self boardMask],_normalizedPieces,&_solution)) &&
+                          !!(suggestion & (UINT64_C(1)<<i));
         _boardButtons[i].backgroundColor=highlighted ? BLColor(248,181,57) : (filled ? BLColor(43,200,178) : BLColor(43,58,78));
         _boardButtons[i].enabled=!_previewing;
     }
