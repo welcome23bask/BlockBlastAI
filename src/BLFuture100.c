@@ -140,6 +140,11 @@ BLFuture100Quality BLFuture100Measure(uint64_t board) {
             out.criticalAccess|=1<<i;
     return out;
 }
+static int actual_lines(const BLSolution *s) {
+    int sum=0;
+    for(int i=0;i<s->movesFound;++i)sum+=s->moves[i].linesCleared;
+    return sum;
+}
 static int first_clear(const BLSolution *s) {
     for(int i=0;i<s->movesFound;++i)if(s->moves[i].linesCleared>0)
         return i+1;
@@ -162,7 +167,7 @@ static int worthwhile(uint64_t board,const BLPiece tray[3],
     int total=total_pieces(tray);
     if(!candidate||candidate->movesFound!=total ||
        base->movesFound!=total ||
-       candidate->totalLines<base->totalLines ||
+       actual_lines(candidate)<actual_lines(base) ||
        !BLGuideValidateSolution(board,tray,candidate))return 0;
     int lastTry=3;
     if(combo.known&&combo.streak>0 && combo.misses>=0&&combo.misses<=2)
