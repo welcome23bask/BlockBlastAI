@@ -5,7 +5,10 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <assert.h>
-static uint32_t rng=0x6c6c2a47;
+#ifndef BL_SCENARIO_SEED
+#define BL_SCENARIO_SEED 0x6c6c2a47U
+#endif
+static uint32_t rng=BL_SCENARIO_SEED;
 static uint32_t next(void){rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;return rng;}
 static int first_clear(const BLSolution *a) {
     for(int k=0;k<a->movesFound;++k)if(a->moves[k].linesCleared)return k+1;
@@ -59,7 +62,7 @@ int main(void){
         }
         ++observations;
     }
-    printf("100 seeded test boards: valid_baseline=%d, evaluated=%d, shape-upgrades=%d, preempted=%d\n",valid,observations,upgraded,preempted);
+    printf("100 seeded test boards (seed=%u): valid_baseline=%d, evaluated=%d, shape-upgrades=%d, preempted=%d\n",(unsigned)BL_SCENARIO_SEED,valid,observations,upgraded,preempted);
     puts("PASS: no illegal moves, combo-deadline regression, line-clear reduction, or lost critical landing types");
     return 0;
 }
