@@ -1,0 +1,90 @@
+name: v3.1 Diagonal Piece Recognition + Legal Highlight iPhone
+on:
+  push:
+    branches: [feature/v3.1-diagonal-piece-safety-fix]
+    paths:
+      - 'src/**'
+      - 'tests/test_v30*'
+      - 'tests/test_v31*'
+      - '.github/workflows/v31-diagonal-piece.yml'
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify 430p watermelon-board scan no longer returns all 64 occupied
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra tests/test_v30_watermelon_vision.c \
+            src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/test-watermelon
+          /tmp/test-watermelon
+      - name: Prove 1, 2, and 3 placement clear routes and strict remaining deadline
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra tests/test_v30_clear_window.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLFrameSafety.c \
+            -lm -o /tmp/test-three
+          /tmp/test-three
+      - name: Verify actual blue-skin screenshot diagonal P2 clears row 8 legally
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra tests/test_v31_diagonal_screenshot.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLFrameSafety.c \
+            src/BLV25Strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/test-v31-diagonal
+          /tmp/test-v31-diagonal
+      - name: Verify combo attempts counted by placements, not elapsed seconds
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra tests/test_v30_combo_tracking.c \
+            src/BLTransition.c src/BlockBlastSolver.c -lm -o /tmp/test-combo
+          /tmp/test-combo
+      - name: Preserve original vision and other skins
+        run: |
+          for test in test_vision test_wood_theme test_pink_theme test_black_theme test_green_textured_theme; do
+            cc -O2 -std=c11 -Wall -Wextra tests/${test}.c \
+              src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+      - name: Check original UI, new plan preview, and exact move validation
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          ui=Path('src/BlockBlastOverlay.m').read_text()
+          vision=Path('src/BLScreenScan.m').read_text()
+          bg=Path('src/BLAdaptiveTheme.c').read_text()
+          tracker=Path('src/BLTransition.c').read_text()
+          assert 'BLVisionAnalyzeRGBA(pixels,(int)w,(int)h,&found)' in vision
+          assert 'BLFindThreeMoveClear' in ui
+          assert 'BLGuideValidateSolution' in ui
+          assert 'CLEAR at step' in ui
+          assert 'fullSequenceLegal' in ui
+          assert '_previewIndex==0' in ui
+          assert 'row=1;row<8' in bg
+          assert 'gap<=1.75' not in tracker
+          print('PASS original scanner/UI plus verified 3-placement combo plan and frame-relative color baseline')
+          PY
+  iphone:
+    needs: regression
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile iPhone arm64 original overlay with 3-try combo planner
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLV25Strategy.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLThreeMoveClear.c src/BLYOLOVision.m \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+          test -s dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v31-DIAGONAL-CLEAR-FIX-IPHONE
+          path: dist/BlockBlastAI.dylib
