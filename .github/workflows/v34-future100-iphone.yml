@@ -1,4 +1,4 @@
-name: v3.4 Combo 100 + Fifty Fresh Board Scans iPhone
+name: v3.4 Combo 1000 + Fifty Fresh Scans iPhone
 on:
   push:
     branches: [feature/v3.4-100-shape-survival-safety]
@@ -74,7 +74,7 @@ jobs:
           assert 'if(clearPlan.found)clearPlan.completeSearch=0;' in overlay
           print('PASS timed deep search and no false no-clear after incomplete/invalid candidate')
           PY
-      - name: Prove 100-streak tracking and no-clear notification safety across entire tray
+      - name: Prove 1000-streak tracking and no-clear notification safety across entire tray
         run: |
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_combo100.c \
             src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLV25Strategy.c \
@@ -89,7 +89,9 @@ jobs:
           overlay=Path('src/BlockBlastOverlay.m').read_text()
           assert 'BLNoClearProofIsReady' in overlay
           assert 'BL_NO_CLEAR_RECHECKS 50U' in Path('src/BLNoClearReview.h').read_text()
-          assert 'BL_COMBO_STREAK_MAX 100' in Path('src/BlockBlastSolver.h').read_text()
+          assert 'BL_COMBO_STREAK_MAX 1000' in Path('src/BlockBlastSolver.h').read_text()
+          assert 'Combo %d/1000:' in overlay
+          assert 'uint16_t comboRun;' in Path('src/BlockBlastSolver.c').read_text()
           assert 'BLFindThreeMoveClearTimed' in overlay
           assert 'BLComboContext fullTrayWindow={0};' in overlay
           assert '_noClearBanner.hidden=NO;' in overlay
@@ -189,5 +191,5 @@ jobs:
           test -s dist/BlockBlastAI.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v34-COMBO100-50SCANS-IPHONE
+          name: BlockBlastAI-v34-COMBO1000-50SCANS-IPHONE
           path: dist/BlockBlastAI.dylib
