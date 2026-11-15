@@ -837,7 +837,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 // Only improve complete, legal Smart Survival sequences without
                 // sacrificing verified clears, critical zones, or combo timing.
                 int shapeUpgrade=0;
-                if(smartMode && answer.movesFound>0) {
+                if(smartMode) {
+                    // A budget-limited baseline can have ZERO moves even
+                    // when max-lines/keep-combo found a complete legal tray.
+                    // Allow the guarded rescue to inspect those alternatives.
                     answer=BLFuture100GuardedChoice(boardSnapshot,
                         traySnapshot.values,comboSnapshot,&answer,
                         &strategies.keepCombo,&strategies.maxLines,
