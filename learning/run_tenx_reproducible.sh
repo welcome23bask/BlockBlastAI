@@ -52,7 +52,7 @@ cp learning/tenx_checkpoint.txt tenx_checkpoint.txt
 echo "SOURCE_REVISION=$rev"
 echo "BASELINE_CHECKPOINT=$(cat tenx_checkpoint.txt)"
 # One bounded epoch; training seeds are derived from the checkpoint epoch 16.
-./tenx_lab train 1 1 | tee training.txt
+./tenx_lab train 1 3 | tee training.txt
 echo "TRAINED_CHECKPOINT=$(cat tenx_checkpoint.txt)"
 echo "CANDIDATE_WEIGHTS=$(cat tenx_candidate_weights.txt)"
 # Caller must verify these epoch IDs were never used for training or testing.
