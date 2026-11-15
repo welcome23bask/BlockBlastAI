@@ -121,19 +121,22 @@ int BLComboTrackerObserve(BLComboTracker *t,uint64_t board,
         // Some frames show an empty tray before the next three appear;
         // a refill on the SAME board is not a player action.
         int refillOnly=(board==t->board && beforePieces==0 && afterPieces==3);
-        if(gap<0 || gap>4.0) {
+        // Three tries are GAME PLACEMENTS, not wall-clock seconds.
+        // Players may think before acting. The old 4-second/1.75-second
+        // gate discarded a verified combo for a perfectly legal slow move.
+        // Only a uniquely inferred legal transition advances or resets it.
+        if(gap<0) {
             t->streak=(BLComboContext){0};
         } else if(identical || refillOnly) {
-            // Preserve verified history; do not add a fictitious placement.
+            // Time without a move does NOT consume a combo try.
         } else {
             BLMove actual={0};
-            if(gap<=1.75 &&
-               BLInferObservedPlacement(t->board,t->tray,board,tray,&actual)) {
+            if(BLInferObservedPlacement(t->board,t->tray,board,tray,&actual)) {
                 t->streak=BLComboAdvance(t->streak,actual.linesCleared);
                 counted=1;
             } else {
-                // Multiple unseen moves, tray inconsistency, user restart, etc.
-                // Do not infer a combo history from the displayed score.
+                // Multiple unseen moves, tray inconsistency, scene reset.
+                // No line/move history is inferred from elapsed time/score.
                 t->streak=(BLComboContext){0};
             }
         }
