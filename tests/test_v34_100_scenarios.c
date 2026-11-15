@@ -46,10 +46,20 @@ int main(void){
         BLSolution result=BLFuture100GuardedChoice(board,tray,combo,&base,
             &b.keepCombo,&b.maxLines,&didUpgrade);
         assert(BLGuideValidateSolution(board,tray,&result));
-        assert(result.movesFound==base.movesFound);
+        assert(result.movesFound>=base.movesFound);
         if(didUpgrade) {
             ++upgraded;
             assert(lines(&result)>=lines(&base));
+            if(result.movesFound>base.movesFound) {
+                int visible=0;
+                for(int p=0;p<3;++p)visible+=tray[p].count>0;
+                assert(result.movesFound==visible);
+                int latest=3-(combo.known&&combo.streak>0?combo.misses:0);
+                int priorClear=first_clear(&base),newClear=first_clear(&result);
+                if(priorClear && priorClear<=latest)
+                    assert(newClear>0 && newClear<=priorClear);
+                continue; // complete-tray rescue, not shape-reranking case
+            }
             int latest=3-(combo.known&&combo.streak>0?combo.misses:0);
             int original=first_clear(&base),changed=first_clear(&result);
             if(original && original<=latest)
