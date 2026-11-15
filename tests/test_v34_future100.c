@@ -22,6 +22,31 @@ static uint32_t rnd=0x4123990;
 static uint32_t next(void) {rnd^=rnd<<13;rnd^=rnd>>17;rnd^=rnd<<5;return rnd;}
 int main(void){
     assert(BLFuture100ShapeCount()==100);
+    // The source dataset contains 35 distinct scanner-predicted tray shapes.
+    // Do not silently drop their footprint coverage when changing probes.
+    static const uint64_t observed[35]={
+        UINT64_C(0x101010101),UINT64_C(0x707),UINT64_C(0x1f),
+        UINT64_C(0x1010101),UINT64_C(0x30303),UINT64_C(0x70707),
+        UINT64_C(0x303),UINT64_C(0xf),UINT64_C(0x30202),
+        UINT64_C(0x70101),UINT64_C(0x702),UINT64_C(0x306),
+        UINT64_C(0x30101),UINT64_C(0x10103),UINT64_C(0x207),
+        UINT64_C(0x10107),UINT64_C(0x40407),UINT64_C(0x20301),
+        UINT64_C(0x70404),UINT64_C(0x407),UINT64_C(0x107),
+        UINT64_C(0x20203),UINT64_C(0x704),UINT64_C(0x301),
+        UINT64_C(0x20302),UINT64_C(0x103),UINT64_C(0x701),
+        UINT64_C(0x203),UINT64_C(0x10302),UINT64_C(0x603),
+        UINT64_C(0x7),UINT64_C(0x101),UINT64_C(0x10301),
+        UINT64_C(0x3),UINT64_C(0x10101)
+    };
+    for(int j=0;j<35;++j) {
+        int found=0;
+        for(int k=0;k<100;++k){
+            uint64_t candidate=0;
+            BLFuture100DescribeShape(k,&candidate,0,0,0);
+            if(candidate==observed[j]){found=1;break;}
+        }
+        assert(found);
+    }
     uint64_t masks[100];
     int widths[100],heights[100],counts[100];
     for(int i=0;i<100;++i){
