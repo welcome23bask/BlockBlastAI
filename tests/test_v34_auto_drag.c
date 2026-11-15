@@ -18,6 +18,21 @@ int main(void) {
     assert(plan.toY==300);
     assert(plan.fromY>500);
     assert(plan.toX>=80 && plan.toX<=250);
+    uint64_t allEmpty=UINT64_MAX;
+    assert(BLAutoTargetIsProvenEmpty(tray,&m,allEmpty));
+    // A scanner saying this move is legal is NOT enough. The second
+    // per-pixel view must certify all FOUR destination cells empty.
+    assert(!BLAutoTargetIsProvenEmpty(tray,&m,allEmpty &
+           ~(UINT64_C(1)<<17)));
+    assert(!BLAutoTargetIsProvenEmpty(tray,&m,0));
+    assert(!BLAutoTargetIsProvenEmpty(tray,&m,
+           (UINT64_C(1)<<17)|(UINT64_C(1)<<18)));
+    // The proof cannot be recycled for a different destination.
+    BLMove moved=m;moved.col=2;
+    assert(!BLAutoTargetIsProvenEmpty(tray,&moved,
+            (UINT64_C(1)<<17)|(UINT64_C(1)<<18)|
+            (UINT64_C(1)<<19)|(UINT64_C(1)<<20)));
+
     m.after++;
     assert(!BLAutoBuildDrag(0,tray,&m,43,220,323,500,tx,ty,tp,390,850,&plan));
     m.after--;
