@@ -239,7 +239,7 @@ static void search(BLSearch *ctx,BLPath *path) {
             if(lines>0) {
                 if(!next.firstClear)next.firstClear=next.depth;
                 next.seenClear=1;
-                next.streak=next.streak<63?next.streak+1:63;
+                next.streak=next.streak<BL_COMBO_STREAK_MAX?next.streak+1:BL_COMBO_STREAK_MAX;
                 next.misses=0;
             } else if(next.streak>0) {
                 ++next.misses;
@@ -298,7 +298,7 @@ static BLTwoStrategies BLV25RawFindTwoStrategies(uint64_t board,const BLPiece pi
     if(!ctx.total)return out;
     BLPath start={0};start.board=board;
     if(combo.known && combo.streak>0) {
-        start.streak=combo.streak>63?63:combo.streak;
+        start.streak=combo.streak>BL_COMBO_STREAK_MAX?BL_COMBO_STREAK_MAX:combo.streak;
         start.misses=(combo.misses>=0&&combo.misses<3)?combo.misses:0;
     }
     search(&ctx,&start);
