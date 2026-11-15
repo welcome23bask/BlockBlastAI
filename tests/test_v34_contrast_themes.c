@@ -6,6 +6,7 @@
 #include <string.h>
 static unsigned char *im;
 static void rgb(int w,int h,int x,int y,int r,int g,int b) {
+    (void)h;
     unsigned char *p=im+4*((size_t)y*w+x);
     p[0]=(unsigned char)r;p[1]=(unsigned char)g;p[2]=(unsigned char)b;p[3]=255;
 }
