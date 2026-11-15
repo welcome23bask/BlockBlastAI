@@ -34,8 +34,10 @@ jobs:
         run: |
           set -o pipefail
           # Epochs are provisional: the full historical seed ledger must still be audited.
+          # Iteration 16: increase paired training games per scenario from 1 to 3
+          # to reduce selection noise across seven candidates. Research only.
           # The runner rejects failing verdicts. Never promote a candidate from this job.
-          bash learning/run_tenx_reproducible.sh 1901 1902 2>&1 | tee /tmp/tenx-research-console.txt
+          bash learning/run_tenx_reproducible.sh 1903 1904 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -47,7 +49,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional seeds 1901 and 1902; verify historical non-use before acceptance.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional seeds 1903 and 1904; verify historical non-use before acceptance.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
