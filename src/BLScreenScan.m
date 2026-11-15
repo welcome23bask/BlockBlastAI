@@ -246,9 +246,10 @@ static BOOL BLDecodeImage(UIImage *image, CGSize screen, uint8_t **out,
     return YES;
 }
 
-BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
-                  BLPiece pieces[3], CGPoint *firstCenter, CGPoint *lastCenter,
-                  NSString **detail) {
+BOOL BLAutoDetectDetailed(UIImage *image, CGSize screenSize, BOOL occupied[64],
+                          BLPiece pieces[3], CGPoint *firstCenter, CGPoint *lastCenter,
+                          CGPoint trayFirstCenters[3],CGFloat trayPitches[3],
+                          NSString **detail) {
     uint8_t *pixels=NULL;
     size_t w=0,h=0;
     if(!BLDecodeImage(image,screenSize,&pixels,&w,&h)) {
