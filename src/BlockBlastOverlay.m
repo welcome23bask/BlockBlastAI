@@ -730,7 +730,29 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;         // identical hashe
             self->_stableAutoFrames=1;
             self->_showGuides=NO;
         }
+        // Treat vision as verification of the game state, not the source of
+        // truth on every frame. The recommended move carries a predicted
+        // board+tray state; any other change must match a legal placement.
+        // Unexpected animations or skin transitions require extra stable
+        // observations before a safe re-sync can replace trusted state.
+        BOOL verifiedTransition=expectedMove;
+        BOOL refillOnly=NO;
+        if(self->_solvedAutoHash!=0 && (!sameBoard||!sameTray)) {
+            BLMove observedMove={0};
+            verifiedTransition|=BLInferObservedPlacement([self boardMask],
+                                 self->_normalizedPieces,scannedBoard,tray,
+                                 &observedMove);
+            int oldVisible=0,newVisible=0;
+            for(int p=0;p<3;++p) {
+                oldVisible+=(self->_normalizedPieces[p].count>0);
+                newVisible+=(tray[p].count>0);
+            }
+            refillOnly=(sameBoard && oldVisible==0 && newVisible==3);
+        }
         NSInteger required=expectedMove?1:(transitional?kUncertainTransitionFrames:kConfirmFrames);
+        if(self->_solvedAutoHash!=0 && (!sameBoard||!sameTray) &&
+           !verifiedTransition && !refillOnly)
+            required=MAX(required,5);
         if(self->_stableAutoFrames<required) {
             self->_showGuides=NO;
             [self refreshGuides];
