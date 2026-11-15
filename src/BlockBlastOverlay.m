@@ -1070,9 +1070,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         BLPiece piece=_normalizedPieces[m.pieceIndex];
         for(int i=0;i<piece.count;++i) suggestion |= UINT64_C(1) << ((m.row+piece.y[i])*8+(m.col+piece.x[i]));
     }
+    // Compute validation ONCE, not 64 times per panel redraw.
+    BOOL fullSequenceLegal=_previewing &&
+        BLGuideValidateSolution([self boardMask],_normalizedPieces,&_solution);
     for (int i=0;i<64;++i) {
-        BOOL fullSequenceLegal=_previewing &&
-            BLGuideValidateSolution([self boardMask],_normalizedPieces,&_solution);
         // The panel's Next/Previous buttons show each HYPOTHETICAL future
         // board after the earlier planned placements/line clears.
         // The on-game overlay still highlights ONLY step 1.
