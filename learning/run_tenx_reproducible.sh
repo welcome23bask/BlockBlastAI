@@ -19,7 +19,7 @@ if (( a < 17 || a > 2000 || b < 17 || b > 2000 || a == b )); then
   echo "Holdout epochs must be distinct and between 17 and 2000." >&2; exit 2
 fi
 for e in "$a" "$b"; do
-  case "$e" in 92|93|989|1201|1202|1901|1902|1903|1904|1905|1906|1907|1908|1909|1910|1911|1912)
+  case "$e" in 92|93|989|1201|1202|1901|1902|1903|1904|1905|1906|1907|1908|1909|1910|1911|1912|1913|1914)
     echo "Previously used/planned epoch: $e" >&2; exit 2;;
   esac
 done
@@ -32,7 +32,7 @@ if [[ ! "$train_epoch" =~ ^[0-9]+$ ]] ||
   echo "Supply a distinct provisional TENX_TRAIN_SEED_EPOCH in 17..2000." >&2
   exit 2
 fi
-for used in 1716 1901 1902 1903 1904 1905 1906 1907 1908 1818 1819 1820 1909 1910 1911 1912; do
+for used in 1716 1901 1902 1903 1904 1905 1906 1907 1908 1818 1819 1820 1821 1909 1910 1911 1912 1913 1914; do
   if (( train_epoch == used )); then
     echo "Training seed epoch previously used/planned: $used" >&2; exit 2
   fi
