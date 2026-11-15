@@ -20,8 +20,8 @@ int BLNoClearReviewObserve(BLNoClearReview *state,uint64_t signature,
     }
     if(frameCounter<=state->lastFrame)return 0;
     state->lastFrame=frameCounter;
-    if(state->checks<5)++state->checks;
-    if(state->checks>=5 && now-state->startedAt>=2.0) {
+    if(state->checks<BL_NO_CLEAR_RECHECKS)++state->checks;
+    if(state->checks>=BL_NO_CLEAR_RECHECKS && now-state->startedAt>=2.0) {
         state->active=0;state->complete=1;return 1;
     }
     return 0;
