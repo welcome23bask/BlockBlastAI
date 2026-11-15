@@ -1,0 +1,9 @@
+# Iteration 21 — stratified combo-safe candidate search
+
+Source of failure: [run 43747877275](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43747877275), completed 2026-11-15 18:39 UTC. Training ran, but **0/21** candidate weight sets were feasible; all 21 failed the paired combo-safety gate (none failed legality). Saved research checkpoint remains `16 120 120 30 60`; no promotion.
+
+Holdout 1911 (30 synthetic games per generator): normal survival 1.8593x / proxy 1.9920x / p10 1.3103x; heavy survival 0.9569x / proxy 0.8531x / p10 0.8500x; shifted-heavy survival 0.8950x / proxy 0.7995x / p10 1.0000x. Holdout 1912: normal 0.8882x / 0.9030x / 1.1562x; heavy 1.1122x / 1.1839x / 0.8947x; shifted-heavy 0.9252x / 0.8599x / 1.0000x. Zero illegal placements in all six baseline and candidate measurements. Combo misses were worse in several scenarios; the gates correctly failed. Values are synthetic simulator estimates, not real Block Blast scores.
+
+Hypothesis: 20 random single-coordinate weight mutations around the saved weights poorly cover interactions among survival and combo features. Change: evaluate a deterministic, stratified 20-candidate neighborhood with both positive and negative coordinate changes plus paired-coordinate changes, retaining the incumbent as candidate 0. Preserve the exact same safety gates, 21-trial budget, 3 training games per generator, and one training epoch. This is a search-design improvement, not a claim of gameplay improvement.
+
+New provisional training epoch 1821; holdouts 1913 and 1914, pending complete historical seed audit. Added previous epochs 1820, 1911, and 1912 to exclusions. Run is automatically triggered by workflow-only branch push; no overlapping run was active when inspected. Evidence remains in Actions artifacts, and the saved checkpoint, main branch, deployment, and iPhone dylib are untouched. Never promote without all independent 10x gates.
