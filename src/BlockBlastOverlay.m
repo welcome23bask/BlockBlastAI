@@ -1,4 +1,4 @@
-// BlockBlastAI v1.3 PINK+COMBO lab — preserves v1.0-style blinking capture/highlights.
+// BlockBlastAI v3.4: additive strategy and reliability improvements; keeps proven v1.0 highlights.
 // Public UIKit/ReplayKit APIs only. Reads the screen to suggest moves; never touches or places pieces.
 // v0.8: stale-frame protection. Every detection must come from a fresh captured frame; capture
 // stalls/restarts clear the board, tray, solution, highlight and confirmation buffer.
@@ -164,7 +164,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _contentView.layer.anchorPoint=CGPointZero;
     _contentView.layer.position=CGPointZero;
     [_scroll addSubview:_contentView];
-    UILabel *title=[self addLabel:@"BLOCK BLAST AI · MOVE ASSISTANT" y:13 height:24 font:16];
+    UILabel *title=[self addLabel:@"BLOCK BLAST AI v3.4 · MOVE ASSISTANT" y:13 height:24 font:16];
     title.font=[UIFont boldSystemFontOfSize:16];
     UIButton *close=[self roundedButton:@"×" frame:CGRectMake(_panelWidth-41,10,29,28) action:@selector(togglePanel)];
     [_contentView addSubview:close];
@@ -231,13 +231,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _autoButton=[self roundedButton:@"⚡ AUTO SCAN: ON (tap to pause)" frame:CGRectMake(12,642,_panelWidth-24,34) action:@selector(toggleAutomatic)];
     _autoButton.backgroundColor=BLColor(14,118,110);
     [_contentView addSubview:_autoButton];
-    _status=[self addLabel:@"v2.9 ORIGINAL scanning + new Smart Survival. Empty boards supported." y:690 height:48 font:12];
+    _status=[self addLabel:@"v3.4 Smart Survival · 100-shape guard · 5-scan verification · Vision Trainer" y:690 height:48 font:12];
     _moveLabel=[self addLabel:@"" y:748 height:50 font:13];
     _moveLabel.font=[UIFont boldSystemFontOfSize:13];
     UIButton *prev=[self roundedButton:@"← Previous" frame:CGRectMake(12,811,130,37) action:@selector(previousMove)];
     UIButton *next=[self roundedButton:@"Next move →" frame:CGRectMake(_panelWidth-142,811,130,37) action:@selector(nextMove)];
     [_contentView addSubview:prev]; [_contentView addSubview:next];
-    _info=[self addLabel:@"Original v1.7 camera, board position, interface and highlights. New v2.5 Smart Survival chooses placements; impossible board reads are ignored." y:859 height:50 font:10];
+    _info=[self addLabel:@"v3.4 retains original scanning/highlights, three-try combo clear, trained vision verification and local screenshot export." y:859 height:50 font:10];
     _info.textColor=BLColor(146,168,191);
 
     [self addLabel:@"VISION TRAINING · local screenshots only" y:928 height:20 font:12];
@@ -914,7 +914,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                     strongSelf->_status.text=[NSString stringWithFormat:
                         @"%@: %@ %@ %@ %@ %@",
                         choiceName,clearStatus,comboInfo,safetyNote,
-                        shapeUpgrade?@"100-SHAPE SAFER FUTURE ROUTE":@"",
+                        shapeUpgrade?@"VERIFIED FULL-TRAY / 100-SHAPE SAFETY":@"",
                         scanDetail?:@""];
                     if(strongSelf->_previewing) {
                         if(clearPlan.found) {
