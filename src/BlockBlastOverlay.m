@@ -14,6 +14,8 @@
 #import "BLThreeMoveClear.h"
 #import "BLNoClearReview.h"
 #import "BLFuture100.h"
+#import "BLAutoDrag.h"
+#import "BLInProcessTouch.h"
 #import "BLGuideSafety.h"
 #import "BLTrainingCollector.h"
 #include <math.h>
@@ -97,6 +99,16 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     BLThreeMovePlan _noClearEvidence; // authoritative all-tray proof before 50 fresh scans
     BOOL _plannedClearAfterDeadline;
     UILabel *_noClearBanner; // only appears for 50-frame, exhaustive proof
+    UIButton *_autoPlayButton;
+    UILabel *_autoPlayStatus;
+    BOOL _autoPlayEnabled,_autoPlacing,_autoAwaiting;
+    NSInteger _autoTouchSlot,_autoVerifiedPlacements;
+    CFAbsoluteTime _autoDragAt;
+    uint64_t _autoPendingSignature;
+    BLMove _autoPendingMove;
+    BLPiece _autoPendingTray[3];
+    CGPoint _autoTrayFirst[3];
+    CGFloat _autoTrayPitch[3];
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -181,7 +193,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _scroll=[[UIScrollView alloc] initWithFrame:CGRectZero];
     _scroll.alwaysBounceVertical=YES;
     [_panel addSubview:_scroll];
-    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,1100)];
+    _contentView=[[UIView alloc] initWithFrame:CGRectMake(0,0,356,1190)];
     _contentView.layer.anchorPoint=CGPointZero;
     _contentView.layer.position=CGPointZero;
     [_scroll addSubview:_contentView];
@@ -302,6 +314,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _resizeGrip.userInteractionEnabled=YES;
     [_panel addSubview:_resizeGrip];
     [_resizeGrip addGestureRecognizer:[[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(resizePanel:)]];
+    _autoPlayButton=[self roundedButton:@"🤖 AUTOMATIC PLAY: OFF (tap to enable)"
+                                   frame:CGRectMake(12,1041,_panelWidth-24,40)
+                                  action:@selector(toggleAutoPlay)];
+    _autoPlayButton.backgroundColor=BLColor(80,65,98);
+    [_contentView addSubview:_autoPlayButton];
+    _autoPlayStatus=[self addLabel:@"Automatic: one move, then rescan and verify; iOS touch support required."
+                                 y:1085 height:68 font:11];
     _guideLayer=[[UIView alloc] initWithFrame:self.view.bounds];
     _guideLayer.userInteractionEnabled=NO;
     _guideLayer.backgroundColor=UIColor.clearColor;
@@ -348,7 +367,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _scroll.frame=CGRectMake(0,30,w,h-30);
     CGFloat ratio=w/_panelWidth;
     _contentView.transform=CGAffineTransformMakeScale(ratio,ratio);
-    _scroll.contentSize=CGSizeMake(w,1100*ratio);
+    _scroll.contentSize=CGSizeMake(w,1190*ratio);
 }
 - (void)savePanelFrame {
     [[NSUserDefaults standardUserDefaults] setObject:NSStringFromCGRect(_panel.frame) forKey:@"BLPanelFrameV2"];
@@ -569,6 +588,9 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     // The next stable frame must prove continuity or reset the tracker.
     ++_solveGeneration;
     _moveLabel.text=@"";
+    if(_autoPlayEnabled)
+        [self stopAutoPlayWithReason:
+            @"Automatic paused: board/tray scan uncertain. Fix vision before rearming."];
     if(reason) _status.text=reason;
     if(bubbleTitle) [_bubble setTitle:bubbleTitle forState:UIControlStateNormal];
     [self refreshTiles];
@@ -604,6 +626,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
 }
 - (void)toggleAutomatic {
     _autoEnabled=!_autoEnabled;
+    if(!_autoEnabled)[self stopAutoPlayWithReason:
+        @"Automatic Play paused because live scanning was turned off."];
     BLNoClearReviewReset(&_noClearReview);
     _noClearSearchComplete=NO;
     _plannedClearAfterDeadline=NO;
@@ -625,7 +649,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     }
 }
 - (void)autoTick {
-    if(!_autoEnabled || _autoBusy || !_panel.hidden || !_calibrationLayer.hidden) return;
+    if(!_autoEnabled || _autoBusy || _autoPlacing ||
+       !_panel.hidden || !_calibrationLayer.hidden) return;
     if(_autoRetryAfter>0 && CFAbsoluteTimeGetCurrent()<_autoRetryAfter) return;
     if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) return;
     // 1. Capture was restarted since the last frame we trusted: forget everything.
@@ -699,8 +724,11 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         BOOL board[64]={0};
         BLPiece tray[3]={0};
         CGPoint first=CGPointZero,last=CGPointZero;
+        CGPoint trayFirst[3]={CGPointZero,CGPointZero,CGPointZero};
+        CGFloat trayPitch[3]={0,0,0};
         NSString *info=nil;
-        if(!BLAutoDetect(image,self.view.bounds.size,board,tray,&first,&last,&info)) {
+        if(!BLAutoDetectDetailed(image,self.view.bounds.size,board,tray,
+                                 &first,&last,trayFirst,trayPitch,&info)) {
             // Vision is uncertain: pause the highlight and DROP the old board.
             [self invalidateDetection:info?:@"AI paused — auto detection needs a clear screen." bubble:@"AI …"];
             return;
@@ -759,6 +787,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
             last.y=self->_gridLast.y*.65+last.y*.35;
         }
         self->_calibrated=YES;
+        memcpy(self->_autoTrayFirst,trayFirst,sizeof(trayFirst));
+        memcpy(self->_autoTrayPitch,trayPitch,sizeof(trayPitch));
         self->_gridFirst=first;
         self->_gridLast=last;
         self->_showCalibrationGrid=NO;
@@ -1083,6 +1113,9 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
 
 - (void)togglePanel {
     _panel.hidden=!_panel.hidden;
+    if(!_panel.hidden && _autoPlayEnabled)
+        [self stopAutoPlayWithReason:
+             @"Automatic Play stopped when its settings panel opened."];
     if(!_panel.hidden && _showCalibrationGrid) {
         _showCalibrationGrid=NO; [self refreshGuides];
     }
