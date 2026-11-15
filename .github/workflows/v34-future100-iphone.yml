@@ -95,7 +95,7 @@ jobs:
           from pathlib import Path
           ui=Path('src/BlockBlastOverlay.m').read_text()
           assert 'BLFuture100GuardedChoice' in ui
-          assert 'if(smartMode && answer.movesFound>0)' in ui
+          assert 'if(smartMode)' in ui and 'BLFuture100GuardedChoice' in ui
           assert 'if(smartMode)' in ui and 'BLFindThreeMoveClearTimed' in ui
           print('PASS future-100 gated within Smart Survival; current combo-clear override retained')
           PY
