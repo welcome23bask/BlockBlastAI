@@ -367,7 +367,7 @@ static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
     BLState chosen={0};
     int candidates=0;
     BLState root={0};root.board=board;
-    root.comboRun=(unsigned char)(combo.streak>63?63:combo.streak);
+    root.comboRun=(unsigned char)(combo.streak>BL_COMBO_STREAK_MAX?BL_COMBO_STREAK_MAX:combo.streak);
     root.misses=(unsigned char)combo.misses;
     for(int p=0;p<3;++p) {
         if(!pieces[p].count)continue;
@@ -385,7 +385,7 @@ static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
             seed.depth=1;seed.used=(unsigned char)(1u<<p);
             seed.board=after;
             seed.totalLines=lines;
-            seed.comboRun=(unsigned char)(root.comboRun<63?root.comboRun+1:63);
+            seed.comboRun=(unsigned char)(root.comboRun<BL_COMBO_STREAK_MAX?root.comboRun+1:BL_COMBO_STREAK_MAX);
             seed.misses=0;
             int bonusStreak=seed.comboRun>6?6:seed.comboRun;
             seed.comboBonus=bonusStreak*bonusStreak;
@@ -434,7 +434,7 @@ BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContex
     int count=1;
     if(combo.known) {
         if(combo.streak<0)combo.streak=0;
-        if(combo.streak>63)combo.streak=63;
+        if(combo.streak>BL_COMBO_STREAK_MAX)combo.streak=BL_COMBO_STREAK_MAX;
         if(combo.misses<0||combo.misses>2)combo.misses=0;
         best.comboRun=(unsigned char)combo.streak;
         best.misses=(unsigned char)combo.misses;
