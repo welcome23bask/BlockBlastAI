@@ -127,7 +127,7 @@ static NSArray *BLCapturedPieceLabels(const BLPiece pieces[3]) {
 }
 - (void)observeStableFrame:(UIImage *)image
                     board:(uint64_t)board
-                   pieces:(const BLPiece [3])pieces
+                   pieces:(const BLPiece *)pieces
                     first:(CGPoint)first
                      last:(CGPoint)last
                screenSize:(CGSize)screenSize {
