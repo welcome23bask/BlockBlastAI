@@ -1,5 +1,6 @@
 #import "BLScreenScan.h"
 #import "BLVisionCore.h"
+#import "BLVisionContrast.h"
 #import "BLTrainedVision.h"
 #import "BLYOLOVision.h"
 #import <ReplayKit/ReplayKit.h>
@@ -256,6 +257,32 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
     }
     BLVisionResult found={0};
     int okay=BLVisionAnalyzeRGBA(pixels,(int)w,(int)h,&found);
+    BOOL contrastRecovered=NO;
+    if(okay) {
+        uint64_t contrastBoard=0;
+        int contrastMargin=0;
+        if(BLVisionContrastBoard(pixels,(int)w,(int)h,
+                                 &found,&contrastBoard,&contrastMargin)) {
+            uint64_t changed=contrastBoard^found.board;
+            // The older scanner occasionally returns an impossible
+            // settled line due to theme/color confusion. Correct only
+            // with strongly separated center-vs-grid colors. Even an
+            // improved numeric mask is subject to fresh frame consensus.
+            BOOL originalIllegal=NO;
+            for(int r=0;r<8;r++)
+                if(((found.board>>(8*r))&255U)==255U)originalIllegal=YES;
+            for(int c=0;c<8;c++) {
+                uint64_t col=UINT64_C(0x0101010101010101)<<c;
+                if((found.board&col)==col)originalIllegal=YES;
+            }
+            if(changed && contrastMargin>=85 &&
+               (originalIllegal || (contrastMargin>=130 &&
+                                     __builtin_popcountll(changed)<=3))) {
+                found.board=contrastBoard;
+                contrastRecovered=YES;
+            }
+        }
+    }
     // Learned per-cell RGB model is trained only on the user's purple skin
     // with provisional labels. It may veto a confident DISAGREEMENT, never
     // change native occupancy or guess on an unseen skin.
@@ -282,9 +309,22 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
     memcpy(pieces,found.pieces,sizeof(found.pieces));
     if(firstCenter)*firstCenter=CGPointMake(found.firstX,found.firstY);
     if(lastCenter)*lastCenter=CGPointMake(found.lastX,found.lastY);
+    for(int p=0;p<3;p++) {
+        if(trayFirstCenters)
+            trayFirstCenters[p]=CGPointMake(found.trayFirstX[p],found.trayFirstY[p]);
+        if(trayPitches)trayPitches[p]=found.trayCellPitch[p];
+    }
     int squares=__builtin_popcountll(found.board);
     if(detail)*detail=[NSString stringWithFormat:@"Detected %d filled squares, %d tray piece(s); orientation %@. %@",
          squares,found.detectedPieces,found.flippedInput?@"corrected":@"upright",
-         trainedOpinion==1?@"Learned board vision agrees.":@"Learned board vision not applicable."];
+         contrastRecovered?@"Theme-independent grid/center correction applied.":
+          (trainedOpinion==1?@"Learned board vision agrees.":
+            @"Learned board vision not applicable.")];
     return YES;
+}
+BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
+                  BLPiece pieces[3], CGPoint *firstCenter, CGPoint *lastCenter,
+                  NSString **detail) {
+    return BLAutoDetectDetailed(image,screenSize,occupied,pieces,
+                                firstCenter,lastCenter,NULL,NULL,detail);
 }
