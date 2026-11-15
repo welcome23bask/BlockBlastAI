@@ -23,7 +23,21 @@ for e in "$a" "$b"; do
 done
 rev="$(git rev-parse HEAD)"
 work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
+evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/blockblast-tenx-evidence.XXXXXX")"
+# Preserve evidence even when a gate fails. Never write generated files into the checkout.
+cleanup() {
+  local status=$?
+  for file in training.txt holdout-*.txt tenx_checkpoint.txt tenx_candidate_weights.txt; do
+    for source in "$work"/$file; do
+      if [[ -f "$source" ]]; then cp "$source" "$evidence_dir/"; fi
+    done
+  done
+  printf "EVIDENCE_DIRECTORY=%s\\n" "$evidence_dir"
+  printf "SOURCE_REVISION=%s\\n" "$rev"
+  rm -rf "$work"
+  return "$status"
+}
+trap cleanup EXIT
 mkdir -p "$work/src" "$work/learning"
 cp src/BLDualStrategy.c src/BLDualStrategy.h src/BlockBlastSolver.c src/BlockBlastSolver.h "$work/src/"
 cp learning/BLTrainableStrategy.c learning/train_tenx.c learning/learn_combo_guarded.c learning/tenx_checkpoint.txt "$work/learning/"
@@ -62,4 +76,4 @@ for epoch in sys.argv[1:]:
 print("Both synthetic holdouts passed the built-in gates; independent replication and real-game validation remain separate requirements.")
 print("No result is an official Block Blast score.")
 PY
-echo "Research run completed in temporary directory; no checkpoint was promoted."
+echo "Research run completed; evidence retained outside the checkout. No checkpoint was promoted."
