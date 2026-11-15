@@ -9,6 +9,7 @@ on:
       - 'scripts/train_v33_color_verifier.py'
       - 'tests/test_v33_*.c'
       - 'tests/test_v34_*.c'
+      - 'tests/benchmark_v34_paired_games.c'
       - '.github/workflows/v34-future100-iphone.yml'
   workflow_dispatch:
 jobs:
@@ -98,6 +99,13 @@ jobs:
           assert 'if(smartMode)' in ui and 'BLFindThreeMoveClearTimed' in ui
           print('PASS future-100 gated within Smart Survival; current combo-clear override retained')
           PY
+      - name: Paired multi-round synthetic survival and combo benchmark
+        run: |
+          cc -O3 -std=c11 -Wall -Wextra -Werror tests/benchmark_v34_paired_games.c \
+            src/BLFuture100.c src/BLThreeMoveClear.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
+            src/BlockBlastSolver.c -lm -o /tmp/benchmark-v34-games
+          timeout 180s /tmp/benchmark-v34-games
       - name: Inspect user consent, crop, stability and unreviewed metadata controls
         run: |
           python3 - <<'PY'
