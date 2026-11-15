@@ -3,6 +3,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#ifdef BL_STRUCTURE_TRACE
+#include <stdio.h>
+#define BL_TRACE(...) fprintf(stderr,__VA_ARGS__)
+#else
+#define BL_TRACE(...) ((void)0)
+#endif
 
 // Skin-neutral geometry + contrast vision. No RGB palette/skin identifiers.
 // Conservative: when the grid, empty reference or piece silhouette is
@@ -269,24 +275,26 @@ static int scan(const uint8_t *rgba,int w,int h,int flip,BLVisionResult *out,
     if(reference.valid && reference.flip==flip &&
        edge_score(rgba,w,h,reference.x,reference.y,reference.side,flip)>0) {
         x=reference.x;y=reference.y;s=reference.side;
-    } else if(!locate(rgba,w,h,flip,&x,&y,&s))return 0;
+    } else if(!locate(rgba,w,h,flip,&x,&y,&s)){BL_TRACE("locate fail flip=%d\\n",flip);return 0;}
     BLRGB scene=region_median(rgba,w,h,mini(w-8,x+5),mini(h-8,y+s+roundi(s*.11)),
                      mini(w,x+roundi(s*.18)),mini(h,y+s+roundi(s*.40)),flip);
     uint64_t board=0;BLRGB empty={0,0,0};
-    if(!board_mask(rgba,w,h,x,y,s,flip,scene,&board,&empty))return 0;
+    if(!board_mask(rgba,w,h,x,y,s,flip,scene,&board,&empty)){BL_TRACE("board baseline fail flip=%d geom=%d,%d,%d\\n",flip,x,y,s);return 0;}
     double pitch=(double)s/8.0,small=pitch*.44;
     int trayTop=y+s+roundi(s*.07);
     int trayBottom=mini(roundi(h*.95),y+s+roundi(s*.70));
-    if(trayBottom-trayTop<roundi(s*.14)||small<7||small>80)return 0;
+    if(trayBottom-trayTop<roundi(s*.14)||small<7||small>80){BL_TRACE("tray geometry fail flip=%d\\n",flip);return 0;}
     BLVisionResult found={0};found.board=board;found.flippedInput=flip;
     found.firstX=(float)(x+pitch*.5);found.firstY=(float)(y+pitch*.5);
     found.lastX=(float)(x+pitch*7.5);found.lastY=(float)(y+pitch*7.5);
     for(int slot=0;slot<3;++slot){
-        if(!tray_slot(rgba,w,h,flip,slot,trayTop,trayBottom,small,&found.pieces[slot]))
+        if(!tray_slot(rgba,w,h,flip,slot,trayTop,trayBottom,small,&found.pieces[slot])){
+            BL_TRACE("tray slot fail flip=%d slot=%d geom=%d,%d,%d board=%llx\\n",flip,slot,x,y,s,(unsigned long long)board);
             return 0;
+        }
         found.detectedPieces+=found.pieces[slot].count>0;
     }
-    if(found.detectedPieces==0)return 0;
+    if(found.detectedPieces==0){BL_TRACE("no pieces flip=%d board=%llx\\n",flip,(unsigned long long)board);return 0;}
     *out=found;*refEmpty=empty;*refScene=scene;
     *refx=x;*refy=y;*refs=s;return 1;
 }
@@ -299,13 +307,14 @@ int BLStructureAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResu
     double ea=oka?fabs(((a.firstY+a.lastY)*.5)/height-.44):100.0;
     double eb=okb?fabs(((b.firstY+b.lastY)*.5)/height-.44):100.0;
     // The playfield is above the tray in portrait. Reject mirrored ambiguity.
-    if((!oka&&!okb)||(oka&&okb&&fabs(ea-eb)<.018))return 0;
+    if((!oka&&!okb)||(oka&&okb&&fabs(ea-eb)<.018)){BL_TRACE("orientation ambiguity oka=%d okb=%d ea=%f eb=%f\\n",oka,okb,ea,eb);return 0;}
     int flipped=(eb<ea);
     double error=flipped?eb:ea;
-    if(error>.10)return 0;
+    if(error>.10){BL_TRACE("orientation error=%f\\n",error);return 0;}
     BLVisionResult picked=flipped?b:a;
     reference.valid=1;reference.x=flipped?bx:ax;reference.y=flipped?by:ay;
     reference.side=flipped?bz:az;reference.flip=flipped;
     reference.empty=flipped?be:ae;reference.scene=flipped?bs:as;
+    BL_TRACE("read success flip=%d board=%llx counts=%d,%d,%d geom=%d,%d,%d\\n",flipped,(unsigned long long)picked.board,picked.pieces[0].count,picked.pieces[1].count,picked.pieces[2].count,reference.x,reference.y,reference.side);
     *out=picked;return 1;
 }
