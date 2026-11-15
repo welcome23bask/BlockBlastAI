@@ -4,6 +4,7 @@
 // synthesize a touch if the required private symbols/selectors are absent.
 #import "BLInProcessTouch.h"
 #import <dlfcn.h>
+#import <objc/message.h>
 #import <mach/mach_time.h>
 
 // IOHIDEventRef has no public header on iOS. Older SDKs leaked it through
@@ -133,20 +134,26 @@ static UITouch * _Nullable g_slots[kSlotCount];
 static UIWindow * _Nullable ResolveTouchWindow(void) {
     UIApplication *app = UIApplication.sharedApplication;
     if (@available(iOS 13.0, *)) {
-        for (UIScene *scene in app.connectedScenes) {
-            if (scene.activationState != UISceneActivationStateForegroundActive) continue;
-            if (![scene isKindOfClass:[UIWindowScene class]]) continue;
-            UIWindowScene *ws = (UIWindowScene *)scene;
-            for (UIWindow *w in ws.windows) {
-                if (w.isKeyWindow) return w;
+        for(UIScene *scene in app.connectedScenes){
+            if(scene.activationState!=UISceneActivationStateForegroundActive ||
+               ![scene isKindOfClass:[UIWindowScene class]])continue;
+            UIWindowScene *ws=(UIWindowScene *)scene;
+            UIWindow *candidate=nil;
+            for(UIWindow *w in ws.windows){
+                // Never target BlockBlastAI/iGameGod's high-level overlay:
+                // dragging on a transparent overlay can silently miss Unity.
+                if(w.hidden || w.alpha<0.05 ||
+                   w.windowLevel>=UIWindowLevelAlert)continue;
+                if(!candidate || w.isKeyWindow)candidate=w;
             }
-            if (ws.windows.firstObject) return ws.windows.firstObject;
+            if(candidate)return candidate;
         }
     }
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
-    return app.keyWindow;
+    UIWindow *key=app.keyWindow;
 #pragma clang diagnostic pop
+    return key && key.windowLevel<UIWindowLevelAlert ? key : nil;
 }
 
 
@@ -290,22 +297,79 @@ static void Flush(NSInteger changedSlot) {
 }
 
 
+// Some iGameGod/tweak installations already contain PTFakeMetaTouch.
+// Use its documented API only when its class is actually loaded; never
+// assume it is present just because iGameGod has a Touch Recorder UI.
+static Class BLExistingFakeTouchProvider(void) {
+    for(NSString *name in @[@"PTFakeMetaTouch",@"PTFakeTouch"]) {
+        Class cls=NSClassFromString(name);
+        if(cls &&
+           [cls respondsToSelector:NSSelectorFromString(@"getAvailablePointId")] &&
+           [cls respondsToSelector:
+             NSSelectorFromString(@"fakeTouchId:AtPoint:withTouchPhase:")])
+            return cls;
+    }
+    return Nil;
+}
+static NSInteger BLProviderTouch(Class cls,NSInteger slot,CGPoint point,
+                                 UITouchPhase phase) {
+    if(!cls)return 0;
+    SEL sel=NSSelectorFromString(@"fakeTouchId:AtPoint:withTouchPhase:");
+    NSInteger (*invoke)(id,SEL,NSInteger,CGPoint,UITouchPhase)=
+         (NSInteger (*)(id,SEL,NSInteger,CGPoint,UITouchPhase))objc_msgSend;
+    return invoke(cls,sel,slot,point,phase);
+}
+static NSInteger BLProviderFreeSlot(Class cls) {
+    NSInteger (*invoke)(id,SEL)=
+        (NSInteger (*)(id,SEL))objc_msgSend;
+    return cls?invoke(cls,NSSelectorFromString(@"getAvailablePointId")):0;
+}
+static NSString *BLHIDMissingPart(void){
+    if(!BLResolveHID())return @"HID framework/symbols unavailable";
+    if(![UITouch instancesRespondToSelector:@selector(_setLocationInWindow:resetPrevious:)])
+        return @"UITouch location setter unavailable";
+    if(![UITouch instancesRespondToSelector:@selector(_setHidEvent:)])
+        return @"UITouch HID setter unavailable";
+    if(![UIEvent instancesRespondToSelector:@selector(_setHIDEvent:)])
+        return @"UIEvent HID setter unavailable";
+    if(![UIEvent instancesRespondToSelector:@selector(_addTouch:forDelayedDelivery:)])
+        return @"UIEvent add-touch selector unavailable";
+    if(![[UIApplication sharedApplication] respondsToSelector:@selector(_touchesEvent)])
+        return @"UIApplication touches-event selector unavailable";
+    if(!ResolveTouchWindow())return @"no foreground game window";
+    return nil;
+}
 @implementation BLInProcessTouch
 
 + (BOOL)isAvailable {
-    if(!BLResolveHID())return NO;
-    if(![UITouch instancesRespondToSelector:@selector(_setLocationInWindow:resetPrevious:)])return NO;
-    if(![UITouch instancesRespondToSelector:@selector(_setHidEvent:)])return NO;
-    if(![UIEvent instancesRespondToSelector:@selector(_setHIDEvent:)])return NO;
-    if(![UIEvent instancesRespondToSelector:@selector(_addTouch:forDelayedDelivery:)])return NO;
-    if(![[UIApplication sharedApplication] respondsToSelector:@selector(_touchesEvent)])return NO;
-    return ResolveTouchWindow()!=nil;
+    if(BLExistingFakeTouchProvider())return YES;
+    return BLHIDMissingPart()==nil;
+}
++ (NSString *)capabilityReport {
+    Class provider=BLExistingFakeTouchProvider();
+    if(provider)return [NSString stringWithFormat:
+        @"Touch provider detected: %@ (game drag still unverified)",
+        NSStringFromClass(provider)];
+    NSString *missing=BLHIDMissingPart();
+    if(missing)return [NSString stringWithFormat:
+        @"Automatic unavailable: %@. No compatible in-app touch provider found.",
+        missing];
+    return @"HID touch method available; actual game acceptance unverified.";
 }
 
 + (NSInteger)touchAt:(CGPoint)point
                phase:(UITouchPhase)phase
                 slot:(NSInteger)slot {
-    if(![self isAvailable])return 0;
+    Class provider=BLExistingFakeTouchProvider();
+    if(provider) {
+        NSInteger providerSlot=slot;
+        if(phase==UITouchPhaseBegan)
+            providerSlot=BLProviderFreeSlot(provider);
+        if(providerSlot<=0)return 0;
+        // This is the provider's own slot ID; pass unchanged for move/end.
+        return BLProviderTouch(provider,providerSlot,point,phase);
+    }
+    if(BLHIDMissingPart()!=nil)return 0;
     UIWindow *win = ResolveTouchWindow();
     if (!win) return 0;
 
