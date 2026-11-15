@@ -2,17 +2,24 @@
 #include <stdint.h>
 #include <string.h>
 #include <limits.h>
+#include <time.h>
 
 typedef struct {uint64_t mask; unsigned char row,col;} BLPlacement;
 typedef struct {
     BLPlacement positions[3][64];
     int count[3],visible,tries;
     uint32_t budget,visited;
+    uint64_t deadlineMs;
     int truncated,haveBest,bestRank,bestFirst;
     BLSolution best;
 } BLPlanner;
 
 static inline int popcount(uint64_t n){return __builtin_popcountll(n);}
+static uint64_t monotonicMs(void) {
+    struct timespec ts={0};
+    if(clock_gettime(CLOCK_MONOTONIC,&ts)!=0)return 0;
+    return (uint64_t)ts.tv_sec*UINT64_C(1000)+(uint64_t)ts.tv_nsec/1000000;
+}
 static uint64_t clear_lines(uint64_t board,int *cleared){
     uint64_t gone=0;*cleared=0;
     for(int r=0;r<8;++r){
@@ -61,6 +68,10 @@ static void record(BLPlanner *ctx,const BLMove moves[3],int depth,
 static void search(BLPlanner *ctx,uint64_t board,const BLMove moves[3],
                    int depth,unsigned used,int firstClear,int totalLines) {
     if(ctx->visited>=ctx->budget){ctx->truncated=1;return;}
+    // Check periodically to keep large clear searches under the user-visible
+    // ~2 sec thinking budget without paying a clock syscall per leaf.
+    if(ctx->deadlineMs && (ctx->visited & 1023U)==0 &&
+       monotonicMs()>=ctx->deadlineMs){ctx->truncated=1;return;}
     ++ctx->visited;
     if(firstClear)record(ctx,moves,depth,firstClear,totalLines,board);
     if(depth>=ctx->visible)return;
@@ -87,8 +98,10 @@ static void search(BLPlanner *ctx,uint64_t board,const BLMove moves[3],
         }
     }
 }
-BLThreeMovePlan BLFindThreeMoveClear(uint64_t board,const BLPiece pieces[3],
-                                     BLComboContext combo,uint32_t budget) {
+static BLThreeMovePlan BLFindThreeMoveClearImpl(uint64_t board,
+                                         const BLPiece pieces[3],
+                                         BLComboContext combo,uint32_t budget,
+                                         uint32_t thinkingMs) {
     BLThreeMovePlan out={0};
     if(!pieces)return out;
     int misses=(combo.known&&combo.streak>0)?combo.misses:0;
@@ -97,6 +110,13 @@ BLThreeMovePlan BLFindThreeMoveClear(uint64_t board,const BLPiece pieces[3],
     BLPlanner ctx={0};ctx.tries=out.triesLeft;
     ctx.budget=budget?budget:500000;
     if(ctx.budget>1500000)ctx.budget=1500000;
+    // No deadline for compatibility calls. Timed mode gets at most 2 sec;
+    // zero ms means no deadline, never an unlimited node search.
+    if(thinkingMs) {
+        if(thinkingMs>2000)thinkingMs=2000;
+        uint64_t now=monotonicMs();
+        if(now)ctx.deadlineMs=now+thinkingMs;
+    }
     for(int p=0;p<3;++p) {
         const BLPiece *piece=&pieces[p];
         if(piece->count<0||piece->count>25)return out;
@@ -140,4 +160,14 @@ BLThreeMovePlan BLFindThreeMoveClear(uint64_t board,const BLPiece pieces[3],
         out.solution.approximate=ctx.truncated;
     }
     return out;
+}
+
+BLThreeMovePlan BLFindThreeMoveClear(uint64_t board,const BLPiece pieces[3],
+                                     BLComboContext combo,uint32_t budget) {
+    return BLFindThreeMoveClearImpl(board,pieces,combo,budget,0);
+}
+BLThreeMovePlan BLFindThreeMoveClearTimed(uint64_t board,const BLPiece pieces[3],
+                                          BLComboContext combo,uint32_t budget,
+                                          uint32_t hardBoardThinkingMs) {
+    return BLFindThreeMoveClearImpl(board,pieces,combo,budget,hardBoardThinkingMs);
 }
