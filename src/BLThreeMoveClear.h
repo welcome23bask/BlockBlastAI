@@ -17,6 +17,7 @@ typedef struct {
     int visiblePieces;          // only shapes detected in current tray
     int completeSearch;         // 0 if bounded DFS was exhausted
     uint32_t explored;
+    int upperBoundPruned;        // proved no row/column can clear using known pieces within remaining tries
 } BLThreeMovePlan;
 
 BLThreeMovePlan BLFindThreeMoveClear(uint64_t board,const BLPiece pieces[3],
