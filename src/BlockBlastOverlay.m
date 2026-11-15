@@ -94,6 +94,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     CFAbsoluteTime _trainingStableSince;
     BLNoClearReview _noClearReview;
     BOOL _noClearSearchComplete;
+    BLThreeMovePlan _noClearEvidence; // authoritative all-tray proof before 50 fresh scans
     BOOL _plannedClearAfterDeadline;
     UILabel *_noClearBanner; // only appears for 50-frame, exhaustive proof
 }
@@ -561,6 +562,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _solvedAutoHash=0;
     BLNoClearReviewReset(&_noClearReview);
     _noClearSearchComplete=NO;
+    memset(&_noClearEvidence,0,sizeof(_noClearEvidence));
     _plannedClearAfterDeadline=NO;
     _noClearBanner.hidden=YES;
     // Clear stale recommendations, not the independently confirmed streak.
@@ -801,6 +803,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
             // Any changed board or tray invalidates a previous negative claim.
             BLNoClearReviewReset(&self->_noClearReview);
             self->_noClearSearchComplete=NO;
+            memset(&self->_noClearEvidence,0,sizeof(self->_noClearEvidence));
             self->_plannedClearAfterDeadline=NO;
             self->_noClearBanner.hidden=YES;
             // Observe only after stable, independently confirmed game frames.
@@ -956,9 +959,11 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                         BLNoClearReviewBegin(&strongSelf->_noClearReview,
                             signature,BLCaptureFrameCounter(),CFAbsoluteTimeGetCurrent());
                         strongSelf->_noClearSearchComplete=anyTrayClear.completeSearch;
+                        strongSelf->_noClearEvidence=anyTrayClear;
                     } else {
                         BLNoClearReviewReset(&strongSelf->_noClearReview);
                         strongSelf->_noClearSearchComplete=NO;
+                        memset(&strongSelf->_noClearEvidence,0,sizeof(strongSelf->_noClearEvidence));
                     }
                     NSString *comboInfo=comboSnapshot.known && comboSnapshot.streak>0
                         ?[NSString stringWithFormat:@"Combo %d/100: %d try/tries left.",
@@ -1027,7 +1032,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 int verified=BLNoClearReviewObserve(&self->_noClearReview,
                     signature,counter,CFAbsoluteTimeGetCurrent());
                 if(verified==1) {
-                    if(self->_noClearSearchComplete) {
+                    if(BLNoClearProofIsReady(&self->_noClearEvidence,&self->_noClearReview)) {
                         // Exact user-requested phrase appears ON THE GAME.
                         // Only an exhaustive ALL-visible-pieces search earns
                         // this notification; the native image can still be
