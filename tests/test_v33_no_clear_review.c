@@ -3,27 +3,39 @@
 #include <stdio.h>
 int main(void) {
     BLNoClearReview r={0};
-    // Reject stale and duplicated camera frames; count exactly five NEW ones.
-    BLNoClearReviewBegin(&r,0x1234,7,10.);
+    assert(BL_NO_CLEAR_RECHECKS==50);
+    // A newly started review must NOT count the frame used by the solver.
+    BLNoClearReviewBegin(&r,UINT64_C(0x1234),7,10.);
     assert(BLNoClearReviewObserve(&r,0x1234,7,10.2)==0 && r.checks==0);
-    for(int i=1;i<=5;++i){
-        assert(BLNoClearReviewObserve(&r,0x1234,7+i,10.+i*.26)==0);
-        assert(r.checks==(unsigned)i);
-        assert(BLNoClearReviewObserve(&r,0x1234,7+i,10.+i*.26)==0);
-        assert(r.checks==(unsigned)i);
+    for(unsigned i=1;i<=49;++i){
+        assert(BLNoClearReviewObserve(&r,0x1234,7+i,10.+i*.25)==0);
+        assert(r.checks==i);
+        // No second vote from a duplicated or backward-moving frame counter.
+        assert(BLNoClearReviewObserve(&r,0x1234,7+i,10.+i*.25)==0);
+        assert(BLNoClearReviewObserve(&r,0x1234,7+i-1,10.+i*.25)==0);
+        assert(r.checks==i);
     }
-    // Five counts alone do not bypass two-second thinking window.
-    assert(BLNoClearReviewObserve(&r,0x1234,13,12.1)==1);
-    assert(r.complete==1 && r.active==0);
-    // Different board/tray aborts the original negative conclusion.
-    BLNoClearReviewBegin(&r,0x999,30,20.);
-    assert(BLNoClearReviewObserve(&r,0x1000,31,20.2)==-1);
-    assert(!r.active && !r.complete);
-    // Each start is a new review; no cross-state confirmations.
-    BLNoClearReviewBegin(&r,0x999,40,21.);
-    for(int i=1;i<5;++i)assert(BLNoClearReviewObserve(&r,0x999,40+i,21+i*.6)==0);
-    assert(r.checks==4);
-    assert(BLNoClearReviewObserve(&r,0x999,45,23.9)==1);
-    puts("PASS five separate fresh scans + 2-sec delay + state-change cancellation");
+    assert(BLNoClearReviewObserve(&r,0x1234,57,22.5)==1);
+    assert(r.complete && !r.active && r.checks==50);
+    // No further votes or repeated notification after completed.
+    assert(BLNoClearReviewObserve(&r,0x1234,58,22.8)==-1);
+    // Abort on a change in the board OR the tray signature.
+    BLNoClearReviewBegin(&r,0x999,80,30.);
+    assert(BLNoClearReviewObserve(&r,0x999,81,30.2)==0 && r.checks==1);
+    assert(BLNoClearReviewObserve(&r,0x1000,82,30.4)==-1);
+    assert(!r.active&&!r.complete);
+    // Fifty confirmations are still insufficient until 2sec has elapsed.
+    BLNoClearReviewBegin(&r,0x999,100,40.);
+    for(unsigned i=1;i<=50;++i)
+        assert(BLNoClearReviewObserve(&r,0x999,100+i,40.+i*.02)==0);
+    assert(r.checks==50 && r.active && !r.complete);
+    assert(BLNoClearReviewObserve(&r,0x999,151,42.0)==1);
+    // Reset on failure, game change, strategy change or capture restart.
+    BLNoClearReviewReset(&r);
+    assert(!r.checks&&!r.active&&!r.complete);
+    BLNoClearReviewBegin(&r,0x999,200,55.);
+    assert(BLNoClearReviewObserve(&r,0x999,201,54.9)==-1);
+    assert(!r.active);
+    puts("PASS 50 distinct replay frames, >2s, no duplicates, signature cancellation and reset");
     return 0;
 }
