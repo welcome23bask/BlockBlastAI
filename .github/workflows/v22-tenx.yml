@@ -1,62 +1,57 @@
-name: v2.2 10x Challenge - Offline Self-Play Research
+name: v2.2 10x Challenge - Bounded Offline Research
 on:
   workflow_dispatch:
   push:
     branches: [feature/v2.2-10x-research-gate]
     paths:
-      - 'learning/BLTrainableStrategy.c'
-      - 'learning/train_tenx.c'
-      - 'learning/tenx_checkpoint.txt'
-      - 'learning/tenx_candidate_weights.txt'
       - '.github/workflows/v22-tenx.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blockblast-tenx-research
+  cancel-in-progress: false
+
 jobs:
-  compare:
+  bounded-research:
+    if: github.ref == 'refs/heads/feature/v2.2-10x-research-gate'
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - name: Compile unchanged v1.7 and research-only trainable solver independently
-        run: |
-          set -eux
-          cc -O3 -std=c11 -Wall -Wextra -Isrc -DBLFindTwoStrategies=BLV17FindTwoStrategies \
-             -c src/BLDualStrategy.c -o /tmp/v17.o
-          cc -O3 -std=c11 -Wall -Wextra -Isrc \
-             -c learning/BLTrainableStrategy.c -o /tmp/trained.o
-          cc -O3 -std=c11 -Wall -Wextra -Isrc \
-             -c src/BlockBlastSolver.c -o /tmp/solver.o
-          cc -O3 -std=c11 -Wall -Wextra -Isrc \
-             learning/train_tenx.c /tmp/v17.o /tmp/trained.o /tmp/solver.o \
-             -lm -o /tmp/tenx_lab
-      - name: Fresh heldout three-generator comparison, no iPhone release
-        run: |
-          mkdir -p learning/tenx-results
-          /tmp/tenx_lab test 24 learning/tenx_candidate_weights.txt 93 \
-             | tee learning/tenx-results/fresh_holdout93.txt
-          grep -q "TEN_X_VERDICT=" learning/tenx-results/fresh_holdout93.txt
-      - name: Verify 10x threshold cannot be bypassed by invalid/zero simulations
-        run: |
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
-          s=Path('learning/tenx-results/fresh_holdout93.txt').read_text()
-          assert s.count('survival_ratio=')==3
-          assert s.count('score_ratio=')==3
-          assert 'nan' not in s.lower()
-          assert 'illegal=0' in s
-          if 'ALL HELDOUT GATES PASSED' not in s:
-              print('Candidate is NOT approved; v1.7 iPhone build stays unchanged.')
-          PY
-      - name: A tiny new train/checkpoint smoke test, no benchmark leakage
-        run: |
-          cp learning/tenx_checkpoint.txt tenx_checkpoint.txt
-          /tmp/tenx_lab train 1 2 | tee learning/tenx-results/next_epoch_smoke.txt
-          cp tenx_checkpoint.txt learning/tenx-results/next_checkpoint_preview.txt
-          cp tenx_candidate_weights.txt learning/tenx-results/next_candidate_preview.txt
-      - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v22-10x-Challenge-Verified-Research
-          path: |
-            learning/tenx-results/fresh_holdout93.txt
-            learning/tenx-results/next_epoch_smoke.txt
-            learning/tenx-results/next_checkpoint_preview.txt
-            learning/tenx-results/next_candidate_preview.txt
+          persist-credentials: false
+      - name: Record exact research revision and baseline
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          cat learning/tenx_checkpoint.txt
+          cat learning/tenx_candidate_weights.txt
+      - name: Compile exact source and run one bounded training epoch with two synthetic holdouts
+        id: research
+        shell: bash
+        run: |
+          set -o pipefail
+          # Epochs are provisional: the full historical seed ledger must still be audited.
+          # The runner rejects failing verdicts. Never promote a candidate from this job.
+          bash learning/run_tenx_reproducible.sh 1901 1902 2>&1 | tee /tmp/tenx-research-console.txt
+      - name: Preserve all available research evidence even on failed gates
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p /tmp/tenx-upload
+          cp /tmp/tenx-research-console.txt /tmp/tenx-upload/console.txt 2>/dev/null || true
+          evidence="$(sed -n 's/^EVIDENCE_DIRECTORY=//p' /tmp/tenx-research-console.txt 2>/dev/null | tail -n 1)"
+          if [[ -n "$evidence" && -d "$evidence" ]]; then
+            cp -a "$evidence"/. /tmp/tenx-upload/
+          fi
+          git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
+          printf '%s\n' 'Provisional seeds 1901 and 1902; verify historical non-use before acceptance.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: blockblast-tenx-bounded-research-${{ github.run_id }}
+          path: /tmp/tenx-upload/
+          retention-days: 14
