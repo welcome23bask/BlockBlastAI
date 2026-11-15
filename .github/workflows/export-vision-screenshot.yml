@@ -1,0 +1,19 @@
+name: Source export for live screenshot scanner test
+on:
+  push:
+    branches: [feature/v2.9-original-ui-smart-engine]
+    paths:
+      - '.github/workflows/export-vision-screenshot.yml'
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scanner-c-files-for-user-provided-screenshot
+          path: |
+            src/BLVisionCore.c
+            src/BLVisionCore.h
+            src/BLAdaptiveTheme.c
+            src/BLAdaptiveTheme.h
