@@ -23,7 +23,8 @@
 
 typedef struct {
     uint64_t board;
-    unsigned char used,depth,comboRun,misses;
+    unsigned char used,depth,misses;
+    uint16_t comboRun; // 1000 cannot fit in uint8_t
     int totalLines,comboBonus;
     BLMove moves[3];
     int64_t score;
@@ -237,7 +238,7 @@ static int board_quality(uint64_t b) {
 static void advance_state_combo(BLState *next,const BLState *prev,int lines) {
     BLComboContext combo={(int)prev->comboRun,(int)prev->misses,1};
     combo=BLComboAdvance(combo,lines);
-    next->comboRun=(unsigned char)combo.streak;
+    next->comboRun=(uint16_t)combo.streak;
     next->misses=(unsigned char)combo.misses;
     if(lines>0) {
         // Bounded utility is not claimed to be the exact game's score formula.
@@ -367,7 +368,7 @@ static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
     BLState chosen={0};
     int candidates=0;
     BLState root={0};root.board=board;
-    root.comboRun=(unsigned char)(combo.streak>BL_COMBO_STREAK_MAX?BL_COMBO_STREAK_MAX:combo.streak);
+    root.comboRun=(uint16_t)(combo.streak>BL_COMBO_STREAK_MAX?BL_COMBO_STREAK_MAX:combo.streak);
     root.misses=(unsigned char)combo.misses;
     for(int p=0;p<3;++p) {
         if(!pieces[p].count)continue;
@@ -385,7 +386,7 @@ static int rescue_last_combo_clear(uint64_t board,const BLPiece pieces[3],
             seed.depth=1;seed.used=(unsigned char)(1u<<p);
             seed.board=after;
             seed.totalLines=lines;
-            seed.comboRun=(unsigned char)(root.comboRun<BL_COMBO_STREAK_MAX?root.comboRun+1:BL_COMBO_STREAK_MAX);
+            seed.comboRun=(uint16_t)(root.comboRun<BL_COMBO_STREAK_MAX?root.comboRun+1:BL_COMBO_STREAK_MAX);
             seed.misses=0;
             int bonusStreak=seed.comboRun>6?6:seed.comboRun;
             seed.comboBonus=bonusStreak*bonusStreak;
@@ -436,7 +437,7 @@ BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContex
         if(combo.streak<0)combo.streak=0;
         if(combo.streak>BL_COMBO_STREAK_MAX)combo.streak=BL_COMBO_STREAK_MAX;
         if(combo.misses<0||combo.misses>2)combo.misses=0;
-        best.comboRun=(unsigned char)combo.streak;
+        best.comboRun=(uint16_t)combo.streak;
         best.misses=(unsigned char)combo.misses;
     }
     beam[0]=best;
@@ -489,7 +490,7 @@ BLSolution BLSolveWithCombo(uint64_t board,const BLPiece pieces[3],BLComboContex
         BLRescueContext rescue={0};
         BLState root={0};root.board=board;
         if(combo.known) {
-            root.comboRun=(unsigned char)combo.streak;
+            root.comboRun=(uint16_t)combo.streak;
             root.misses=(unsigned char)combo.misses;
         }
         rescue.bestScore=INT64_MIN;
