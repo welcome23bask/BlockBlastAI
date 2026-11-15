@@ -9,9 +9,12 @@ is not included until its improvement criteria pass.
 ## What it changes
 
 - `BLFuture100.c` contains 100 unique, bounded (up to 5×5) future-piece
-  footprint probes, including small squares, 3×3 squares, horizontal and
-  vertical bars, diagonal pieces, corners, zigzags, and assorted connected
-  polyominoes.
+  footprint probes. The first 35 represent all distinct tray shapes proposed
+  by the scanner in 196 user-provided screenshot examples (404 labeled tray
+  observations); those scanner labels are **unreviewed**. The other 65 are
+  diverse hypothetical legal-footprint probes, including unusual 8-neighbor
+  connected shapes. This is NOT a claim these 100 shapes are all real pieces
+  or that the observed frequencies reflect hidden game piece probabilities.
 - For each verified solution, the lookahead calculates how many of these
   shapes retain >=1 legal landing and the capped number of placements.
 - This is a **hypothetical mobility probe**, not an assertion that each
@@ -44,3 +47,12 @@ testing against unchanged v3.3 and real iPhone playback.
 
 The 10× research automation remains separate; no unverified research weights
 were silently promoted to the production iPhone library.
+
+## Captured dataset relevance
+
+- User ZIP: 196 screenshots, 404 provisional nonempty tray observations,
+  35 distinct predicted shapes. No raw screenshots are committed to GitHub.
+- All 35 observed patterns are protected by a dedicated regression in
+  `tests/test_v34_future100.c`.
+- The training label accuracy remains unverified; this is a heuristic future
+  accessibility check, not trained strategy weights or true 10× research output.
