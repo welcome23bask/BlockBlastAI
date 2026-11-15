@@ -109,6 +109,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     BLPiece _autoPendingTray[3];
     CGPoint _autoTrayFirst[3];
     CGFloat _autoTrayPitch[3];
+    uint64_t _autoDefinitelyEmpty; // independent tile-center color evidence
+    BOOL _autoVisionVerified;       // never drag if skin classification ambiguous
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -579,6 +581,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     _stableAutoFrames=0;
     _observedAutoHash=0;
     _solvedAutoHash=0;
+    _autoVisionVerified=NO;
+    _autoDefinitelyEmpty=0;
     BLNoClearReviewReset(&_noClearReview);
     _noClearSearchComplete=NO;
     memset(&_noClearEvidence,0,sizeof(_noClearEvidence));
@@ -708,6 +712,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         return;
     }
     BLMove move=_solution.moves[0];
+    if(!_autoVisionVerified ||
+       !BLAutoTargetIsProvenEmpty(_normalizedPieces,&move,_autoDefinitelyEmpty)) {
+        [self stopAutoPlayWithReason:
+          @"Automatic stopped: a target cell looks occupied or uncertain in the second vision check."];
+        return;
+    }
     float tx[3],ty[3],tp[3];
     for(int p=0;p<3;p++){
         tx[p]=(float)_autoTrayFirst[p].x;
@@ -859,15 +869,22 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         CGPoint first=CGPointZero,last=CGPointZero;
         CGPoint trayFirst[3]={CGPointZero,CGPointZero,CGPointZero};
         CGFloat trayPitch[3]={0,0,0};
+        uint64_t independentlyEmpty=0;
+        BOOL themeVerified=NO;
         NSString *info=nil;
         if(!BLAutoDetectDetailed(image,self.view.bounds.size,board,tray,
-                                 &first,&last,trayFirst,trayPitch,&info)) {
+                                 &first,&last,trayFirst,trayPitch,
+                                 &independentlyEmpty,&themeVerified,&info)) {
             // Vision is uncertain: pause the highlight and DROP the old board.
             [self invalidateDetection:info?:@"AI paused — auto detection needs a clear screen." bubble:@"AI …"];
             return;
         }
         self->_autoErrors=0;
         self->_autoRetryAfter=0;
+        if(self->_autoPlayEnabled && !themeVerified) {
+            [self stopAutoPlayWithReason:
+              @"Automatic stopped: this theme is not independently verified. Manual highlights remain available."];
+        }
         // Reject anomalous geometry and sudden tray/board contradictions.
         CGFloat pitchX=(last.x-first.x)/7.0, pitchY=(last.y-first.y)/7.0;
         BOOL goodGeom=(pitchX>20 && pitchY>20 &&
@@ -922,6 +939,8 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         self->_calibrated=YES;
         memcpy(self->_autoTrayFirst,trayFirst,sizeof(trayFirst));
         memcpy(self->_autoTrayPitch,trayPitch,sizeof(trayPitch));
+        self->_autoDefinitelyEmpty=independentlyEmpty;
+        self->_autoVisionVerified=themeVerified;
         self->_gridFirst=first;
         self->_gridLast=last;
         self->_showCalibrationGrid=NO;
