@@ -124,7 +124,7 @@ static int train(int argc,char **argv){
         for(int scenario=0;scenario<3;scenario++)
             reference[scenario]=measure(zero,seeds,training_seed_epoch,scenario,1);
         int feasible=0,rejectedCombo=0,rejectedIllegal=0;
-        for(int attempt=0;attempt<7;attempt++){
+        for(int attempt=0;attempt<21;attempt++){
             int trial[4];memcpy(trial,w,sizeof(trial));
             if(attempt){
                 int idx=(int)(random32()%4),delta[]={-120,-60,-30,30,60,120};
@@ -155,7 +155,7 @@ static int train(int argc,char **argv){
         }
         if(feasible)memcpy(w,chosen,sizeof(w));
         else best=-1.0; // retain the previous research checkpoint, not zero
-        printf("candidate_safety_gate feasible=%d/7 rejected_combo=%d "
+        printf("candidate_safety_gate feasible=%d/21 rejected_combo=%d "
                "rejected_illegal=%d no_feasible=%d\n",feasible,
                rejectedCombo,rejectedIllegal,!feasible);
         FILE *checkpoint=fopen("tenx_checkpoint.pending","w");if(!checkpoint)abort();
