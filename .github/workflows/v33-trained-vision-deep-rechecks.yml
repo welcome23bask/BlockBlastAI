@@ -49,6 +49,11 @@ jobs:
           /tmp/test-5-checks
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_trained_vision.c src/BLTrainedVision.c -lm -o /tmp/test-learned-vision
           /tmp/test-learned-vision
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_timed_deep_search.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLFrameSafety.c \
+            src/BLV25Strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/test-v33-timed
+          /tmp/test-v33-timed
           python3 - <<'PY'
           from pathlib import Path
           solver=Path('src/BLThreeMoveClear.c').read_text()
