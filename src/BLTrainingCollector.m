@@ -100,7 +100,7 @@ static NSArray *BLCapturedPieceLabels(const BLPiece pieces[3]) {
 - (NSUInteger)limit {return kTrainingMaximum;}
 - (NSString *)status {@synchronized(self){return _status;}}
 - (void)notify {
-    NSAssert(NSThread.isMainThread,@"Notifications delivered on main thread");
+    NSAssert([NSThread isMainThread],@"Notifications delivered on main thread");
     [[NSNotificationCenter defaultCenter]
         postNotificationName:BLTrainingCollectorDidChangeNotification object:self];
 }
@@ -175,7 +175,6 @@ static NSArray *BLCapturedPieceLabels(const BLPiece pieces[3]) {
         [_seenKeys addObject:key];++_pendingCount;
         generation=_generation;
     }
-    BLTraySnapshot unused; (void)unused;
     NSMutableArray *rows=[NSMutableArray arrayWithCapacity:8];
     for(int r=0;r<8;++r) {
         NSMutableArray *cells=[NSMutableArray arrayWithCapacity:8];
@@ -185,7 +184,7 @@ static NSArray *BLCapturedPieceLabels(const BLPiece pieces[3]) {
     NSArray *tray=BLCapturedPieceLabels(pieces);
     NSString *uid=NSUUID.UUID.UUIDString;
     NSDate *date=[NSDate date];
-    NSString *iso=[NSISO8601DateFormatter.new stringFromDate:date];
+    NSString *iso=[[NSISO8601DateFormatter new] stringFromDate:date];
     NSDictionary *label=@{
         @"schemaVersion":@1,
         @"id":uid,
@@ -278,14 +277,14 @@ static NSArray *BLCapturedPieceLabels(const BLPiece pieces[3]) {
         [names addObject:@"README.txt"];
         NSString *zip=[NSTemporaryDirectory() stringByAppendingPathComponent:
                         [NSString stringWithFormat:@"BlockBlastAI-Vision-%@.zip",NSUUID.UUID.UUIDString]];
-        NSMutableArray<NSValue *> *refs=[NSMutableArray array];
-        for(NSString *name in names)[refs addObject:[NSValue valueWithPointer:name.UTF8String]];
-        // UTF8String pointers may be invalid after autorelease pools; keep
-        // an owned C copy until the synchronous ZIP writer has completed.
-        const char **paths=calloc(names.count,sizeof(char *));
-        for(NSUInteger i=0;i<names.count;++i)
+        // Explicitly own the UTF-8 path bytes through the ZIP operation.
+        const char **paths=(const char **)calloc(names.count,sizeof(char *));
+        int copied=(paths!=NULL);
+        if(copied)for(NSUInteger i=0;i<names.count;++i){
             paths[i]=strdup(names[i].UTF8String);
-        int success=paths!=NULL &&
+            if(!paths[i]){copied=0;break;}
+        }
+        int success=copied &&
                     BLTrainingWriteZIP(zip.fileSystemRepresentation,
                                        folder.fileSystemRepresentation,
                                        paths,names.count);
