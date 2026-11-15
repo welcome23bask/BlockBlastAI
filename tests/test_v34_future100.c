@@ -61,8 +61,22 @@ int main(void){
     assert(!BLFuture100DescribeShape(100,0,0,0,0));
     BLFuture100Quality empty=BLFuture100Measure(0);
     assert(empty.shapeAccess==100 && empty.cappedMobility==400 && empty.criticalAccess==31);
+    assert(empty.observedAccess==35 && empty.observedMobility==140);
+    assert(empty.emptyRegions==1 && empty.largestEmptyRegion==64);
+    assert(empty.tinyEmptyCells==0);
     BLFuture100Quality full=BLFuture100Measure(UINT64_MAX);
     assert(full.shapeAccess==0 && full.cappedMobility==0 && full.criticalAccess==0);
+    assert(full.observedAccess==0 && full.observedMobility==0);
+    assert(full.emptyRegions==0 && full.largestEmptyRegion==0);
+    // Exactly one empty cell is unusable for nearly all pieces.
+    BLFuture100Quality trapped=BLFuture100Measure(UINT64_MAX & ~(UINT64_C(1)<<27));
+    assert(trapped.emptyRegions==1 && trapped.tinyEmptyCells==1 &&
+           trapped.largestEmptyRegion==1);
+    // Two isolated corners form two unusable regions.
+    BLFuture100Quality corners=BLFuture100Measure(
+        UINT64_MAX & ~(UINT64_C(1)<<0) & ~(UINT64_C(1)<<63));
+    assert(corners.emptyRegions==2 && corners.tinyEmptyCells==2 &&
+           corners.largestEmptyRegion==1);
     // At least 100 independently reproducible random board regressions:
     // adding occupancy must NEVER increase any shape's placement access.
     for(int i=0;i<100;++i) {
@@ -72,6 +86,8 @@ int main(void){
         BLFuture100Quality after=BLFuture100Measure(b|(UINT64_C(1)<<missing));
         assert(after.shapeAccess<=before.shapeAccess);
         assert(after.cappedMobility<=before.cappedMobility);
+        assert(after.observedAccess<=before.observedAccess);
+        assert(after.observedMobility<=before.observedMobility);
         assert((after.criticalAccess&~before.criticalAccess)==0);
     }
     // Regression for empty candidates and invalid overlap; never hallucinate.
