@@ -937,6 +937,37 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         }
         // Two independent matching fresh observations for regular changes.
         // Exact expected moves can advance on their first verified frame.
+        // Only a newly observed, legal board+tray transition can confirm
+        // an automatic drag. A changed scene or an unconfirmed touch stops it.
+        if(self->_autoPlayEnabled && self->_autoAwaiting) {
+            if(signature!=self->_autoPendingSignature) {
+                BLSolution expected={0};
+                expected.movesFound=1;
+                expected.moves[0]=self->_autoPendingMove;
+                uint64_t oldBoard=self->_autoPendingMove.before;
+                BLMove inferred={0};
+                int exact=BLIsExpectedTransition(oldBoard,self->_autoPendingTray,
+                                                 &expected,scannedBoard,tray);
+                int inferredOK=BLInferObservedPlacement(oldBoard,
+                                   self->_autoPendingTray,scannedBoard,tray,
+                                   &inferred) &&
+                    inferred.after==self->_autoPendingMove.after &&
+                    inferred.pieceIndex==self->_autoPendingMove.pieceIndex;
+                if(exact||inferredOK) {
+                    self->_autoAwaiting=NO;
+                    ++self->_autoVerifiedPlacements;
+                    self->_autoPlayStatus.text=[NSString stringWithFormat:
+                       @"%ld automatic move(s) verified on actual board.",
+                       (long)self->_autoVerifiedPlacements];
+                } else {
+                    [self stopAutoPlayWithReason:
+                        @"Automatic stopped: scanned game did not match the proposed placement."];
+                }
+            } else if(CFAbsoluteTimeGetCurrent()-self->_autoDragAt>3.8) {
+                [self stopAutoPlayWithReason:
+                     @"Automatic stopped: drag had no verified effect."];
+            }
+        }
         if(signature==self->_observedAutoHash) self->_stableAutoFrames++;
         else {
             self->_observedAutoHash=signature;
@@ -1230,6 +1261,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 [self->_bubble setTitle:[NSString stringWithFormat:@"P%d ↓",move.pieceIndex+1]
                                forState:UIControlStateNormal];
             }
+            // Auto-play requires five matching NEW scans, unlike the
+            // three-frame manual guide. No overlap or speculative replay.
+            if(self->_autoPlayEnabled && !self->_autoPlacing &&
+               !self->_autoAwaiting && self->_stableAutoFrames>=5 &&
+               self->_previewing && self->_solution.movesFound>0 &&
+               self->_solvedAutoHash==signature)
+                [self startOneAutomaticDrag];
             [self restoreGuidesAfterCapture];
         }
       });
