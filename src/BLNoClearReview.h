@@ -4,9 +4,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-// Five new, separately captured frames must agree on the ENTIRE validated
+// Fifty new, separately captured frames must agree on the ENTIRE validated
 // board/tray signature after a no-clear search. Also requires >=2 seconds.
 // Pure C so the rule can be unit-tested without UIKit or ReplayKit.
+#define BL_NO_CLEAR_RECHECKS 50U
 typedef struct {
     uint64_t signature;
     unsigned long lastFrame;
