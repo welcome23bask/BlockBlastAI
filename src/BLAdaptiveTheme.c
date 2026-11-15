@@ -121,10 +121,14 @@ static int adaptive_scan(const uint8_t *im,int w,int h,int flip,BLVisionResult *
     BLVisionResult found={0};found.flippedInput=flip;
     found.firstX=(float)(left+cell*.5);found.firstY=(float)(top+cell*.5);
     found.lastX=(float)(left+cell*7.5);found.lastY=(float)(top+cell*7.5);
-    // Seams stay background-colored even when many tiles are filled.
+    // Use the interior GRID INTERSECTIONS (both gutters crossing), not
+    // the long seams at tile mid-height. Rounded or textured tiles can
+    // contaminate mid-seam samples after iPhone screen resampling: the
+    // watermelon skin then falsely reads all 64 cells as occupied.
+    // Grid intersections remain unfilled across skins and move sequences.
     int rh[3][256]={0},n=0;
-    for(int row=0;row<8;++row)for(int col=1;col<8;++col) {
-        int x=left+(int)lround(col*cell),y=top+(int)lround((row+.5)*cell);
+    for(int row=1;row<8;++row)for(int col=1;col<8;++col) {
+        int x=left+(int)lround(col*cell),y=top+(int)lround(row*cell);
         const uint8_t *p=P(im,w,h,x,y,flip);
         for(int k=0;k<3;++k)++rh[k][p[k]];
         ++n;
