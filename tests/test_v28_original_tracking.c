@@ -37,8 +37,11 @@ static BLSolution manual(uint64_t board,int idx,int row,int col,
     BLMove *m=&s.moves[0];
     m->pieceIndex=idx;m->row=row;m->col=col;m->before=board;
     uint64_t bits=0;
-    for(int k=0;k<p[idx].count;++k)
-        bits|=UINT64_C(1)<<((row+p[idx].y[k])*8+col+p[idx].x[k]);
+    for(int k=0;k<p[idx].count;++k){
+        int yy=row+p[idx].y[k],xx=col+p[idx].x[k];
+        if(yy>=0&&yy<8&&xx>=0&&xx<8)
+            bits|=UINT64_C(1)<<(yy*8+xx);
+    }
     m->after=board|bits;
     return s;
 }
