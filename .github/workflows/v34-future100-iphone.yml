@@ -83,6 +83,13 @@ jobs:
             src/BLFrameSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
             src/BlockBlastSolver.c -lm -o /tmp/test-100-scenarios
           /tmp/test-100-scenarios
+          for seed in 16223123 28354711 41991171; do
+            cc -O2 -std=c11 -Wall -Wextra -Werror -DBL_SCENARIO_SEED=${seed} tests/test_v34_100_scenarios.c \
+              src/BLFuture100.c src/BLThreeMoveClear.c src/BLGuideSafety.c \
+              src/BLFrameSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
+              src/BlockBlastSolver.c -lm -o /tmp/test-100-scenarios-independent
+            /tmp/test-100-scenarios-independent
+          done
           python3 - <<'PY'
           from pathlib import Path
           ui=Path('src/BlockBlastOverlay.m').read_text()
