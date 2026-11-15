@@ -10,7 +10,7 @@
 #import "BLTransition.h"
 #import "BLDualStrategy.h"
 #import "BLV25Strategy.h"
-#import "BLGuideSafety.h"
+#import "BLFrameSafety.h"
 #include <math.h>
 #include <stdint.h>
 
@@ -29,31 +29,6 @@ static const NSInteger kUncertainTransitionFrames=3;
 // three pieces safely onto the background solver work item.
 typedef struct { BLPiece values[3]; } BLTraySnapshot;
 
-// An actual settled Block Blast board cannot contain an already full row
-// or column: the game clears each complete line immediately. Treat one as
-// a transient/incorrect scan, never a position to render or solve.
-static BOOL BLBoardHasUnclearedLine(uint64_t mask) {
-    for(int row=0;row<8;++row){
-        uint64_t bits=UINT64_C(0xff)<<(row*8);
-        if((mask&bits)==bits)return YES;
-    }
-    for(int col=0;col<8;++col){
-        uint64_t bits=UINT64_C(0x0101010101010101)<<col;
-        if((mask&bits)==bits)return YES;
-    }
-    return NO;
-}
-// Validate what the player can place NOW. Later planned moves refer to
-// later boards and must not prevent a correct first-step highlight.
-static BOOL BLNextGuideSafe(uint64_t board,const BLPiece tray[3],
-                           const BLSolution *candidate) {
-    if(!candidate || candidate->movesFound<1 || candidate->movesFound>3 ||
-       BLBoardHasUnclearedLine(board))return NO;
-    BLSolution first={0};
-    first.movesFound=1;
-    first.moves[0]=candidate->moves[0];
-    return BLGuideValidateSolution(board,tray,&first)!=0;
-}         // identical hashes despite a forced pixel change
 @interface BLPassThroughWindow : UIWindow
 @end
 @implementation BLPassThroughWindow
