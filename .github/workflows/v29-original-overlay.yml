@@ -1,0 +1,77 @@
+name: v2.9 ORIGINAL Overlay + SMART Survival iPhone
+on:
+  push:
+    branches: [feature/v2.9-original-ui-smart-engine]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/v29-original-overlay.yml'
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Original scanner handles empty blue and wood boards, plus legacy skins
+        run: |
+          for test in test_vision test_wood_theme test_pink_theme test_green_textured_theme test_black_theme; do
+            cc -O2 -std=c11 -Wall -Wextra tests/${test}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+      - name: First move legal with empty board, reject impossible 64-cell scans
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Isrc tests/test_v29_original_overlay.c \
+            src/BLFrameSafety.c src/BLGuideSafety.c src/BLV25Strategy.c \
+            src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/test-v29
+          /tmp/test-v29
+      - name: Preserve original pink board tracking and exact experimental solver rules
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Isrc tests/test_v28_original_tracking.c \
+            src/BLGuideSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
+            src/BlockBlastSolver.c -lm -o /tmp/test-v28
+          /tmp/test-v28
+          cc -O2 -std=c11 -Wall -Wextra -Isrc tests/test_v25_iphone.c \
+            src/BLV25Strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/test-v25
+          /tmp/test-v25
+      - name: Ensure overlay is original scanner/UI with smartness transplanted
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          screen=Path('src/BLScreenScan.m').read_text()
+          ov=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLVisionAnalyzeRGBA(pixels,(int)w,(int)h,&found)' in screen
+          assert 'BLStructureAnalyzeRGBA' not in screen
+          assert 'BLV25FindTwoStrategies' in ov
+          assert 'BLNextGuideSafe' in ov
+          assert 'BLBoardHasUnclearedLine(scannedBoard)' in ov
+          assert 'BLStrategyPreferenceV29' in ov
+          assert 'kBlinkHighlightsLikeV10=YES' in ov
+          assert 'kConfirmFrames=2' in ov
+          print('PASS: v1.7 screen and overlay behavior + upgraded smart solver and safety')
+          PY
+  iphone:
+    needs: regression
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile complete iPhone arm64 .dylib
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLV25Strategy.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLYOLOVision.m -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+          test -s dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v29-ORIGINAL-OVERLAY-SMART-IPHONE
+          path: dist/BlockBlastAI.dylib
