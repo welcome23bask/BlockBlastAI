@@ -56,3 +56,49 @@ were silently promoted to the production iPhone library.
   `tests/test_v34_future100.c`.
 - The training label accuracy remains unverified; this is a heuristic future
   accessibility check, not trained strategy weights or true 10× research output.
+
+## v3.4 enhanced update: additional safeguards, still named v3.4
+
+The original v3.4 code, original v3.3 trained verifier, Smart Survival,
+three-try clear solver, five-fresh-scan no-clear confirmation, vision dataset
+capture/export and overlay UI are all preserved.
+
+- For each candidate, future mobility now distinguishes the 35 **observed
+  but unreviewed** shapes from the 65 speculative footprint probes. A route
+  cannot reduce observed-shape coverage or capped mobility.
+- A four-neighbor flood fill counts tiny stranded empty cells and empty
+  regions; candidate plans cannot create more isolated 1–2-cell pockets.
+- **No speculative line-tied switches**: A full-tray candidate must clear
+  strictly more verified lines, increase future shape access, and preserve
+  current combo deadlines and five critical landing types. Earlier
+  experiments sometimes scored lower on shifted-heavy synthetic games, so
+  the equal-clear speculative switch was removed.
+- **Full-tray rescue**: if the Smart Survival route is partial or invalid,
+  but an alternate solver objective has a complete, valid route for all
+  currently visible pieces, it may be used if it does not sacrifice a
+  verified current clear, combo deadline or previously found clear count.
+  Unsafe or incomplete alternatives are discarded.
+- **Mathematical no-clear precheck**: before exploring up to 1.5 million
+  search states, the planner computes an optimistic contribution of each
+  visible piece to every row/column, respecting how many combo tries remain.
+  If even the optimistic bound cannot fill any line, there is provably no
+  first clear with those visible pieces; expensive DFS is skipped.
+  The board still undergoes 5 fresh image confirmations before a negative
+  answer is displayed.
+- The floating UI identifies itself as **BlockBlastAI v3.4**, rather than
+  retaining outdated v2.9 branding in the title/status.
+- A reproducible 30-game, 3-generator, paired full-game smoke benchmark
+  compares *the same* generated future piece trays under v3.3's baseline
+  and v3.4's guarded strategy, checking score proxy, moves survived,
+  p10 survival, line clears, invalid placements, combo breaks, and
+  avoidable combo deadlines. With conservative v3.4 gating, results
+  **matched baseline** in all 30 games. This demonstrates no regression in
+  this small synthetic test, **not a proven increase in real scores**.
+- Four independent seed batches comprising 400 synthetic board/tray
+  scenarios and targeted unit fixtures check legal moves, trapped pockets,
+  extra lines, real piece access, 1/2-try combo rescues, and 100 distinct
+  future piece shapes.
+
+The separate 10× strategy learning research is not merged because its
+independently replicated threshold has not been met. The current model
+does not learn new strategy weights while the user plays.
