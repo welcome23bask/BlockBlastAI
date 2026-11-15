@@ -307,7 +307,7 @@ int BLStructureAnalyzeRGBA(const uint8_t *rgba,int width,int height,BLVisionResu
     double ea=oka?fabs(((a.firstY+a.lastY)*.5)/height-.44):100.0;
     double eb=okb?fabs(((b.firstY+b.lastY)*.5)/height-.44):100.0;
     // The playfield is above the tray in portrait. Reject mirrored ambiguity.
-    if((!oka&&!okb)||(oka&&okb&&fabs(ea-eb)<.018)){BL_TRACE("orientation ambiguity oka=%d okb=%d ea=%f eb=%f\\n",oka,okb,ea,eb);return 0;}
+    if((!oka&&!okb)||(oka&&okb&&fabs(ea-eb)<.008)){BL_TRACE("orientation ambiguity oka=%d okb=%d ea=%f eb=%f\\n",oka,okb,ea,eb);return 0;}
     int flipped=(eb<ea);
     double error=flipped?eb:ea;
     if(error>.10){BL_TRACE("orientation error=%f\\n",error);return 0;}
