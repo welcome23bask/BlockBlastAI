@@ -667,8 +667,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         return;
     }
     if(![BLInProcessTouch isAvailable]) {
-        [self stopAutoPlayWithReason:
-          @"Automatic unavailable: iOS/iGameGod touch injection is unsupported. Use manual highlights."];
+        [self stopAutoPlayWithReason:[BLInProcessTouch capabilityReport]];
         return;
     }
     if(!_autoEnabled) {
@@ -700,7 +699,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
        !_panel.hidden || !_autoEnabled || _stableAutoFrames<5 ||
        !_previewing || _solution.movesFound<1)return;
     if(![BLInProcessTouch isAvailable]) {
-        [self stopAutoPlayWithReason:@"Automatic touch method became unavailable."];
+        [self stopAutoPlayWithReason:[BLInProcessTouch capabilityReport]];
         return;
     }
     uint64_t board=[self boardMask];
