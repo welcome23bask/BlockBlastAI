@@ -1,5 +1,6 @@
 #import "BLScreenScan.h"
 #import "BLVisionCore.h"
+#import "BLTrainedVision.h"
 #import "BLYOLOVision.h"
 #import <ReplayKit/ReplayKit.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -255,7 +256,16 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
     }
     BLVisionResult found={0};
     int okay=BLVisionAnalyzeRGBA(pixels,(int)w,(int)h,&found);
+    // Learned per-cell RGB model is trained only on the user's purple skin
+    // with provisional labels. It may veto a confident DISAGREEMENT, never
+    // change native occupancy or guess on an unseen skin.
+    int trainedOpinion=okay
+        ?BLTrainedVisionOpinionRGBA(pixels,(int)w,(int)h,&found):0;
     free(pixels);
+    if(trainedOpinion<0) {
+        if(detail)*detail=@"Trained vision and native scanner disagree. Rechecking fresh screen; no unsafe highlight.";
+        return NO;
+    }
     if(!okay) {
         // Optional trained YOLOv8n model: invoke only if installed and
         // native theme-relative scanning has already failed. Do not replace
@@ -273,7 +283,8 @@ BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
     if(firstCenter)*firstCenter=CGPointMake(found.firstX,found.firstY);
     if(lastCenter)*lastCenter=CGPointMake(found.lastX,found.lastY);
     int squares=__builtin_popcountll(found.board);
-    if(detail)*detail=[NSString stringWithFormat:@"Detected %d filled squares, %d tray piece(s); orientation %@.",
-         squares,found.detectedPieces,found.flippedInput?@"corrected":@"upright"];
+    if(detail)*detail=[NSString stringWithFormat:@"Detected %d filled squares, %d tray piece(s); orientation %@. %@",
+         squares,found.detectedPieces,found.flippedInput?@"corrected":@"upright",
+         trainedOpinion==1?@"Learned board vision agrees.":@"Learned board vision not applicable."];
     return YES;
 }
