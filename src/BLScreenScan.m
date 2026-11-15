@@ -249,7 +249,10 @@ static BOOL BLDecodeImage(UIImage *image, CGSize screen, uint8_t **out,
 BOOL BLAutoDetectDetailed(UIImage *image, CGSize screenSize, BOOL occupied[64],
                           BLPiece pieces[3], CGPoint *firstCenter, CGPoint *lastCenter,
                           CGPoint trayFirstCenters[3],CGFloat trayPitches[3],
+                          uint64_t *provenEmptyMask,BOOL *themeVerified,
                           NSString **detail) {
+    if(provenEmptyMask)*provenEmptyMask=0;
+    if(themeVerified)*themeVerified=NO;
     uint8_t *pixels=NULL;
     size_t w=0,h=0;
     if(!BLDecodeImage(image,screenSize,&pixels,&w,&h)) {
@@ -284,13 +287,28 @@ BOOL BLAutoDetectDetailed(UIImage *image, CGSize screenSize, BOOL occupied[64],
             }
         }
     }
+    // Previously unreviewed labels miss purple/green tiles in some themes.
+    // Luma separation can ADD visibly occupied squares. Auto-play uses
+    // only its strongly certified empty cells, never unknown positions.
+    BLVisionLumaEvidence luma={0};
+    BOOL lumaVerified=NO;
+    if(okay && BLVisionLumaBoard(pixels,(int)w,(int)h,&found,&luma)) {
+        uint64_t previous=found.board;
+        if((previous & ~luma.filled)==0 && luma.separation>=55) {
+            found.board=luma.filled;
+            lumaVerified=YES;
+            if(provenEmptyMask)*provenEmptyMask=luma.definitelyEmpty;
+            if(themeVerified)*themeVerified=YES;
+            if(previous!=luma.filled)contrastRecovered=YES;
+        }
+    }
     // Learned per-cell RGB model is trained only on the user's purple skin
     // with provisional labels. It may veto a confident DISAGREEMENT, never
     // change native occupancy or guess on an unseen skin.
     int trainedOpinion=okay
         ?BLTrainedVisionOpinionRGBA(pixels,(int)w,(int)h,&found):0;
     free(pixels);
-    if(trainedOpinion<0) {
+    if(trainedOpinion<0 && !lumaVerified) {
         if(detail)*detail=@"Trained vision and native scanner disagree. Rechecking fresh screen; no unsafe highlight.";
         return NO;
     }
@@ -318,14 +336,15 @@ BOOL BLAutoDetectDetailed(UIImage *image, CGSize screenSize, BOOL occupied[64],
     int squares=__builtin_popcountll(found.board);
     if(detail)*detail=[NSString stringWithFormat:@"Detected %d filled squares, %d tray piece(s); orientation %@. %@",
          squares,found.detectedPieces,found.flippedInput?@"corrected":@"upright",
-         contrastRecovered?@"Theme-independent grid/center correction applied.":
+         lumaVerified?@"Theme-aware empty/filled verification applied.":
+          (contrastRecovered?@"Theme-independent grid/center correction applied.":
           (trainedOpinion==1?@"Learned board vision agrees.":
-            @"Learned board vision not applicable.")];
+            @"Learned board vision not applicable."))];
     return YES;
 }
 BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
                   BLPiece pieces[3], CGPoint *firstCenter, CGPoint *lastCenter,
                   NSString **detail) {
     return BLAutoDetectDetailed(image,screenSize,occupied,pieces,
-                                firstCenter,lastCenter,NULL,NULL,detail);
+                                firstCenter,lastCenter,NULL,NULL,NULL,NULL,detail);
 }
