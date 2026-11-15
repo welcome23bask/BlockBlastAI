@@ -13,6 +13,7 @@
 #import "BLFrameSafety.h"
 #import "BLThreeMoveClear.h"
 #import "BLNoClearReview.h"
+#import "BLFuture100.h"
 #import "BLGuideSafety.h"
 #import "BLTrainingCollector.h"
 #include <math.h>
@@ -832,6 +833,16 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 if(answer.movesFound>0 &&
                    !BLNextGuideSafe(boardSnapshot,traySnapshot.values,&answer))
                     answer.movesFound=0;
+                // Evaluate 100 diverse hypothetical future-piece footprints.
+                // Only improve complete, legal Smart Survival sequences without
+                // sacrificing verified clears, critical zones, or combo timing.
+                int shapeUpgrade=0;
+                if(smartMode && answer.movesFound>0) {
+                    answer=BLFuture100GuardedChoice(boardSnapshot,
+                        traySnapshot.values,comboSnapshot,&answer,
+                        &strategies.keepCombo,&strategies.maxLines,
+                        &shapeUpgrade);
+                }
                 // Keep the v2.5 future-space intelligence as the fallback.
                 // Above it, search ALL legal known-piece orders for a real
                 // clearing path within the three-placement combo deadline.
@@ -901,8 +912,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                             clearStatus=@"Rechecking board 5 times after deep search…";
                     }
                     strongSelf->_status.text=[NSString stringWithFormat:
-                        @"%@: %@ %@ %@ %@",
-                        choiceName,clearStatus,comboInfo,safetyNote,scanDetail?:@""];
+                        @"%@: %@ %@ %@ %@ %@",
+                        choiceName,clearStatus,comboInfo,safetyNote,
+                        shapeUpgrade?@"100-SHAPE SAFER FUTURE ROUTE":@"",
+                        scanDetail?:@""];
                     if(strongSelf->_previewing) {
                         if(clearPlan.found) {
                             NSMutableArray<NSString *> *route=[NSMutableArray array];
