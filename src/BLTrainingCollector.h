@@ -18,7 +18,7 @@ extern NSString * const BLTrainingCollectorDidChangeNotification;
 // with overlays hidden and no modal/panel onscreen.
 - (void)observeStableFrame:(UIImage *)image
                     board:(uint64_t)board
-                   pieces:(const BLPiece [3])pieces
+                   pieces:(const BLPiece *)pieces
                     first:(CGPoint)first
                      last:(CGPoint)last
                screenSize:(CGSize)screenSize;
