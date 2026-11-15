@@ -210,6 +210,13 @@ static int worthwhile(uint64_t board,const BLPiece tray[3],
     // Do not trade away their usability for speculative rare future shapes.
     if(after.observedAccess<before.observedAccess ||
        after.observedMobility<before.observedMobility)return 0;
+    // A synthetic mobility win on hypothetical shapes is not enough to
+    // justify changing a real move when the immediate line reward ties.
+    // In that case demand a material gain for shapes in the user's saved
+    // tray samples, or don't disturb the known-good Smart Survival route.
+    if(actual_lines(candidate)==actual_lines(base) &&
+       after.observedAccess<=before.observedAccess &&
+       after.observedMobility<before.observedMobility+8)return 0;
     // Small disconnected empty pockets cannot hold most possible pieces.
     // Reject a candidate that increases the number of stranded cells.
     if(after.tinyEmptyCells>before.tinyEmptyCells)return 0;
