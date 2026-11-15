@@ -3,6 +3,35 @@
 #include <string.h>
 #include <math.h>
 #include <stdlib.h>
+// Reject disconnected or duplicate scanner "pieces". Block Blast tray
+// shapes are contiguous; a fragmented mask is a color-detection failure.
+static int BLConnectedPiece(const BLPiece *p){
+    if(!p||p->count<1||p->count>25)return 0;
+    uint32_t bits=0;
+    for(int k=0;k<p->count;k++){
+        int x=p->x[k],y=p->y[k];
+        if(x<0||x>4||y<0||y>4)return 0;
+        uint32_t b=UINT32_C(1)<<(5*y+x);
+        if(bits&b)return 0;
+        bits|=b;
+    }
+    uint32_t reachable=bits&(~bits+1U);
+    for(;;){
+        uint32_t expanded=reachable;
+        for(int y=0;y<5;y++)for(int x=0;x<5;x++){
+            uint32_t pos=UINT32_C(1)<<(5*y+x);
+            if(!(reachable&pos))continue;
+            if(x>0)expanded|=pos>>1;
+            if(x<4)expanded|=pos<<1;
+            if(y>0)expanded|=pos>>5;
+            if(y<4)expanded|=pos<<5;
+        }
+        expanded &= bits;
+        if(expanded==reachable)break;
+        reachable=expanded;
+    }
+    return reachable==bits;
+}
 int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
                     const BLMove *move,float fx,float fy,
                     float lx,float ly,const float tx[3],
@@ -12,7 +41,7 @@ int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
     if(move->pieceIndex<0||move->pieceIndex>2 ||
        move->before!=board)return 0;
     const int p=move->pieceIndex;
-    if(tray[p].count<1||tray[p].count>25)return 0;
+    if(!BLConnectedPiece(&tray[p]))return 0;
     float pitchX=(lx-fx)/7.f,pitchY=(ly-fy)/7.f;
     if(!isfinite(pitchX)||!isfinite(pitchY) ||
        pitchX<20||pitchY<20||
