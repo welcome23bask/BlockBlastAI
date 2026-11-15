@@ -95,3 +95,86 @@ int BLVisionContrastBoard(const uint8_t *im,int w,int h,
     if(margin)*margin=sorted[cut]-sorted[cut-1];
     return 1;
 }
+
+
+// Human-reviewed screenshots in the user's 41-capture set exposed a bug in
+// seam-RGB distance: dark-green tiles and empty navy squares can have very
+// similar distance from the seam even while their raw luminance is very
+// different. This second analyzer uses 64 fixed tile-center RGB samples.
+int BLVisionLumaFromCenters(const uint8_t centers[64][3],
+                            BLVisionLumaEvidence *out) {
+    if(!centers||!out)return 0;
+    int sorted[64],brightness[64];
+    for(int i=0;i<64;i++) {
+        brightness[i]=(int)centers[i][0]+centers[i][1]+centers[i][2];
+        sorted[i]=brightness[i];
+    }
+    for(int i=1;i<64;i++){
+        int v=sorted[i],j=i-1;
+        while(j>=0&&sorted[j]>v){sorted[j+1]=sorted[j];--j;}
+        sorted[j+1]=v;
+    }
+    // Detect the *first* large gap above the coherent dark board
+    // background, not the largest gap separating bright block colors.
+    int cut=-1;
+    for(int i=2;i<64;i++) {
+        if(sorted[i]-sorted[i-1]>=50 &&
+           sorted[i-1]-sorted[0]<=75){cut=i;break;}
+    }
+    if(cut<0)return 0;
+    int gap=sorted[cut]-sorted[cut-1];
+    uint64_t filled=0,empty=0;
+    int sum[3]={0,0,0},emptyN=0;
+    int threshold=(sorted[cut]+sorted[cut-1])/2;
+    for(int i=0;i<64;i++){
+        if(brightness[i]>threshold)filled|=UINT64_C(1)<<i;
+        else {
+            for(int k=0;k<3;k++)sum[k]+=centers[i][k];
+            ++emptyN;
+        }
+    }
+    if(emptyN<2||emptyN>62)return 0;
+    int bg[3];
+    for(int k=0;k<3;k++)bg[k]=(sum[k]+emptyN/2)/emptyN;
+    for(int i=0;i<64;i++) {
+        if((filled>>i)&1)continue;
+        int colorDistance=0;
+        for(int k=0;k<3;k++)
+            colorDistance+=abs((int)centers[i][k]-bg[k]);
+        // A cell whose color deviates from the measured empty cluster
+        // is UNKNOWN, not certainly empty. False negatives are safer.
+        if(abs(brightness[i]-(bg[0]+bg[1]+bg[2]))<=28 &&
+           colorDistance<=42)
+            empty|=UINT64_C(1)<<i;
+    }
+    if(!empty)return 0;
+    for(int row=0;row<8;row++)
+        if(((filled>>(row*8))&255U)==255U)return 0;
+    for(int col=0;col<8;col++){
+        uint64_t mask=UINT64_C(0x0101010101010101)<<col;
+        if((filled&mask)==mask)return 0;
+    }
+    *out=(BLVisionLumaEvidence){filled,empty,gap,emptyN};
+    return 1;
+}
+
+int BLVisionLumaBoard(const uint8_t *im,int w,int h,
+                      const BLVisionResult *geom,
+                      BLVisionLumaEvidence *out) {
+    if(!im||!geom||!out||w<240||h<350||w>1600||h>3000)
+        return 0;
+    double dx=(geom->lastX-geom->firstX)/7.0;
+    double dy=(geom->lastY-geom->firstY)/7.0;
+    double left=geom->firstX-dx*.5,top=geom->firstY-dy*.5;
+    if(dx<15||dy<15 || fabs(dx-dy)>fmax(dx,dy)*.14 ||
+       left<3||top<3||left+dx*8+3>=w||top+dy*8+3>=h)
+        return 0;
+    uint8_t centers[64][3];
+    for(int row=0;row<8;row++)for(int col=0;col<8;col++){
+        int x=(int)lround(geom->firstX+col*dx);
+        int y=(int)lround(geom->firstY+row*dy);
+        sample(im,w,h,x,y,geom->flippedInput,
+               centers[row*8+col]);
+    }
+    return BLVisionLumaFromCenters(centers,out);
+}
