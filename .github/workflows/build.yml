@@ -11,6 +11,7 @@ on:
       - feature/v1.7-black-block-vision
       - feature/v2.5-experimental-iphone
       - feature/v2.9-original-ui-smart-engine
+      - feature/v3.0-three-move-combo-vision
     paths:
       - 'src/**'
       - 'tests/**'
