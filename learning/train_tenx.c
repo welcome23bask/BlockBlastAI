@@ -77,9 +77,18 @@ static TenXStats measure(const int w[4],int n,int epoch,int scenario,int origina
     qsort(lengths,n,sizeof(int),compare_int);
     s.p10=lengths[(n-1)/10];free(lengths);return s;
 }
-static double tenx_fitness(TenXStats s){
-    return s.moves/s.n+.002*s.score/s.n-.7*s.breaks/s.n
-        -3*s.skips/s.n-500*s.illegal;
+static double tenx_fitness(TenXStats s,TenXStats baseline){
+    // Balanced across generators: reward lower-tail robustness and penalize
+    // combo deadlines instead of allowing the easy generator to dominate.
+    double survival=s.moves/(baseline.moves>0?baseline.moves:1);
+    double score=s.score/(baseline.score>0?baseline.score:1);
+    double tail=(double)s.p10/(baseline.p10>0?baseline.p10:1);
+    double breaks=100.0*s.breaks/(s.moves>0?s.moves:1);
+    double oldbreaks=100.0*baseline.breaks/(baseline.moves>0?baseline.moves:1);
+    return 50.0*survival+30.0*score+20.0*tail
+        -40.0*fmax(0.0,breaks-oldbreaks)
+        -25.0*fmax(0.0,s.skips-baseline.skips)/s.n
+        -500.0*s.illegal;
 }
 static void metrics(const char *tag,TenXStats s){
     printf("%s games=%d avg_moves=%.3f p10=%d proxy=%.1f "
@@ -101,6 +110,12 @@ static int train(int argc,char **argv){
     }
     for(int epoch=start;epoch<start+rounds;epoch++){
         double best=-1e100;int chosen[4]={0};
+        // Provisional disjoint training epoch namespace; historical ledger
+        // must be audited before claiming these seeds are never used.
+        const int training_seed_epoch=1700+epoch;
+        TenXStats reference[3];
+        for(int scenario=0;scenario<3;scenario++)
+            reference[scenario]=measure(zero,seeds,training_seed_epoch,scenario,1);
         for(int attempt=0;attempt<7;attempt++){
             int trial[4];memcpy(trial,w,sizeof(trial));
             if(attempt){
@@ -111,8 +126,8 @@ static int train(int argc,char **argv){
             }
             double score=0;
             for(int scenario=0;scenario<3;scenario++){
-                TenXStats s=measure(trial,seeds,epoch,scenario,0);
-                score+=tenx_fitness(s)*(scenario?1.0:0.5);
+                TenXStats s=measure(trial,seeds,training_seed_epoch,scenario,0);
+                score+=tenx_fitness(s,reference[scenario]);
             }
             if(score>best){best=score;memcpy(chosen,trial,sizeof(chosen));}
         }
