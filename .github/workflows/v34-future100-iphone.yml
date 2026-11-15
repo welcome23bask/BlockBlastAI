@@ -99,6 +99,11 @@ jobs:
           assert 'if(smartMode)' in ui and 'BLFindThreeMoveClearTimed' in ui
           print('PASS future-100 gated within Smart Survival; current combo-clear override retained')
           PY
+      - name: Verify partial-tray rescue without sacrificing expiring combo
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_full_tray_rescue.c \
+            src/BLFuture100.c src/BLGuideSafety.c -lm -o /tmp/test-v34-rescue
+          /tmp/test-v34-rescue
       - name: Prove no-clear upper-bound pruning preserves real combo rescues
         run: |
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_clear_pruning.c \
