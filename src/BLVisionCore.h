@@ -12,6 +12,9 @@ typedef struct {
     float firstX, firstY, lastX, lastY;
     int flippedInput;
     int detectedPieces;
+    // Source coordinates of local (0,0) tray tile for auto-drag.
+    // Zero when this theme/provider could not confidently localize it.
+    float trayFirstX[3],trayFirstY[3],trayCellPitch[3];
 } BLVisionResult;
 
 // rgba is 4 bytes per pixel in RGBA order, stride = width*4.
