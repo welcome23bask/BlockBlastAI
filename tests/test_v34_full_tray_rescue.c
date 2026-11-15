@@ -29,6 +29,14 @@ int main(void){
     assert(changed && rescued.movesFound==3);
     assert(BLGuideValidateSolution(0,tray,&rescued));
     assert(rescued.moves[2].after==7);
+    // A completely failed baseline must not hide a second objective's
+    // independently validated full-tray rescue.
+    BLSolution none={0};
+    changed=0;
+    BLSolution zeroRescue=BLFuture100GuardedChoice(0,tray,(BLComboContext){0},
+                                       &none,&complete,0,&changed);
+    assert(changed && zeroRescue.movesFound==3);
+    assert(BLGuideValidateSolution(0,tray,&zeroRescue));
     BLSolution broken=complete;broken.moves[2].before=4;
     changed=1;
     BLSolution ignored=BLFuture100GuardedChoice(0,tray,(BLComboContext){0},
