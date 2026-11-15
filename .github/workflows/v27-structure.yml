@@ -15,7 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Test 256 adaptive palette and occupied-board variants
         run: |
-          cc -O2 -std=c11 -Wall -Wextra tests/test_structure_palette.c src/BLStructureVision.c -lm -o /tmp/test_structure_palette
+          cc -O2 -std=c11 -Wall -Wextra -DBL_STRUCTURE_TRACE tests/test_structure_palette.c src/BLStructureVision.c -lm -o /tmp/test_structure_palette
           /tmp/test_structure_palette
       - name: Validate red, black, purple, green, pink, orientations and real-game shape fixtures
         run: |
