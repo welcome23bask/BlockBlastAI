@@ -53,6 +53,41 @@ static int future_space(uint64_t board) {
     quality+=fits(board,1,5)*8;
     return quality;
 }
+// Before a FIRST clear, no lines have been removed. Thus every piece in
+// the clearing sequence occupies cells that were free on the initial board.
+// Compute the maximum possible contribution to each line by every visible
+// piece, then sum only the best remaining-try slots. If every row/column
+// still falls short of 8, a first clear is mathematically impossible.
+// This is a NECESSARY upper bound, not an optimistic move suggestion.
+static int BLCouldClearAnyLine(uint64_t board,const BLPlanner *ctx) {
+    const uint64_t column=UINT64_C(0x0101010101010101);
+    for(int line=0;line<16;++line) {
+        uint64_t mask=line<8 ? (UINT64_C(255)<<(line*8))
+                             : (column<<(line-8));
+        int filled=popcount(board&mask);
+        int perPiece[3]={0,0,0};
+        if(filled==8)return 1; // invalid full board: don't hide anomaly
+        for(int p=0;p<3;++p) {
+            for(int k=0;k<ctx->count[p];++k) {
+                uint64_t place=ctx->positions[p][k].mask;
+                if(place&board)continue;
+                int hits=popcount(place&mask);
+                if(hits>perPiece[p])perPiece[p]=hits;
+            }
+        }
+        // Sort three contributions descending. Every first clearing sequence
+        // uses at most tries visible pieces (no unknown future tray pieces).
+        for(int i=0;i<3;++i)for(int j=i+1;j<3;++j) {
+            if(perPiece[j]>perPiece[i]) {
+                int tmp=perPiece[i];perPiece[i]=perPiece[j];perPiece[j]=tmp;
+            }
+        }
+        int upper=filled;
+        for(int k=0;k<ctx->tries&&k<3;++k)upper+=perPiece[k];
+        if(upper>=8)return 1;
+    }
+    return 0;
+}
 static void record(BLPlanner *ctx,const BLMove moves[3],int depth,
                    int firstClear,int totalLines,uint64_t after) {
     if(!firstClear||firstClear>ctx->tries)return;
@@ -153,6 +188,13 @@ static BLThreeMovePlan BLFindThreeMoveClearImpl(uint64_t board,
     int available=popcount(board);
     for(int p=0;p<3;++p)available+=pieces[p].count;
     if(available<8){out.completeSearch=1;return out;}
+    if(!BLCouldClearAnyLine(board,&ctx)) {
+        out.completeSearch=1;
+        out.upperBoundPruned=1;
+        // This is a proven negative, not time-budget search truncation.
+        // Five independently captured frames still have to verify the image.
+        return out;
+    }
     BLMove moves[3]={{0}};
     search(&ctx,board,moves,0,0,0,0);
     out.explored=ctx.visited;
