@@ -18,8 +18,14 @@ static int normalized_connected(const BLPiece *p){
     while(head<tail){
         int n=q[head++],x=n%5,y=n/5;
         ++total;
-        const int dx[4]={1,-1,0,0},dy[4]={0,0,1,-1};
-        for(int i=0;i<4;++i){
+        // Block Blast includes diagonal-touching shapes such as the two-cell
+        // slash/backslash piece. Orthogonal-only flood fill wrongly rejects
+        // those legal physical pieces and suppresses all highlighting.
+        // Eight-neighbor contact is legitimate; duplicates, out-of-bounds,
+        // and every actual placement collision remain strictly illegal.
+        const int dx[8]={1,-1,0,0,1,1,-1,-1};
+        const int dy[8]={0,0,1,-1,1,-1,1,-1};
+        for(int i=0;i<8;++i){
             int nx=x+dx[i],ny=y+dy[i];
             if(nx<0||nx>=5||ny<0||ny>=5||!cells[ny][nx]||seen[ny][nx])continue;
             q[tail++]=nx+ny*5;seen[ny][nx]=1;
