@@ -102,3 +102,38 @@ capture/export and overlay UI are all preserved.
 The separate 10× strategy learning research is not merged because its
 independently replicated threshold has not been met. The current model
 does not learn new strategy weights while the user plays.
+
+## v3.4 enhancement — Combo streak up to 100, 50-scan no-clear proof
+
+- All verified combo counting uses a shared maximum `BL_COMBO_STREAK_MAX=100`,
+  including the original solver, v2.5 Smart Survival, and dual-strategy
+  search. The actual Block Blast rules and the **three-placement deadline**
+  are unchanged. This doesn't automatically earn a 100 combo.
+- After the last combo-saving attempt fails, **a separate planning pass**
+  checks whether the visible tray pieces can produce a legal clear in *any*
+  order before the tray is exhausted. A clear after the combo deadline is
+  distinguished from a clear that preserves the streak. The app must never
+  display "no clear available" when such a delayed clear exists.
+- A possible no-clear result enters a **50-frame confirmation** process:
+  fifty *new* ReplayKit capture counters with exactly matching verified
+  board and full tray signatures, separate from the initial capture. Two
+  seconds is the minimum, but at a nominal 0.24-second capture interval
+  this will normally take **at least roughly 12 seconds**, potentially
+  considerably longer with dropped or throttled frames.
+- The on-game message **"no clear available"** appears only after
+  `BLNoClearProofIsReady` checks both an *exhaustive*, clear-free
+  full-visible-tray search and a completed 50-frame confirmation.
+- If the search hit its time or node bound, the UI instead states
+  **"Clear unconfirmed"**; it never claims impossibility. A new board,
+  different tray, capture restart, user pause or strategy switch cancels
+  the previous negative observation.
+- The overlay's on-game banner is screenshot-friendly for comparison
+  against another AI. The user can share the conflicting board and tray
+  for debugging. Fifty identical predictions cannot rule out a **systematic
+  vision error**; independent comparison remains important.
+- The code retains all v3.4 100 future-shape checks, survival,
+  original scanner, optional YOLO, trained RGB second opinion,
+  guidance/highlights, local training collector and iPhone UI.
+- Research branch `feature/v2.2-10x-research-gate` remains separate:
+  the experimental 10× strategy has not passed its training gates and
+  has not been merged into this production v3.4 revision.
