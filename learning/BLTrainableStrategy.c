@@ -320,7 +320,7 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
         int chosenQ=ctx.smartQuality;
         if(ctx.haveSmartCombo &&
            ctx.smartComboPath.depth==ctx.smartPath.depth) {
-            // Research-only hypothesis: trained policies may under-select safe combo\n            // routes. Preserve baseline behavior when weights are zero.\n            int tuned=(blTrainWeights[0]||blTrainWeights[1]||\n                       blTrainWeights[2]||blTrainWeights[3]);\n            int sameSafety=ctx.smartComboQuality>=ctx.smartQuality-\n                           (tuned?5500:4700);
+            // Research-only hypothesis: trained policies may under-select safe combo\n            // routes. Preserve baseline behavior when weights are zero.\n            int tuned=(blTrainWeights[0]||blTrainWeights[1]||\n                       blTrainWeights[2]||blTrainWeights[3]);\n            int sameSafety=ctx.smartComboQuality>=ctx.smartQuality-\n                           (tuned?5000:4700);
             if(sameSafety &&
                !dangerously_worse(ctx.smartComboPath.board,ctx.smartPath.board)) {
                 chosen=ctx.smartComboPath;
