@@ -129,6 +129,31 @@ BLFuture100Quality BLFuture100Measure(uint64_t board) {
         int n=possible(board,s->mask,s->w,s->h);
         if(n)++out.shapeAccess;
         out.cappedMobility+=n<4?n:4;
+        if(i<35) {
+            if(n)++out.observedAccess;
+            out.observedMobility+=n<4?n:4;
+        }
+    }
+    // Exact 4-neighbor free-cell regions reveal unusable 1-2 square traps
+    // that average shape accessibility alone can fail to penalize.
+    uint64_t freeCells=~board;
+    const uint64_t notRightEdge=UINT64_C(0x7f7f7f7f7f7f7f7f);
+    const uint64_t notLeftEdge=UINT64_C(0xfefefefefefefefe);
+    while(freeCells) {
+        uint64_t region=freeCells & (~freeCells+UINT64_C(1));
+        for(;;) {
+            uint64_t neighbors=((region&notRightEdge)<<1) |
+                               ((region&notLeftEdge)>>1) |
+                               (region<<8) | (region>>8);
+            uint64_t expanded=region|(neighbors&freeCells);
+            if(expanded==region)break;
+            region=expanded;
+        }
+        int area=__builtin_popcountll(region);
+        ++out.emptyRegions;
+        if(area<=2)out.tinyEmptyCells+=area;
+        if(area>out.largestEmptyRegion)out.largestEmptyRegion=area;
+        freeCells&=~region;
     }
     static const struct {uint64_t mask;int w,h;} needed[]={
         {UINT64_C(0x70707),3,3},{UINT64_C(0x1f),5,1},
@@ -181,6 +206,15 @@ static int worthwhile(uint64_t board,const BLPiece tray[3],
     // Never sacrifice the last known critical shape type while chasing an
     // unverified future shape distribution.
     if((before.criticalAccess&~after.criticalAccess)!=0)return 0;
+    // The first 35 probes are patterns observed in actual user screenshots.
+    // Do not trade away their usability for speculative rare future shapes.
+    if(after.observedAccess<before.observedAccess ||
+       after.observedMobility<before.observedMobility)return 0;
+    // Small disconnected empty pockets cannot hold most possible pieces.
+    // Reject a candidate that increases the number of stranded cells.
+    if(after.tinyEmptyCells>before.tinyEmptyCells)return 0;
+    if(after.emptyRegions>before.emptyRegions &&
+       after.largestEmptyRegion<before.largestEmptyRegion)return 0;
     // Require a real diversity gain, not just a tiny heuristic fluctuation.
     if(after.shapeAccess < before.shapeAccess+3)return 0;
     if(after.cappedMobility < before.cappedMobility+12)return 0;
