@@ -1,0 +1,90 @@
+#include "BLVisionContrast.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <math.h>
+#include <string.h>
+static const uint8_t *at(const uint8_t *rgba,int w,int h,int x,int y,int flip) {
+    if(flip)y=h-1-y;
+    return rgba+((size_t)y*w+x)*4;
+}
+static int d3(const uint8_t a[3],const uint8_t b[3]) {
+    return abs((int)a[0]-b[0])+abs((int)a[1]-b[1])+abs((int)a[2]-b[2]);
+}
+static void sample(const uint8_t *im,int w,int h,int x,int y,int flip,
+                   uint8_t rgb[3]) {
+    int sums[3]={0};
+    for(int dy=-2;dy<=2;dy+=2)for(int dx=-2;dx<=2;dx+=2){
+        const uint8_t *p=at(im,w,h,x+dx,y+dy,flip);
+        for(int k=0;k<3;k++)sums[k]+=p[k];
+    }
+    for(int k=0;k<3;k++)rgb[k]=(uint8_t)((sums[k]+4)/9);
+}
+int BLVisionContrastBoard(const uint8_t *im,int w,int h,
+                          const BLVisionResult *geom,uint64_t *out,int *margin) {
+    if(!im||!geom||!out||w<240||h<350||w>1600||h>3000)return 0;
+    double stepX=(geom->lastX-geom->firstX)/7.0;
+    double stepY=(geom->lastY-geom->firstY)/7.0;
+    if(stepX<15||stepY<15||
+       fabs(stepX-stepY)>fmax(stepX,stepY)*.14)return 0;
+    const int flip=geom->flippedInput;
+    double left=geom->firstX-stepX*.5,top=geom->firstY-stepY*.5;
+    if(left<3||top<3||left+8*stepX+3>=w||
+       top+8*stepY+3>=h)return 0;
+    // Median of interior grid crossings provides color reference even
+    // when most board cells are occupied by brightly beveled blocks.
+    int hist[3][256]={0};
+    for(int row=1;row<=7;row++)for(int col=1;col<=7;col++){
+        uint8_t rgb[3];
+        sample(im,w,h,(int)lround(left+col*stepX),
+            (int)lround(top+row*stepY),flip,rgb);
+        for(int k=0;k<3;k++)++hist[k][rgb[k]];
+    }
+    uint8_t background[3]={0};
+    for(int k=0;k<3;k++){
+        int sum=0;
+        for(int v=0;v<256;v++){sum+=hist[k][v];if(sum>=25){
+            background[k]=(uint8_t)v;break;
+        }}
+    }
+    int distances[64],low=765,high=0;
+    for(int row=0;row<8;row++)for(int col=0;col<8;col++){
+        int x=(int)lround(geom->firstX+col*stepX);
+        int y=(int)lround(geom->firstY+row*stepY);
+        uint8_t rgb[3];sample(im,w,h,x,y,flip,rgb);
+        int d=d3(rgb,background);
+        distances[row*8+col]=d;
+        if(d<low)low=d;if(d>high)high=d;
+    }
+    if(high-low<65)return 0; // uniform or ambiguous board: don't guess
+    double a=low,b=high;
+    for(int iter=0;iter<12;iter++){
+        int ca=0,cb=0,sa=0,sb=0;
+        for(int i=0;i<64;i++){
+            if(fabs(distances[i]-a)<=fabs(distances[i]-b)){
+                sa+=distances[i];++ca;
+            }else{sb+=distances[i];++cb;}
+        }
+        if(ca<3||cb<1)return 0;
+        a=(double)sa/ca;b=(double)sb/cb;
+    }
+    if(b-a<65)return 0;
+    uint64_t result=0;int near=0,far=0,uncertain=0;
+    double middle=(a+b)*.5;
+    // Leave a sufficiently wide gap in distance space to prevent
+    // bevel/shadow/selection animation from flipping borderline cells.
+    for(int i=0;i<64;i++){
+        double d=distances[i];
+        if(fabs(d-middle)<12.0)++uncertain;
+        if(d>middle){result|=UINT64_C(1)<<i;++far;}
+        else ++near;
+    }
+    if(uncertain>2 || near<3 || far<1)return 0;
+    // A settled board cannot contain a row or column that has already
+    // cleared; reject suspicious cluster splits before any drag.
+    for(int r=0;r<8;r++)if(((result>>(r*8))&255U)==255U)return 0;
+    for(int c=0;c<8;c++)if((result&(UINT64_C(0x0101010101010101)<<c)) ==
+                                       (UINT64_C(0x0101010101010101)<<c))return 0;
+    *out=result;
+    if(margin)*margin=(int)lround(b-a);
+    return 1;
+}
