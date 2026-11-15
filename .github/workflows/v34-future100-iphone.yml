@@ -1,4 +1,4 @@
-name: v3.4 Automatic Play + Multi-Theme Vision iPhone
+name: v3.4 Automatic Vision Occupied-Cell Guard iPhone
 on:
   push:
     branches: [feature/v3.4-100-shape-survival-safety]
@@ -130,6 +130,9 @@ jobs:
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_contrast_themes.c \
             src/BLVisionContrast.c -lm -o /tmp/test-v34-contrast
           /tmp/test-v34-contrast
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_reviewed_theme_samples.c \
+            src/BLVisionContrast.c -lm -o /tmp/test-reviewed-theme
+          /tmp/test-reviewed-theme
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_auto_drag.c \
             src/BLAutoDrag.c src/BLGuideSafety.c -lm -o /tmp/test-v34-auto-drag
           /tmp/test-v34-auto-drag
@@ -145,6 +148,10 @@ jobs:
           assert '_stableAutoFrames>=5' in overlay
           assert 'BLInProcessTouch isAvailable' in overlay
           assert 'BLAutoDetectDetailed' in screen
+          assert 'BLVisionLumaBoard' in screen
+          assert 'BLAutoTargetIsProvenEmpty' in overlay
+          assert '_autoVisionVerified' in overlay
+          assert 'independentlyEmpty' in overlay
           assert 'BLVisionContrastBoard' in screen
           assert 'Native vision uncertain.' in screen
           assert 'src/BLInProcessTouch.m' in Path('.github/workflows/v34-future100-iphone.yml').read_text()
@@ -217,5 +224,5 @@ jobs:
           test -s dist/BlockBlastAI.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v34-AUTOMATIC-PLAY-VISION-IPHONE
+          name: BlockBlastAI-v34-VERIFIED-THEME-AUTO-SAFE-IPHONE
           path: dist/BlockBlastAI.dylib
