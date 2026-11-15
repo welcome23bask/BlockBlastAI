@@ -127,10 +127,22 @@ static int train(int argc,char **argv){
         for(int attempt=0;attempt<21;attempt++){
             int trial[4];memcpy(trial,w,sizeof(trial));
             if(attempt){
-                int idx=(int)(random32()%4),delta[]={-120,-60,-30,30,60,120};
-                trial[idx]+=delta[random32()%6];
-                if(trial[idx]>250)trial[idx]=250;
-                if(trial[idx]<-250)trial[idx]=-250;
+                // Iteration 21: reproducible stratified neighborhood, including
+                // paired-feature changes. Earlier one-coordinate random search
+                // rejected all 21 candidates for combo safety; systematically
+                // cover both directions and interactions before benchmarking.
+                static const int offsets[20][4]={
+                    {-120,0,0,0},{120,0,0,0},{0,-120,0,0},{0,120,0,0},
+                    {0,0,-120,0},{0,0,120,0},{0,0,0,-120},{0,0,0,120},
+                    {-60,-60,0,0},{60,60,0,0},{-60,60,0,0},{60,-60,0,0},
+                    {0,0,-60,-60},{0,0,60,60},{0,0,-60,60},{0,0,60,-60},
+                    {-60,0,60,0},{60,0,-60,0},{0,-60,0,60},{0,60,0,-60}
+                };
+                for(int j=0;j<4;j++){
+                    trial[j]+=offsets[attempt-1][j];
+                    if(trial[j]>250)trial[j]=250;
+                    if(trial[j]<-250)trial[j]=-250;
+                }
             }
             double score=0;
             int comboUnsafe=0,illegalUnsafe=0;
