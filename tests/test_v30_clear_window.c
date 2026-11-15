@@ -54,6 +54,19 @@ int main(void){
     check(BLFindThreeMoveClear(UINT64_C(0x7f),t1,c,500000),
           UINT64_C(0x7f),t1,1,1);
 
+    // Transcribed from the user's watermelon screenshot: 37 occupied cells,
+    // an available Z4 and five-horizontal piece. The 3rd column can be
+    // completed immediately with a LEGAL Z4, even if only one try remains.
+    BLPiece z4={0};z4.count=4;
+    z4.x[0]=0;z4.y[0]=0;
+    z4.x[1]=1;z4.y[1]=0;
+    z4.x[2]=1;z4.y[2]=1;
+    z4.x[3]=2;z4.y[3]=1;
+    BLPiece watermelon[3]={z4,five(),{0}};
+    uint64_t melonBoard=UINT64_C(0x7e0c8781f797e7c7);
+    BLThreeMovePlan rescue=BLFindThreeMoveClear(melonBoard,watermelon,c,600000);
+    check(rescue,melonBoard,watermelon,1,1);
+
     // Never fabricate a line clear when the three available pieces are
     // insufficient. No next tray can be predicted in advance.
     BLThreeMovePlan none=BLFindThreeMoveClear(0,t3,fresh,500000);
