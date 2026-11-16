@@ -52,3 +52,10 @@ jobs:
           echo 'RAW_SEED_ALIAS_REJECTION=PASS'
           TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1600 bash learning/run_tenx_reproducible.sh 1611 1622
           echo 'RAW_SEED_PREFLIGHT_SMOKE=PASS; NO TRAINING RUN, NO CHECKPOINT PROMOTION'
+      - name: Audit exact synthetic shape priors and invalid D4 replay symmetries
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 learning/audit_shape_symmetry.py
+          python3 learning/audit_synthetic_future_risk.py
+          echo 'SYNTHETIC_PRIORS_AND_SYMMETRY_SMOKE=PASS; NO TRAINING RUN'
