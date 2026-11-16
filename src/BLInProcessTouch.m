@@ -532,7 +532,7 @@ static BLTouchRoute BLRuntimeTouchRoute(void) {
 }
 
 + (void)forceCancelAllTouches {
-    if(!NSThread.isMainThread){
+    if(![NSThread isMainThread]){
         dispatch_async(dispatch_get_main_queue(), ^{
             [BLInProcessTouch forceCancelAllTouches];
         });
