@@ -42,5 +42,13 @@ jobs:
           set -euo pipefail
           python3 learning/audit_raw_seed_aliases.py --selftest
           python3 learning/audit_raw_seed_aliases.py 1600 1611 1622
+          # Negative control: these NEW numeric IDs alias reserved older raw
+          # xorshift starting states (e.g. 1975/normal == 1955/heavy).
+          if python3 learning/audit_raw_seed_aliases.py 1975 1976 1977 > /tmp/expected-alias.txt 2>&1; then
+            echo 'ERROR: raw seed alias negative control was accepted' >&2
+            exit 1
+          fi
+          grep -q 'Raw PRNG seed alias' /tmp/expected-alias.txt
+          echo 'RAW_SEED_ALIAS_REJECTION=PASS'
           TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1600 bash learning/run_tenx_reproducible.sh 1611 1622
           echo 'RAW_SEED_PREFLIGHT_SMOKE=PASS; NO TRAINING RUN, NO CHECKPOINT PROMOTION'
