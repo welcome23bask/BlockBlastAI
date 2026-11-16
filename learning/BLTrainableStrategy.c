@@ -378,6 +378,20 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         score[worst]=quality;
     }
 }
+#if BL_RESEARCH_DUAL_POOL && BL_RESEARCH_MIN_HARD_COVERAGE
+// Proven bound on minimax bonus: 450 * min(6, placements) <= 2700.
+// Skip expensive seven-shape counting when a new afterstate cannot enter a
+// full risk pool, regardless of its actual hard-shape coverage. This is an
+// exact safe shortlist prune, not a search-node-budget or scoring change.
+static int risk_pool_might_improve(const int score[BL_FUTURE_TOP],
+                                   int n,int baseQ) {
+    if(n<BL_FUTURE_TOP)return 1;
+    int worst=score[0];
+    for(int i=1;i<BL_FUTURE_TOP;++i)
+        if(score[i]<worst)worst=score[i];
+    return baseQ+2700>worst;
+}
+#endif
 static void rerank_afterstates(BLSearch *ctx) {
     int best=INT_MIN;
     for(int i=0;i<ctx->topAllN;++i) {
@@ -490,12 +504,20 @@ static void save_if_best(BLSearch *ctx,const BLPath *path) {
             // retain actual landing locations for the least-placeable hard
             // shape. Keep this pool separate to avoid overwriting safe base
             // quality finalists or forcing all policy decisions to change.
-            int riskQ=sq+450*worst_hard_coverage(path->board);
-            record_afterstate(ctx->topRisk,ctx->topRiskQ,
-                              &ctx->topRiskN,path,riskQ);
-            if(comboOK)
-                record_afterstate(ctx->topComboRisk,ctx->topComboRiskQ,
-                                  &ctx->topComboRiskN,path,riskQ);
+            int tryMain=risk_pool_might_improve(ctx->topRiskQ,
+                                                   ctx->topRiskN,sq);
+            int tryCombo=comboOK &&
+                risk_pool_might_improve(ctx->topComboRiskQ,
+                                        ctx->topComboRiskN,sq);
+            if(tryMain || tryCombo) {
+                int riskQ=sq+450*worst_hard_coverage(path->board);
+                if(tryMain)
+                    record_afterstate(ctx->topRisk,ctx->topRiskQ,
+                                      &ctx->topRiskN,path,riskQ);
+                if(tryCombo)
+                    record_afterstate(ctx->topComboRisk,ctx->topComboRiskQ,
+                                      &ctx->topComboRiskN,path,riskQ);
+            }
 #endif
         }
 #endif
