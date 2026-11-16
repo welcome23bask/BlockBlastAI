@@ -1,0 +1,37 @@
+name: v2.2 Research Rules Compile Smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/v2.2-10x-research-gate]
+    paths:
+      - '.github/workflows/v22-research-rules-smoke.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: blockblast-tenx-rules-smoke
+  cancel-in-progress: false
+
+jobs:
+  research-rules-smoke:
+    if: github.ref == 'refs/heads/feature/v2.2-10x-research-gate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Compile unchanged baseline and trained solver separately and execute legality tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          git rev-parse HEAD
+          cc -O2 -std=c11 -Wall -Wextra -Isrc -DBLFindTwoStrategies=BLV17FindTwoStrategies -c src/BLDualStrategy.c -o /tmp/v17.o
+          cc -O2 -std=c11 -Wall -Wextra -Isrc -c learning/BLTrainableStrategy.c -o /tmp/trained.o
+          cc -O2 -std=c11 -Wall -Wextra -Isrc -c src/BlockBlastSolver.c -o /tmp/solver.o
+          cc -O2 -std=c11 -Wall -Wextra -Isrc learning/tenx_rules_selftest.c /tmp/v17.o /tmp/trained.o /tmp/solver.o -lm -o /tmp/tenx_rules_selftest
+          /tmp/tenx_rules_selftest
+          cc -O2 -std=c11 -Wall -Wextra -Isrc learning/train_tenx.c /tmp/v17.o /tmp/trained.o /tmp/solver.o -lm -o /tmp/tenx_lab
+          echo 'TENX_TRAINER_COMPILE=PASS; NO TRAINING RUN, NO CHECKPOINT PROMOTION'
+          cat learning/tenx_checkpoint.txt
