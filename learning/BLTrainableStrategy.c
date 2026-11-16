@@ -113,7 +113,9 @@
 #ifndef BL_RESEARCH_BIAXIAL_HARD_CLEAR
 #define BL_RESEARCH_BIAXIAL_HARD_CLEAR 0
 #endif
-#define BL_RESEARCH_REDUNDANT_HARD_LANDINGS 1
+#define BL_RESEARCH_REDUNDANT_HARD_LANDINGS 0
+// Iteration 50: exact non-overlapping 3x3 landing pairs, not individual landing counts.
+#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -304,6 +306,21 @@ static int BLResearchRedundantHardLandings(uint64_t board) {
   safe+=(n>=2); fragile+=(n==1);
  }
  return 110*safe-125*fragile;
+}
+// Exact disjoint square capacity: two simultaneous 3x3 footprints offer
+// resilience to multiple bulky future pieces, unlike redundant landings that
+// may all overlap the same fragile pocket. No hidden future-tray sampling.
+static int BLResearchDisjointSquarePair(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    uint64_t slots[36];int n=0;
+    for(int r=0;r<6;r++)for(int c=0;c<6;c++){
+        uint64_t m=UINT64_C(0x70707)<<(r*8+c);
+        if(!(board&m))slots[n++]=m;
+    }
+    int pairs=0;
+    for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)
+        if(!(slots[i]&slots[j])){if(++pairs>=6)return 720;}
+    return pairs*120;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -733,6 +750,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
         utility+=BLResearchRedundantHardLandings(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_DISJOINT_SQUARE_PAIR
+        utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topAll[i].board);
 #endif
@@ -799,6 +819,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
         utility+=BLResearchRedundantHardLandings(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_DISJOINT_SQUARE_PAIR
+        utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topCombo[i].board);
