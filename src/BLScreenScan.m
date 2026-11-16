@@ -302,6 +302,21 @@ BOOL BLAutoDetectDetailed(UIImage *image, CGSize screenSize, BOOL occupied[64],
             if(previous!=luma.filled)contrastRecovered=YES;
         }
     }
+    // A genuinely empty board has no occupied/empty luminance gap and
+    // previously blocked AUTOMATIC PLAY's very first placement forever.
+    // Use a distinct strict all-64-centers AND grid-seams proof. The native
+    // scanner must also independently agree that occupancy is zero.
+    BOOL uniformEmptyVerified=NO;
+    if(okay && !lumaVerified && found.board==0) {
+        uint64_t emptyProof=0;
+        if(BLVisionUniformEmptyBoard(pixels,(int)w,(int)h,
+                                    &found,&emptyProof)) {
+            uniformEmptyVerified=YES;
+            lumaVerified=YES;
+            if(provenEmptyMask)*provenEmptyMask=emptyProof;
+            if(themeVerified)*themeVerified=YES;
+        }
+    }
     // Learned per-cell RGB model is trained only on the user's purple skin
     // with provisional labels. It may veto a confident DISAGREEMENT, never
     // change native occupancy or guess on an unseen skin.
@@ -336,10 +351,11 @@ BOOL BLAutoDetectDetailed(UIImage *image, CGSize screenSize, BOOL occupied[64],
     int squares=__builtin_popcountll(found.board);
     if(detail)*detail=[NSString stringWithFormat:@"Detected %d filled squares, %d tray piece(s); orientation %@. %@",
          squares,found.detectedPieces,found.flippedInput?@"corrected":@"upright",
-         lumaVerified?@"Theme-aware empty/filled verification applied.":
+         uniformEmptyVerified?@"Empty grid certified by all 64 cell centers and seams.":
+          (lumaVerified?@"Theme-aware empty/filled verification applied.":
           (contrastRecovered?@"Theme-independent grid/center correction applied.":
           (trainedOpinion==1?@"Learned board vision agrees.":
-            @"Learned board vision not applicable."))];
+            @"Learned board vision not applicable.")))];
     return YES;
 }
 BOOL BLAutoDetect(UIImage *image, CGSize screenSize, BOOL occupied[64],
