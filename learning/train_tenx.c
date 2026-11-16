@@ -24,7 +24,7 @@ static void tray_scenario(State *g,int scenario){
             g->p[p]=hard[random32()%(sizeof(hard)/sizeof(hard[0]))];
     }
 }
-static Result episode_complete(uint32_t seed,int scenario,const int weight[4],int original){
+static Result episode_complete(uint32_t seed,int scenario,const int weight[4],int original,int *truncatedSolves,int *totalSolves){
     seed_rng(seed);State g={0};tray_scenario(&g,scenario);
     BLSetTrainWeights(weight);Result out={0};
     for(int turn=0;turn<MAXMOVES;turn++){
@@ -33,6 +33,8 @@ static Result episode_complete(uint32_t seed,int scenario,const int weight[4],in
         BLTwoStrategies all=original
             ?BLV17FindTwoStrategies(g.b,shapes3,combo,180000)
             :BLFindTwoStrategies(g.b,shapes3,combo,180000);
+        ++*totalSolves;
+        if(!all.exhaustive)++*truncatedSolves;
         BLSolution plan=all.smartSurvival;
         if(!plan.movesFound)break;
         BLMove m=plan.moves[0];
@@ -58,7 +60,7 @@ static Result episode_complete(uint32_t seed,int scenario,const int weight[4],in
     }
     return out;
 }
-typedef struct {int n,illegal,p10;double moves,score,breaks,skips;} TenXStats;
+typedef struct {int n,illegal,p10;double moves,score,breaks,skips,searchCalls,truncatedCalls;} TenXStats;
 static uint32_t seed_for(int scenario,int game,int epoch){
     return (uint32_t)(163000000u+20000000u*scenario+
                       (uint32_t)epoch*1000000u+(uint32_t)game*13717u);
@@ -70,7 +72,10 @@ static TenXStats measure(const int w[4],int n,int epoch,int scenario,int origina
     TenXStats s={.n=n};
     int *lengths=calloc(n,sizeof(int));if(!lengths)abort();
     for(int i=0;i<n;i++){
-        Result r=episode_complete(seed_for(scenario,i,epoch),scenario,w,original);
+        int truncated=0,calls=0;
+        Result r=episode_complete(seed_for(scenario,i,epoch),scenario,w,original,&truncated,&calls);
+        s.searchCalls+=calls;
+        s.truncatedCalls+=truncated;
         s.moves+=r.moves;s.score+=r.proxy;s.breaks+=r.breaks;
         s.skips+=r.skipped;s.illegal+=r.illegal;lengths[i]=r.moves;
     }
@@ -92,9 +97,10 @@ static double tenx_fitness(TenXStats s,TenXStats baseline){
 }
 static void metrics(const char *tag,TenXStats s){
     printf("%s games=%d avg_moves=%.3f p10=%d proxy=%.1f "
-           "breaks_per_100=%.3f avoidable_combo_misses=%.0f illegal=%d\n",
+           "breaks_per_100=%.3f avoidable_combo_misses=%.0f illegal=%d search_trunc_pct=%.2f\n",
            tag,s.n,s.moves/s.n,s.p10,s.score/s.n,
-           100*s.breaks/(s.moves?s.moves:1),s.skips,s.illegal);
+           100*s.breaks/(s.moves?s.moves:1),s.skips,s.illegal,
+           100*s.truncatedCalls/(s.searchCalls?s.searchCalls:1));
 }
 static int train(int argc,char **argv){
     int rounds=argc>2?atoi(argv[2]):4,seeds=argc>3?atoi(argv[3]):4;
