@@ -7,6 +7,7 @@
 #import <dlfcn.h>
 #import <objc/message.h>
 #import <mach/mach_time.h>
+#import <math.h>
 
 // IOHIDEventRef has no public header on iOS. Older SDKs leaked it through
 // UIKit; recent ones don't. Forward-declare as an opaque CF type so the
