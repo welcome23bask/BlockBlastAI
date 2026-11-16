@@ -111,8 +111,9 @@
 // column-clearing hard-shape type diversity, using only exact legal placements.
 // No next-tray RNG, no hidden piece order, no baseline or phone changes.
 #ifndef BL_RESEARCH_BIAXIAL_HARD_CLEAR
-#define BL_RESEARCH_BIAXIAL_HARD_CLEAR 1
+#define BL_RESEARCH_BIAXIAL_HARD_CLEAR 0
 #endif
+#define BL_RESEARCH_REDUNDANT_HARD_LANDINGS 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -289,6 +290,20 @@ static int BLResearchOrthogonalEscape(uint64_t board) {
     int v=fit(board,UINT64_C(0x0101010101),1,5);
     int m=h<v?h:v;
     return m>0?((m>6?6:m)*95):0;
+}
+// Distinct from single-zero or clear-axis metrics: protect two landing options
+// for every difficult shape, on crowded afterstates only. No hidden RNG.
+static int BLResearchRedundantHardLandings(uint64_t board) {
+ if(64-bits(board)>=34)return 0;
+ static const struct {uint64_t m;int w,h;} shapes[7]={
+ {0x40603,3,3},{0x507,3,2},{0x705,3,2},{0x701,3,2},
+ {0x704,3,2},{0x20303,3,3},{0x20702,3,3}};
+ int safe=0,fragile=0;
+ for(int i=0;i<7;i++){
+  int n=fit(board,shapes[i].m,shapes[i].w,shapes[i].h);
+  safe+=(n>=2); fragile+=(n==1);
+ }
+ return 110*safe-125*fragile;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -715,6 +730,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_BIAXIAL_HARD_CLEAR
         utility+=BLResearchBiaxialHardClear(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
+        utility+=BLResearchRedundantHardLandings(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topAll[i].board);
 #endif
@@ -778,6 +796,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_BIAXIAL_HARD_CLEAR
         utility+=BLResearchBiaxialHardClear(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
+        utility+=BLResearchRedundantHardLandings(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topCombo[i].board);
