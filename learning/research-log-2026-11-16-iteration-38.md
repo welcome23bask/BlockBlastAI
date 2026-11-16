@@ -17,3 +17,15 @@ New feature in source commit `fb0be7172dfe1fa81842b72e7f57c53a28346199` changes 
 Independent unchanged v1.7 SMART SURVIVAL baseline; exact 8x8/three-piece moves; all three fresh normal, heavy, shifted-heavy generators; mean survival ≥10x and synthetic estimated score ≥10x for **each** generator and holdout, p10 survival ≥10x, illegal moves zero, combo breaks/move and avoidable combo deadlines no worse, zero censored runs under 4096, independent replicated holdout confirmation. Synthetic estimated score is **NOT** the actual Block Blast game score. Nothing may be deployed even if partially improving; record all failures and diagnose worst mode.
 
 At log creation: experiment underway, no measured result claimed.
+
+## Completed verdict — reject Pareto override
+
+[Run 43804331999](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43804331999) completed clean compile, strict seed preflight, 8x8/three-piece selftests, all training and two independent 30-game/generator holdouts; artifact `blockblast-tenx-bounded-research-43804331999` retained. No training finalist survived independent stage 2 (four of four had survival/p10/proxy regression on at least one generator, and one also violated combo safety). Isolated candidate weights stayed `120 120 30 60`; no promotion.
+
+| Generator | Holdout 1959 survival / synthetic estimated score / p10 | Holdout 1960 survival / synthetic estimated score / p10 |
+| --- | --- | --- |
+| Normal | 1.3823x / 1.5905x / **0.9615x** | 1.1328x / 1.2638x / 1.1628x |
+| Heavy | 1.0628x / 1.1483x / 1.0625x | **0.9970x / 0.9380x** / 1.1875x |
+| Shifted-heavy | 1.0724x / 1.1724x / **0.9412x** | 1.1797x / 1.3266x / 1.1176x |
+
+All moves legal, zero capped games, zero avoidable deadlines. Combo rates improved in five of six generator/holdout comparisons but *regressed in heavy holdout 1960* (candidate 3.100 vs v1.7 2.692 per 100). The proactive pair-feasibility override **does not improve overall robustness**: lower-tail survival regressed under normal and shifted-heavy on 1959, and mean survival/estimated score/combos regressed under heavy 1960. Strict 10x verdict failed twice. **Do not promote**; disable the override by default and prioritize a different model-selection approach rather than relaxing gates. Source revision for measured run `f7066aa59f3d2d77457c2db3b3da3215f22e567d`. Synthetic score is NOT observed Block Blast score.
