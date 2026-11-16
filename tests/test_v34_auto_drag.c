@@ -18,6 +18,21 @@ int main(void) {
     assert(plan.toY==300);
     assert(plan.fromY>500);
     assert(plan.toX>=80 && plan.toX<=250);
+    // Runaway-drag protections: do not initiate near the edge, below the
+    // phone viewport, or toward another screen's coordinate origin.
+    float normalTx=tx[1],normalTy=ty[1];
+    tx[1]=5;
+    assert(!BLAutoBuildDrag(0,tray,&m,43,220,323,500,
+                            tx,ty,tp,390,850,&plan));
+    tx[1]=normalTx;
+    ty[1]=844;
+    assert(!BLAutoBuildDrag(0,tray,&m,43,220,323,500,
+                            tx,ty,tp,390,850,&plan));
+    ty[1]=normalTy;
+    // Board center within nominal 8x8 but target nearly touches screen
+    // edge: all automated coordinates must respect the safe inset.
+    assert(!BLAutoBuildDrag(0,tray,&m,0,220,280,500,
+                            tx,ty,tp,390,850,&plan));
     uint64_t allEmpty=UINT64_MAX;
     assert(BLAutoTargetIsProvenEmpty(tray,&m,allEmpty));
     // A scanner saying this move is legal is NOT enough. The second
