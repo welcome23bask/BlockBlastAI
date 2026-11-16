@@ -80,6 +80,8 @@ cc -O3 -std=c11 -Wall -Wextra -Isrc -DBLFindTwoStrategies=BLV17FindTwoStrategies
 cc -O3 -std=c11 -Wall -Wextra -Isrc -c learning/BLTrainableStrategy.c -o trained.o
 cc -O3 -std=c11 -Wall -Wextra -Isrc -c src/BlockBlastSolver.c -o solver.o
 cc -O3 -std=c11 -Wall -Wextra -Isrc learning/train_tenx.c v17.o trained.o solver.o -lm -o tenx_lab
+cc -O2 -std=c11 -Wall -Wextra -Isrc learning/tenx_rules_selftest.c v17.o trained.o solver.o -lm -o tenx_rules_selftest
+./tenx_rules_selftest
 cp learning/tenx_checkpoint.txt tenx_checkpoint.txt
 echo "SOURCE_REVISION=$rev"
 echo "BASELINE_CHECKPOINT=$(cat tenx_checkpoint.txt)"
