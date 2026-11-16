@@ -1,0 +1,80 @@
+// Research-only 8x8 / three-visible-piece legality regression tests.
+// Does not call the actual Block Blast app or rely on proprietary scoring.
+#include "../src/BLDualStrategy.h"
+#include <assert.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+
+void BLSetTrainWeights(const int weights[4]);
+BLTwoStrategies BLV17FindTwoStrategies(uint64_t board,const BLPiece pieces[3],
+                                      BLComboContext combo,uint32_t budget);
+static uint64_t place_checked(uint64_t b,uint64_t mask,int *cleared) {
+    uint64_t all=b|mask,erase=0;
+    *cleared=0;
+    for(int r=0;r<8;r++) {
+        uint64_t m=UINT64_C(0xff)<<(8*r);
+        if((all&m)==m){erase|=m;(*cleared)++;}
+    }
+    for(int c=0;c<8;c++) {
+        uint64_t m=UINT64_C(0x0101010101010101)<<c;
+        if((all&m)==m){erase|=m;(*cleared)++;}
+    }
+    return all&~erase;
+}
+static void validate_plan(uint64_t board,const BLPiece pieces[3],
+                          const BLSolution *plan,int expected) {
+    assert(plan->movesFound==expected);
+    unsigned used=0;
+    for(int i=0;i<plan->movesFound;i++) {
+        BLMove m=plan->moves[i];
+        assert(m.pieceIndex>=0&&m.pieceIndex<3);
+        assert(!(used&(1u<<m.pieceIndex)));
+        used|=1u<<m.pieceIndex;
+        assert(m.row>=0&&m.row<8&&m.col>=0&&m.col<8);
+        assert(m.before==board);
+        const BLPiece *piece=&pieces[m.pieceIndex];
+        uint64_t mask=0;
+        for(int k=0;k<piece->count;k++) {
+            int row=m.row+piece->y[k],col=m.col+piece->x[k];
+            assert(row>=0&&row<8&&col>=0&&col<8);
+            uint64_t bit=UINT64_C(1)<<(8*row+col);
+            assert(!(mask&bit));
+            mask|=bit;
+        }
+        assert(!(mask&board)); // Cannot place on occupied squares.
+        int clears=0;
+        uint64_t after=place_checked(board,mask,&clears);
+        assert(m.linesCleared==clears&&m.after==after);
+        board=after;
+    }
+}
+int main(void) {
+    int lines=0;
+    uint64_t fullCross=(UINT64_C(0xff)&~UINT64_C(1))|
+          (UINT64_C(0x0101010101010101)&~UINT64_C(1));
+    assert(place_checked(fullCross,UINT64_C(1),&lines)==0&&lines==2);
+    assert(place_checked(fullCross|(UINT64_C(1)<<63),
+                         UINT64_C(1),&lines)==(UINT64_C(1)<<63)&&lines==2);
+    BLPiece ones[3]={0};
+    for(int i=0;i<3;i++){ones[i].count=1;ones[i].x[0]=0;ones[i].y[0]=0;}
+    BLComboContext combo={0};
+    int weights[4]={120,120,30,60};
+    BLSetTrainWeights(weights);
+    BLTwoStrategies trained=BLFindTwoStrategies(0,ones,combo,180000);
+    validate_plan(0,ones,&trained.smartSurvival,3);
+    BLTwoStrategies baseline=BLV17FindTwoStrategies(0,ones,combo,180000);
+    validate_plan(0,ones,&baseline.smartSurvival,3);
+    trained=BLFindTwoStrategies(UINT64_MAX,ones,combo,180000);
+    baseline=BLV17FindTwoStrategies(UINT64_MAX,ones,combo,180000);
+    validate_plan(UINT64_MAX,ones,&trained.smartSurvival,0);
+    validate_plan(UINT64_MAX,ones,&baseline.smartSurvival,0);
+    // Two legitimate steps, followed by a new call with one tray piece
+    // already consumed: the solver may not accidentally reuse old pieces.
+    BLPiece partial[3]={ones[0],ones[1],ones[2]};
+    partial[1].count=0;
+    trained=BLFindTwoStrategies(0,partial,combo,180000);
+    validate_plan(0,partial,&trained.smartSurvival,2);
+    printf("TENX_RULES_SELFTEST=PASS (row+column clears, legal 3-piece search, used-piece mask)\n");
+    return 0;
+}
