@@ -772,8 +772,16 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
            @"Automatic stopped: exact tray touch coordinates were not verified."];
         return;
     }
+    if(!BLAutoDragEndsOnHighlight(&plan,&move,_normalizedPieces,
+          (float)_gridFirst.x,(float)_gridFirst.y,
+          (float)_gridLast.x,(float)_gridLast.y)){
+        [self stopAutoPlayWithReason:
+            @"Automatic stopped: drop target does not equal yellow highlight anchor."];
+        return;
+    }
     _autoLastTouchCoordinates=[NSString stringWithFormat:
-        @"(%.0f,%.0f) → (%.0f,%.0f), display %.0fx%.0f",
+        @"P%d row %d col %d, finger (%.0f,%.0f) → (%.0f,%.0f), display %.0fx%.0f",
+        move.pieceIndex+1,move.row+1,move.col+1,
         plan.fromX,plan.fromY,plan.toX,plan.toY,
         self.view.bounds.size.width,self.view.bounds.size.height];
     _autoPlacing=YES;
@@ -795,57 +803,75 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         return;
     }
     _autoTouchSlot=finger;
-    // Emergency watchdog: even if a queued animation step never returns,
-    // cancel the same synthetic finger after the intended 0.4s gesture.
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                   (int64_t)(1.1*NSEC_PER_SEC)),
-                   dispatch_get_main_queue(), ^{
-        if(self->_autoPlacing || self->_autoTouchSlot>0)
-            [self stopAutoPlayWithReason:
-                 @"Automatic stopped: touch watchdog forced finger release."];
-    });
-    const int steps=14;
+    // A game may calculate placement using the LAST MOVED position,
+    // not the finger-up location. Send a full Moved event at the EXACT
+    // yellow target, hold motionless there for 180ms, then send Ended
+    // at the SAME exact target. Never interpolate past the destination.
+    const int steps=18;
+    const CFTimeInterval startDelay=.08;
+    const CFTimeInterval stepDelay=.032;
+    const CFTimeInterval endHold=.18;
     for(int i=1;i<=steps;i++){
-        int step=i;
+        const int step=i;
+        CFTimeInterval delay=startDelay+step*stepDelay;
         dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                       (int64_t)((0.05+step*.026)*NSEC_PER_SEC)),
+                       (int64_t)(delay*NSEC_PER_SEC)),
                        dispatch_get_main_queue(), ^{
             if(!self->_autoPlacing)return;
-            CGFloat portion=(CGFloat)step/(CGFloat)steps;
-            CGPoint point=CGPointMake(source.x+(destination.x-source.x)*portion,
-                                     source.y+(destination.y-source.y)*portion);
-            if(!self->_autoPlayEnabled && step<steps) {
-                [BLInProcessTouch touchAt:point phase:UITouchPhaseCancelled
-                                     slot:self->_autoTouchSlot];
-                self->_autoTouchSlot=0;
-                self->_autoPlacing=NO;
+            if(!self->_autoPlayEnabled){
+                [self stopAutoPlayWithReason:
+                    @"Automatic stopped: finger cancelled before reaching highlight."];
                 return;
             }
-            if(step==steps){
-                NSInteger released=[BLInProcessTouch touchAt:destination
-                        phase:UITouchPhaseEnded slot:self->_autoTouchSlot];
-                if(released<=0) {
-                    [self stopAutoPlayWithReason:
-                         @"Automatic stopped: finger release failed."];
-                    return;
-                }
-                self->_autoTouchSlot=0;
-                self->_autoPlacing=NO;
-                if(self->_autoPlayEnabled) {
-                    self->_autoAwaiting=YES;
-                    self->_autoDragAt=CFAbsoluteTimeGetCurrent();
-                }
-            } else {
-                NSInteger ok=[BLInProcessTouch touchAt:point
-                             phase:UITouchPhaseMoved slot:self->_autoTouchSlot];
-                if(!ok){
-                    self->_autoPlacing=NO;
-                    [self stopAutoPlayWithReason:
-                         @"Automatic stopped: touch stream failed."];
-                }
+            float x=0,y=0;
+            BLAutoDragPoint(&plan,(float)step/(float)steps,&x,&y);
+            // Pure helper clamps at the exact yellow destination.
+            CGPoint point=CGPointMake(x,y);
+            NSInteger ok=[BLInProcessTouch touchAt:point
+                    phase:UITouchPhaseMoved slot:self->_autoTouchSlot];
+            if(ok<=0){
+                [self stopAutoPlayWithReason:
+                    @"Automatic stopped: touch movement rejected before drop."];
+            } else if(step==steps){
+                self->_autoPlayStatus.text=
+                    @"Finger reached highlighted target. Holding steady, then releasing.";
             }
         });
     }
+    CFTimeInterval releaseAfter=startDelay+steps*stepDelay+endHold;
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                   (int64_t)(releaseAfter*NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if(!self->_autoPlacing)return;
+        if(!self->_autoPlayEnabled){
+            [self stopAutoPlayWithReason:
+                @"Automatic stopped: release cancelled after user stop."];
+            return;
+        }
+        NSInteger released=[BLInProcessTouch touchAt:destination
+                           phase:UITouchPhaseEnded slot:self->_autoTouchSlot];
+        if(released<=0){
+            [self stopAutoPlayWithReason:
+                @"Automatic stopped: finger release failed at highlighted target."];
+            return;
+        }
+        self->_autoTouchSlot=0;
+        self->_autoPlacing=NO;
+        self->_autoAwaiting=YES;
+        self->_autoDragAt=CFAbsoluteTimeGetCurrent();
+        self->_autoPlayStatus.text=
+            @"Finger released at highlighted target. Checking real board before another move.";
+    });
+    // Watchdog is LATER than the normal release; triggers cancellation if
+    // the main queue/gesture stalls, rather than holding a fake finger forever.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                   (int64_t)(1.45*NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if(self->_autoPlacing || self->_autoTouchSlot>0){
+            [self stopAutoPlayWithReason:
+                @"Automatic stopped: release watchdog cancelled the synthetic finger."];
+        }
+    });
 }
 - (void)autoTick {
     if(!_autoEnabled || _autoBusy || _autoPlacing ||
