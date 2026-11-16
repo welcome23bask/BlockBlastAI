@@ -255,6 +255,10 @@ static int future_tray_dfs(uint64_t board,int used,int sample,int *budget){
                 int result=future_tray_dfs(next,used|(1<<p),sample,budget);
                 if(result==1)return 1;
                 if(result<0)unknown=1;
+                // Truly bound compute: a recursion-budget exhaustion must
+                // stop OTHER siblings too, not continue iterating millions
+                // of alternatives that all immediately return UNKNOWN.
+                if(*budget<=0)return -1;
             }
     }
     return unknown?-1:0;
