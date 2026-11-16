@@ -236,10 +236,13 @@ static UITouch *MakeBeganTouch(CGPoint point, UIWindow *win) {
     [t setPhase:UITouchPhaseBegan];
     [t setTimestamp:NSProcessInfo.processInfo.systemUptime];
     if (@available(iOS 14.0, *)) {
-        [t _setIsTapToClick:NO];
+        if([t respondsToSelector:@selector(_setIsTapToClick:)])
+            [t _setIsTapToClick:NO];
     } else {
-        [t _setIsFirstTouchForView:YES];
-        [t setIsTap:NO];
+        if([t respondsToSelector:@selector(_setIsFirstTouchForView:)])
+            [t _setIsFirstTouchForView:YES];
+        if([t respondsToSelector:@selector(setIsTap:)])
+            [t setIsTap:NO];
     }
     if ([t respondsToSelector:@selector(setGestureView:)]) {
         [t setGestureView:hit];
@@ -330,7 +333,11 @@ static NSInteger BLProviderFreeSlot(Class cls) {
 // in-process UIResponder delivery, not a system-wide injected HID event.
 // The overlay MUST verify the actual board changed after any attempt.
 static BOOL BLCanDeliverDirectToGame(void) {
-    if(!ResolveTouchWindow())return NO;
+    if(!ResolveTouchWindow() || !BLResolveHID())return NO;
+    // This build's MakeBeganTouch still attaches a real backing HID event;
+    // require that private setter even though delivery itself is direct.
+    if(![UITouch instancesRespondToSelector:@selector(_setHidEvent:)])
+        return NO;
     Class touch=[UITouch class];
     return [touch instancesRespondToSelector:@selector(setWindow:)] &&
            [touch instancesRespondToSelector:@selector(setView:)] &&
@@ -400,7 +407,9 @@ static NSString *BLHIDMissingPart(void){
     if(BLHIDMissingPart()==nil)return YES;
     // Missing add-touch doesn't imply an app-owned responder cannot receive
     // direct touch phases. Do not assume this will work in all game engines.
-    return BLCanDeliverDirectToGame();
+    return BLCanDeliverDirectToGame() &&
+        ![UIEvent instancesRespondToSelector:
+            @selector(_addTouch:forDelayedDelivery:)];
 }
 + (NSString *)capabilityReport {
     Class provider=BLExistingFakeTouchProvider();
@@ -410,7 +419,8 @@ static NSString *BLHIDMissingPart(void){
     NSString *missing=BLHIDMissingPart();
     if(!missing)
         return @"HID touch method available; actual game acceptance unverified.";
-    if(BLCanDeliverDirectToGame())
+    if(BLCanDeliverDirectToGame() &&
+       ![UIEvent instancesRespondToSelector:@selector(_addTouch:forDelayedDelivery:)])
         return [NSString stringWithFormat:
             @"UIKit method missing (%@). Testing direct game-view touches; first real drag unverified.",
             missing];
@@ -431,8 +441,10 @@ static NSString *BLHIDMissingPart(void){
         // This is the provider's own slot ID; pass unchanged for move/end.
         return BLProviderTouch(provider,providerSlot,point,phase);
     }
-    BOOL direct=(BLHIDMissingPart()!=nil);
+    BOOL direct=![UIEvent instancesRespondToSelector:
+        @selector(_addTouch:forDelayedDelivery:)];
     if(direct && !BLCanDeliverDirectToGame())return 0;
+    if(!direct && BLHIDMissingPart()!=nil)return 0;
     UIWindow *win = ResolveTouchWindow();
     if(!win)return 0;
 
