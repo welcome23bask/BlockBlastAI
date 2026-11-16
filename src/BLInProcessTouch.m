@@ -3,6 +3,7 @@
 // Adapted with capability detection and runtime IOKit lookup; never
 // synthesize a touch if the required private symbols/selectors are absent.
 #import "BLInProcessTouch.h"
+#import "BLTouchRoute.h"
 #import <dlfcn.h>
 #import <objc/message.h>
 #import <mach/mach_time.h>
@@ -400,16 +401,17 @@ static NSString *BLHIDMissingPart(void){
     if(!ResolveTouchWindow())return @"no foreground game window";
     return nil;
 }
+static BLTouchRoute BLRuntimeTouchRoute(void) {
+    return BLSelectTouchRoute(BLExistingFakeTouchProvider()!=Nil,
+                             BLHIDMissingPart()==nil,
+                             BLCanDeliverDirectToGame(),
+                             [UIEvent instancesRespondToSelector:
+                               @selector(_addTouch:forDelayedDelivery:)]);
+}
 @implementation BLInProcessTouch
 
 + (BOOL)isAvailable {
-    if(BLExistingFakeTouchProvider())return YES;
-    if(BLHIDMissingPart()==nil)return YES;
-    // Missing add-touch doesn't imply an app-owned responder cannot receive
-    // direct touch phases. Do not assume this will work in all game engines.
-    return BLCanDeliverDirectToGame() &&
-        ![UIEvent instancesRespondToSelector:
-            @selector(_addTouch:forDelayedDelivery:)];
+    return BLRuntimeTouchRoute()!=BLTouchRouteNone;
 }
 + (NSString *)capabilityReport {
     Class provider=BLExistingFakeTouchProvider();
@@ -441,10 +443,10 @@ static NSString *BLHIDMissingPart(void){
         // This is the provider's own slot ID; pass unchanged for move/end.
         return BLProviderTouch(provider,providerSlot,point,phase);
     }
-    BOOL direct=![UIEvent instancesRespondToSelector:
-        @selector(_addTouch:forDelayedDelivery:)];
-    if(direct && !BLCanDeliverDirectToGame())return 0;
-    if(!direct && BLHIDMissingPart()!=nil)return 0;
+    BLTouchRoute route=BLRuntimeTouchRoute();
+    if(route!=BLTouchRouteDirectGameView &&
+       route!=BLTouchRouteHIDEvent)return 0;
+    BOOL direct=route==BLTouchRouteDirectGameView;
     UIWindow *win = ResolveTouchWindow();
     if(!win)return 0;
 
