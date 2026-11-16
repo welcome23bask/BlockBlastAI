@@ -54,3 +54,19 @@ The bounded fair-root design has now been experimentally evaluated and should be
 ## Provenance and deployment
 
 No full external historical seed-use audit is available; current epoch non-use is supported only by the accessible branch logs and recent Actions runs, so treat these epochs as provisional until independent verification. No code was deployed to a phone. No production or main changes, no dylib build, no saved checkpoint/candidate promotion: saved checkpoint remains `16 120 120 30 60`. The 10x target has **not** been verified. Do not imply a failed Actions workflow is a failure to execute when compilation and simulations actually completed; distinguish performance-gate failure from infrastructure failure.
+
+## Post-experiment safety decision
+
+Because iteration 30's fair-root traversal regressed shifted-heavy mean survival and proxy score in **both** holdouts, commit `cbadb897` gated the fair-root implementation behind compile-time `BL_RESEARCH_FAIR_ROOT=1`, default OFF. This preserves the hypothesis for explicit research A/B experiments without silently treating it as a promoted improvement. The default behavior has not itself been independently recompiled after this toggle commit; the upcoming bounded research run must compile and rerun tests.
+
+All used iteration 28–30 IDs (1828/1939/1940; 1829/1941/1942; 1830/1943/1944) were entered in the central exclusion ledger. Do not rerun the workflow's currently configured 1830/1943/1944 IDs: the runner will correctly reject them. Do not launch a duplicate job merely to check whether the workflow is green.
+
+## What still blocks 10x and the next useful hypothesis
+
+1. **Generalization failure:** New coefficients and optional root search have not consistently beaten v1.7 across normal, heavy and shifted-heavy piece distributions, especially p10. Both 30-game holdouts can disagree even on mean improvement.
+2. **Long-horizon planning:** Current afterstate heuristic mainly rewards one-tray footprints; four-weight neighborhood search cannot learn which boards survive unfavorable **future** trays. Next worthwhile research change is a bounded, distribution-aware rollout/feasibility evaluator that samples unknown future trays from each *documented synthetic generator* without peeking at actual future draws during deployment. Compare legal full-tray outcomes and combo deadlines. Do not treat this as a guarantee.
+3. **Validation power:** Five paired training games per generator are insufficient to predict 30-game holdout gains reliably. Consider increasing independent training seeds or validation sampling within the 12-minute cap, using a cheaper candidate shortlisting stage and a larger final paired validation. Do not train on holdout epochs.
+4. **Simulator mismatch:** 28 shape patterns and three synthetic generators are not the real game's proprietary piece distribution/scoring; no 10x claim can be transferred to phone results without observed real-tray evidence.
+5. **Model promotion:** Keep current saved checkpoint and iPhone deployment unchanged until every per-generator survival, proxy score, p10, zero-invalid, combo-break and avoidable-deadline gate passes on independently replicated, audited untouched seeds.
+
+Automated research remains active and should prioritize one new, substantive gameplay hypothesis rather than repeating unsuccessful four-weight searches or shallow audits.
