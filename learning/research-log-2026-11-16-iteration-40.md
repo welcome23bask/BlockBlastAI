@@ -17,3 +17,15 @@ New **model-selection hypothesis** in `learning/BLTrainableStrategy.c` commit `c
 Per generator and per independent holdout: ≥10x mean survival, ≥10x **synthetic estimated** score, ≥10x p10 survival; zero illegal moves, no worse combo breaks per move and avoidable combo deadlines, no capped games at 4096, independent confirmation before 10x claim. Baseline `src/BLDualStrategy.c` remains unchanged. Synthetic score estimates are **not actual Block Blast game points**. The phone v3.4 Automatic Play, main, deployment, saved checkpoint, and validated candidate remain untouched.
 
 At log creation: CI running, no outcome claimed.
+
+## Completed result — REJECT BASELINE SHIELD
+
+[Run 43805340214](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43805340214) completed seed preflight, source compile, exact 8x8 / three-piece selftests, training, and two independent 30-game-per-generator synthetic holdouts. All 21 local weight candidates failed combo-safety on five-game training samples; zero finalists were tested/promoted. The shield is not a safe model-selection method. Logs and the failure artifact remain attached to the Actions run.
+
+| Generator | Holdout 1963 survival / estimated score / p10 | Holdout 1964 survival / estimated score / p10 |
+| --- | --- | --- |
+| Normal | 1.3404x / 1.5449x / **0.8600x** | 1.8203x / 2.1104x / 1.5172x |
+| Heavy | 1.0834x / 1.2320x / 1.1000x | 1.1610x / 1.4642x / 1.1875x |
+| Shifted-heavy | 1.0299x / **0.9952x** / 1.4167x | **0.9278x / 0.9335x / 0.9412x** |
+
+Every simulated placement was legal, no right-censored games, zero additional avoidable combo deadlines. But the full train combo-safety gate failed and shifted-heavy independent holdout 1964 **regressed on all three primary metrics**. Baseline-guided afterstate proxy comparison cannot guarantee higher actual simulator survival. The v1.7 anchored risk shield must be default OFF. Neither holdout reaches any universal 10x result. Synthetic estimated score is **not actual Block Blast game score**. No saved checkpoint, main or v3.4 changes.
