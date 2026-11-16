@@ -119,7 +119,10 @@
 // Iteration 51: mobility coverage of free cells by diverse exact legal bulky footprints.
 #define BL_RESEARCH_FREE_CELL_MOBILITY 0
 // Iteration 52: reward accessible nearly-complete row/column repair lines, not bulky-footprint coverage.
-#define BL_RESEARCH_LINE_REPAIR_POTENTIAL 1
+#define BL_RESEARCH_LINE_REPAIR_POTENTIAL 0
+// Iteration 53: exact single-piece repair feasibility; unlike union-cell reachability,
+// every missing line cell must be filled by ONE legal placement.
+#define BL_RESEARCH_EXACT_REPAIR 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -382,6 +385,41 @@ static int BLResearchLineRepairPotential(uint64_t board) {
             if(reachable==n)score+=(4-n)*125;
             else score-=90*(n-reachable);
         }
+    }
+    return score;
+}
+// Bounded deterministic afterstate hypothesis: only credit a near-full line
+// when a single legal small piece actually completes it. The prior union
+// coverage method falsely credited holes reached by different placements.
+// No future-tray RNG or game-specific unseen state is consulted.
+static int BLResearchExactRepair(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    const uint64_t shapes[6]={UINT64_C(0x1),UINT64_C(0x3),
+        UINT64_C(0x101),UINT64_C(0x303),UINT64_C(0x7),UINT64_C(0x10101)};
+    const int ws[6]={1,2,1,2,3,1},hs[6]={1,1,2,2,1,3};
+    uint64_t lines[16];int missing[16],nlines=0;
+    for(int r=0;r<8;r++){
+        uint64_t holes=(UINT64_C(255)<<(8*r))&~board;
+        int n=bits(holes);
+        if(n>=1&&n<=3){lines[nlines]=holes;missing[nlines++]=n;}
+    }
+    for(int c=0;c<8;c++){
+        uint64_t holes=(UINT64_C(0x0101010101010101)<<c)&~board;
+        int n=bits(holes);
+        if(n>=1&&n<=3){lines[nlines]=holes;missing[nlines++]=n;}
+    }
+    int score=0;
+    for(int i=0;i<nlines;i++){
+        int ways=0;
+        for(int k=0;k<6;k++)for(int r=0;r<=8-hs[k];r++)
+            for(int c=0;c<=8-ws[k];c++){
+                uint64_t m=shapes[k]<<(8*r+c);
+                if(!(m&board) && (m&lines[i])==lines[i])ways++;
+            }
+        // Saturate redundancy so an easy one-cell clear cannot overwhelm
+        // preservation of several independent repairable lines.
+        if(ways)score+=(4-missing[i])*110+(ways>3?3:ways)*35;
+        else score-=140;
     }
     return score;
 }
@@ -816,6 +854,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_LINE_REPAIR_POTENTIAL
         utility+=BLResearchLineRepairPotential(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_EXACT_REPAIR
+        utility+=BLResearchExactRepair(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
 #endif
@@ -888,6 +929,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_LINE_REPAIR_POTENTIAL
         utility+=BLResearchLineRepairPotential(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_EXACT_REPAIR
+        utility+=BLResearchExactRepair(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
