@@ -15,3 +15,15 @@ The previous single-minimum hard-shape bonus also poorly captures the distributi
 ## No-relax 10x acceptance
 
 All normal/heavy/shifted-heavy generators on both holdouts must independently achieve ≥10x mean survival, ≥10x **synthetic estimated score**, ≥10x p10 survival, zero illegal moves, nonworsening combo-break rates and avoidable deadlines, zero 4096-capped games, and independent replication before any success claim. Synthetic estimated score is **NOT actual Block Blast game score**. No main/phone/deployment/validated-checkpoint changes. Pending verdict at log creation.
+
+## Completed result — no universal 10× and no candidate promotion
+
+[Actions run 43805816034](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43805816034) passed source compilation, exact three-piece rule selftests, fresh seed preflight and completed two independent 30-game/generator holdouts. Twenty of twenty-one weight variants failed safety screening; the sole survivor failed the independent eight-game stage-two training split. The holdout artifact `blockblast-tenx-bounded-research-43805816034` is saved. None was promoted.
+
+| Generator | 1965 mean survival / estimated score / p10 | 1966 mean survival / estimated score / p10 |
+|---|---|---|
+| Normal | 1.2359× / 1.3843× / **0.7321×** | 1.6377× / 1.9727× / 1.5610× |
+| Heavy | 1.2856× / 1.5410× / 1.3333× | 1.4863× / 2.0417× / 1.2353× |
+| Shifted-heavy | 1.1995× / 1.4405× / 1.1765× | 1.0710× / 1.2031× / 1.3571× |
+
+All reported moves legal, no censored games or additional avoidable combo deadline misses. However 1966 shifted-heavy combo breaks per 100 moves were **2.772 vs v1.7's 2.757**, disqualifying under zero-regression gate; 1965 normal p10 collapsed to 41 from baseline 56 (0.7321×). Per-generator 10× gates failed twice. Broad future-shape landing coverage can aid heavy pieces but hurts normal lower-tail and a shifted-heavy combo comparison. **Reject as default**; retain opt-in research flag only. Next hypothesis should favor *immediate future clear opportunities*, rather than raw fit counts across shapes, while retaining exact combo-safety checks and unchanged gates. Synthetic estimated score is not game points. Main, v3.4 iPhone and saved checkpoint were never touched.
