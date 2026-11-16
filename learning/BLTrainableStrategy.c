@@ -82,7 +82,7 @@
 // complements the promising future single-piece clear-access feature and
 // avoids speculative hidden future trays. Research-only late rerank.
 #ifndef BL_RESEARCH_CONNECTED_FREE_REGION
-#define BL_RESEARCH_CONNECTED_FREE_REGION 1
+#define BL_RESEARCH_CONNECTED_FREE_REGION 0
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
