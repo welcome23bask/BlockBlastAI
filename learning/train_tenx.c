@@ -68,12 +68,12 @@ static uint32_t seed_for(int scenario,int game,int epoch){
 static int compare_int(const void *a,const void *b){
     int x=*(const int*)a,y=*(const int*)b;return x<y?-1:x>y;
 }
-static TenXStats measure(const int w[4],int n,int epoch,int scenario,int original){
+static TenXStats measure_range(const int w[4],int n,int epoch,int scenario,int original,int gameOffset){
     TenXStats s={.n=n};
     int *lengths=calloc(n,sizeof(int));if(!lengths)abort();
     for(int i=0;i<n;i++){
         int truncated=0,calls=0;
-        Result r=episode_complete(seed_for(scenario,i,epoch),scenario,w,original,&truncated,&calls);
+        Result r=episode_complete(seed_for(scenario,gameOffset+i,epoch),scenario,w,original,&truncated,&calls);
         s.searchCalls+=calls;
         s.truncatedCalls+=truncated;
         s.moves+=r.moves;s.score+=r.proxy;s.breaks+=r.breaks;
@@ -81,6 +81,9 @@ static TenXStats measure(const int w[4],int n,int epoch,int scenario,int origina
     }
     qsort(lengths,n,sizeof(int),compare_int);
     s.p10=lengths[(n-1)/10];free(lengths);return s;
+}
+static TenXStats measure(const int w[4],int n,int epoch,int scenario,int original){
+    return measure_range(w,n,epoch,scenario,original,0);
 }
 static double tenx_fitness(TenXStats s,TenXStats baseline){
     // Balanced across generators: reward lower-tail robustness and penalize
@@ -130,6 +133,12 @@ static int train(int argc,char **argv){
         for(int scenario=0;scenario<3;scenario++)
             reference[scenario]=measure(zero,seeds,training_seed_epoch,scenario,1);
         int feasible=0,rejectedCombo=0,rejectedIllegal=0;
+        // Bounded successive validation: rank 21 local trial variants on
+        // an initial training split, then use independent games 100..107
+        // of the SAME training epoch to vet at most four finalists. Never
+        // touch the two completely separate holdout epoch namespaces.
+        int topWeights[4][4]={{0}},topN=0;
+        double topFitness[4]={0};
         for(int attempt=0;attempt<21;attempt++){
             int trial[4];memcpy(trial,w,sizeof(trial));
             if(attempt){
@@ -188,12 +197,76 @@ static int train(int argc,char **argv){
             if(illegalUnsafe){++rejectedIllegal;continue;}
             ++feasible;
             if(score>best){best=score;memcpy(chosen,trial,sizeof(chosen));}
+            int slot=-1;
+            if(topN<4)slot=topN++;
+            else {
+                int worst=0;
+                for(int k=1;k<4;++k)
+                    if(topFitness[k]<topFitness[worst])worst=k;
+                if(score>topFitness[worst])slot=worst;
+            }
+            if(slot>=0) {
+                topFitness[slot]=score;
+                memcpy(topWeights[slot],trial,sizeof(trial));
+            }
         }
-        if(feasible)memcpy(w,chosen,sizeof(w));
-        else best=-1.0; // retain the previous research checkpoint, not zero
         printf("candidate_safety_gate feasible=%d/21 rejected_combo=%d "
                "rejected_illegal=%d no_feasible=%d\n",feasible,
                rejectedCombo,rejectedIllegal,!feasible);
+        const int verificationGames=8,verificationOffset=100;
+        int verifiedSafe=0,rejectedRegression=0;
+        double verifiedBest=-1e100;
+        if(topN) {
+            TenXStats secondReference[3];
+            for(int scenario=0;scenario<3;++scenario)
+                secondReference[scenario]=
+                    measure_range(zero,verificationGames,training_seed_epoch,
+                                  scenario,1,verificationOffset);
+            for(int k=0;k<topN;++k) {
+                double robustScore=INFINITY;
+                int badCombo=0,badIllegal=0,badRegression=0;
+                for(int scenario=0;scenario<3;++scenario) {
+                    TenXStats candidate=measure_range(
+                        topWeights[k],verificationGames,training_seed_epoch,
+                        scenario,0,verificationOffset);
+                    TenXStats ref=secondReference[scenario];
+                    double cbr=candidate.breaks/(candidate.moves+1e-9);
+                    double rbr=ref.breaks/(ref.moves+1e-9);
+                    if(candidate.illegal)badIllegal=1;
+                    if(candidate.skips>ref.skips || cbr>rbr+1e-9)
+                        badCombo=1;
+                    // Don't select a policy on 5 games if a different
+                    // 8-game training split shows worse survival, lower-tail
+                    // survival or proxy score in ANY hard generator.
+                    if(candidate.moves<ref.moves || candidate.score<ref.score ||
+                       candidate.p10<ref.p10)badRegression=1;
+                    robustScore=fmin(robustScore,
+                                     tenx_fitness(candidate,ref));
+                }
+                printf("STAGE2 candidate=%d worst_fitness=%.2f "
+                       "combo_unsafe=%d illegal=%d regression=%d\n",
+                       k,robustScore,badCombo,badIllegal,badRegression);
+                if(badRegression)++rejectedRegression;
+                if(badCombo||badIllegal||badRegression)continue;
+                ++verifiedSafe;
+                if(robustScore>verifiedBest) {
+                    verifiedBest=robustScore;
+                    memcpy(chosen,topWeights[k],sizeof(chosen));
+                }
+            }
+        }
+        if(verifiedSafe) {
+            memcpy(w,chosen,sizeof(w));
+            best=verifiedBest;
+        } else {
+            // Never promote an unverified fitted strategy.
+            best=-1.0;
+        }
+        printf("STAGE2_VERDICT training_candidates=%d fresh_games_per_generator=%d "
+               "game_offset=%d verified_safe=%d rejected_regressions=%d "
+               "weights_promoted_within_isolated_run=%d\n",
+               topN,verificationGames,verificationOffset,verifiedSafe,
+               rejectedRegression,verifiedSafe>0);
         FILE *checkpoint=fopen("tenx_checkpoint.pending","w");if(!checkpoint)abort();
         fprintf(checkpoint,"%d %d %d %d %d\n",epoch+1,w[0],w[1],w[2],w[3]);
         fclose(checkpoint);
