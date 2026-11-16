@@ -25,7 +25,7 @@
 // normal survival, but heavy survival remained only ~1.12x on holdout.
 // Restore as the last combo-safe characterized hypothesis for iteration 38.
 #ifndef BL_RESEARCH_MIN_HARD_COVERAGE
-#define BL_RESEARCH_MIN_HARD_COVERAGE 1
+#define BL_RESEARCH_MIN_HARD_COVERAGE 0
 #endif
 // Iteration 37 (rejected on shifted-heavy combo rate): reward the bottom-three hard-piece landing counts DURING
 // every explored current-tray afterstate, before the top-four finalist filter.
@@ -56,7 +56,13 @@
 // worsen a known combo deadline. This is a research-only ensemble decision,
 // not a modification to v1.7, not access to hidden game state.
 #ifndef BL_RESEARCH_BASELINE_RISK_SHIELD
-#define BL_RESEARCH_BASELINE_RISK_SHIELD 1
+#define BL_RESEARCH_BASELINE_RISK_SHIELD 0
+#endif
+// Iteration 41: distributionally robust future-piece accessibility across
+// all 28 public synthetic laboratory shape templates. Assess only already
+// proven legal current-tray finalists, NOT hidden next-tray RNG samples.
+#ifndef BL_RESEARCH_SHAPE_MIXTURE
+#define BL_RESEARCH_SHAPE_MIXTURE 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -172,6 +178,59 @@ static int worst_hard_coverage(uint64_t board) {
         if(n<minimum)minimum=n;
     }
     return minimum>6?6:minimum;
+}
+// Geometry-only mixture of synthetic normal/heavy/shifted-heavy shape FAMILIES.
+// Pattern masks/width/height match learning/learn_combo_guarded.c's 28 templates.
+// This does not sample or observe the next RNG state, and does NOT model real
+// Block Blast spawn probabilities. A zero fit is an accessibility hazard.
+int BLResearchShapeMixtureValue(uint64_t board) {
+    static const struct {uint64_t mask;int w,h;} shape[28]={
+        {UINT64_C(0x1),1,1}, /* 0 # */
+        {UINT64_C(0x3),2,1}, /* 1 ## */
+        {UINT64_C(0x7),3,1}, /* 2 ### */
+        {UINT64_C(0xf),4,1}, /* 3 #### */
+        {UINT64_C(0x1f),5,1}, /* 4 ##### */
+        {UINT64_C(0x101),1,2}, /* 5 #/# */
+        {UINT64_C(0x10101),1,3}, /* 6 #/#/# */
+        {UINT64_C(0x1010101),1,4}, /* 7 #/#/#/# */
+        {UINT64_C(0x101010101),1,5}, /* 8 #/#/#/#/# */
+        {UINT64_C(0x303),2,2}, /* 9 ##/## */
+        {UINT64_C(0x70707),3,3}, /* 10 ###/###/### */
+        {UINT64_C(0x30303),2,3}, /* 11 ##/##/## */
+        {UINT64_C(0x707),3,2}, /* 12 ###/### */
+        {UINT64_C(0x603),3,2}, /* 13 ##./.## */
+        {UINT64_C(0x306),3,2}, /* 14 .##/##. */
+        {UINT64_C(0x301),2,2}, /* 15 #./## */
+        {UINT64_C(0x302),2,2}, /* 16 .#/## */
+        {UINT64_C(0x107),3,2}, /* 17 ###/#.. */
+        {UINT64_C(0x407),3,2}, /* 18 ###/..# */
+        {UINT64_C(0x207),3,2}, /* 19 ###/.#. */
+        {UINT64_C(0x702),3,2}, /* 20 .#./### */
+        {UINT64_C(0x40603),3,3}, /* 21 ##./.##/..# */
+        {UINT64_C(0x507),3,2}, /* 22 ###/#.# */
+        {UINT64_C(0x705),3,2}, /* 23 #.#/### */
+        {UINT64_C(0x701),3,2}, /* 24 #../### */
+        {UINT64_C(0x704),3,2}, /* 25 ..#/### */
+        {UINT64_C(0x20303),3,3}, /* 26 ##./##./.#. */
+        {UINT64_C(0x20702),3,3} /* 27 .#./###/.#. */
+    };
+    int capped=0,unplaceable=0,oneLanding=0;
+    for(int i=0;i<28;++i) {
+        // Robust proxy weight: balanced among general pieces, the heavy
+        // shape family and the shifted-heavy family. All retain positive
+        // weight; this is NOT fitted to withheld test seeds.
+        int weight=2;
+        if((i>=9&&i<=14)||i>=21)weight+=3;
+        if(i==4||i==8||i==10||i==11||i>=21)weight+=3;
+        int n=fit(board,shape[i].mask,shape[i].w,shape[i].h);
+        capped+=weight*(n>6?6:n);
+        if(n==0)unplaceable+=weight;
+        else if(n==1)oneLanding+=weight;
+    }
+    // Reward broad coverage rather than just the single rarest hard shape.
+    // Penalize unavailable types and fragile single-landing types. This is a
+    // bounded afterstate score, never a guarantee about any future tray.
+    return 5*capped-95*unplaceable-25*oneLanding;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -425,7 +484,11 @@ static void rerank_afterstates(BLSearch *ctx) {
             + 450*worst_hard_coverage(ctx->topAll[i].board)
 #endif
             +550*
-            BLResearchPairCoverage(ctx->topAll[i].board);
+            BLResearchPairCoverage(ctx->topAll[i].board)
+#if BL_RESEARCH_SHAPE_MIXTURE
+            + BLResearchShapeMixtureValue(ctx->topAll[i].board)
+#endif
+            ;
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topAll[i].board);
 #endif
@@ -460,7 +523,11 @@ static void rerank_afterstates(BLSearch *ctx) {
             + 450*worst_hard_coverage(ctx->topCombo[i].board)
 #endif
             +550*
-            BLResearchPairCoverage(ctx->topCombo[i].board);
+            BLResearchPairCoverage(ctx->topCombo[i].board)
+#if BL_RESEARCH_SHAPE_MIXTURE
+            + BLResearchShapeMixtureValue(ctx->topCombo[i].board)
+#endif
+            ;
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topCombo[i].board);
 #endif
