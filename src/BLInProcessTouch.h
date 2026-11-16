@@ -9,5 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (NSString *)capabilityReport;
 + (NSInteger)touchAt:(CGPoint)point phase:(UITouchPhase)phase slot:(NSInteger)slot;
 + (BOOL)tap:(CGPoint)point;
+// Emergency release of ALL touches started by BlockBlastAI, including
+// a best-effort cancel of a touch that was already sent an Ended phase.
+// Call on every stop, error, panel opening and application background.
++ (void)forceCancelAllTouches;
 @end
 NS_ASSUME_NONNULL_END
