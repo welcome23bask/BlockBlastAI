@@ -115,7 +115,9 @@
 #endif
 #define BL_RESEARCH_REDUNDANT_HARD_LANDINGS 0
 // Iteration 50: exact non-overlapping 3x3 landing pairs, not individual landing counts.
-#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 1
+#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 0
+// Iteration 51: mobility coverage of free cells by diverse exact legal bulky footprints.
+#define BL_RESEARCH_FREE_CELL_MOBILITY 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -321,6 +323,26 @@ static int BLResearchDisjointSquarePair(uint64_t board) {
     for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)
         if(!(slots[i]&slots[j])){if(++pairs>=6)return 720;}
     return pairs*120;
+}
+// Count how many distinct empty cells remain reachable by legal 3x3,
+// horizontal 5-bar and vertical 5-bar placements. Unlike counts of landing
+// positions, this detects when all legal options reuse one narrow pocket.
+// Only the observable afterstate is used; no future RNG or hidden pieces.
+static int BLResearchFreeCellMobility(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    const uint64_t patterns[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
+    const int widths[3]={3,5,1},heights[3]={3,1,5};
+    uint64_t covered[3]={0,0,0};
+    for(int k=0;k<3;k++)
+        for(int r=0;r<=8-heights[k];r++)
+            for(int c=0;c<=8-widths[k];c++) {
+                uint64_t m=patterns[k]<<(r*8+c);
+                if(!(board&m))covered[k]|=m;
+            }
+    uint64_t any=covered[0]|covered[1]|covered[2];
+    uint64_t shared=(covered[0]&covered[1])|(covered[0]&covered[2])|(covered[1]&covered[2]);
+    int unreachable=bits((~board)&(~any));
+    return 28*bits(any)+16*bits(shared)-45*unreachable;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -750,6 +772,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
         utility+=BLResearchRedundantHardLandings(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_FREE_CELL_MOBILITY
+        utility+=BLResearchFreeCellMobility(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
 #endif
@@ -819,6 +844,12 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
         utility+=BLResearchRedundantHardLandings(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_FREE_CELL_MOBILITY
+        utility+=BLResearchFreeCellMobility(ctx->topAll[i].board);
+#endif
+#if BL_RESEARCH_FREE_CELL_MOBILITY
+        utility+=BLResearchFreeCellMobility(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
