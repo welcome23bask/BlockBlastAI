@@ -178,3 +178,48 @@ int BLVisionLumaBoard(const uint8_t *im,int w,int h,
     }
     return BLVisionLumaFromCenters(centers,out);
 }
+
+int BLVisionUniformEmptyBoard(const uint8_t *im,int w,int h,
+                              const BLVisionResult *geom,uint64_t *out) {
+    if(!im||!geom||!out||w<240||h<350||w>1600||h>3000)return 0;
+    double dx=(geom->lastX-geom->firstX)/7.0;
+    double dy=(geom->lastY-geom->firstY)/7.0;
+    double left=geom->firstX-dx*.5,top=geom->firstY-dy*.5;
+    if(dx<15||dy<15||fabs(dx-dy)>fmax(dx,dy)*.14 ||
+       left<3||top<3||left+8*dx+3>=w||top+8*dy+3>=h)return 0;
+    uint8_t colors[64][3];
+    int hist[3][256]={{0}},lumMin=765,lumMax=0;
+    for(int row=0;row<8;row++)for(int col=0;col<8;col++) {
+        int i=row*8+col;
+        int cx=(int)lround(geom->firstX+col*dx);
+        int cy=(int)lround(geom->firstY+row*dy);
+        sample(im,w,h,cx,cy,geom->flippedInput,colors[i]);
+        int lum=0;
+        for(int k=0;k<3;k++){hist[k][colors[i][k]]++;lum+=colors[i][k];}
+        if(lum<lumMin)lumMin=lum;
+        if(lum>lumMax)lumMax=lum;
+    }
+    // Every cell must resemble the same empty-cell RGB population. A single
+    // visibly different block invalidates the whole-board empty proof.
+    if(lumMax-lumMin>36)return 0;
+    uint8_t median[3]={0};
+    for(int k=0;k<3;k++) {
+        int n=0;
+        for(int v=0;v<256;v++) {n+=hist[k][v];
+            if(n>=32){median[k]=(uint8_t)v;break;}
+        }
+    }
+    for(int i=0;i<64;i++)if(d3(colors[i],median)>31)return 0;
+    // Repeated cell boundaries prove an actual grid exists; a flat menu,
+    // loading screen or solid rectangular overlay cannot certify 64 empties.
+    int seamDistinct=0;
+    for(int row=1;row<=7;row++)for(int col=1;col<=7;col++) {
+        uint8_t seam[3];
+        sample(im,w,h,(int)lround(left+col*dx),
+                      (int)lround(top+row*dy),geom->flippedInput,seam);
+        if(d3(seam,median)>=17)seamDistinct++;
+    }
+    if(seamDistinct<33)return 0;
+    *out=UINT64_MAX;
+    return 1;
+}

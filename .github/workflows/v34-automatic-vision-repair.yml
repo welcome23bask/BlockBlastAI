@@ -1,0 +1,309 @@
+name: v3.4 Automatic Vision Repair iPhone
+on:
+  push:
+    branches: [feature/v3.4-automatic-vision-repair]
+    paths:
+      - 'src/**'
+      - 'tests/test_training_zip.c'
+      - 'docs/v34-100-future-shape-safety.md'
+      - 'scripts/train_v33_color_verifier.py'
+      - 'tests/test_v33_*.c'
+      - 'tests/test_v34_*.c'
+      - 'tests/benchmark_v34_paired_games.c'
+      - '.github/workflows/v34-automatic-vision-repair.yml'
+  workflow_dispatch:
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify ZIP writer is readable, correct, and path-safe
+        run: |
+          cc -O2 -std=gnu11 -Wall -Wextra -Werror tests/test_training_zip.c src/BLTrainingZIP.c -o /tmp/test-training-zip
+          archive=$(/tmp/test-training-zip)
+          python3 - "$archive" <<'PY'
+          import sys,zipfile,json
+          path=sys.argv[1]
+          with zipfile.ZipFile(path) as z:
+              assert z.testzip() is None
+              assert sorted(z.namelist())==['sample.jpg','sample.json']
+              assert z.read('sample.jpg').startswith(bytes.fromhex('ffd8ffe0'))
+              labels=json.loads(z.read('sample.json'))
+              assert labels['reviewed'] is False and labels['trainable'] is False
+          print('PASS iPhone-readable ZIP, CRC, metadata, traversal rejection')
+          PY
+      - name: Original skin, shape, three-try, and diagonal-piece regressions
+        run: |
+          for test in test_vision test_wood_theme test_pink_theme test_black_theme test_green_textured_theme; do
+            cc -O2 -std=c11 tests/${test}.c src/BLVisionCore.c src/BLAdaptiveTheme.c -lm -o /tmp/${test}
+            /tmp/${test}
+          done
+          cc -O2 -std=c11 tests/test_v31_diagonal_screenshot.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLFrameSafety.c \
+            src/BLV25Strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/test-v31
+          /tmp/test-v31
+
+      - name: Fifty fresh scan confirmation and learned RGB vision regression
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_no_clear_review.c src/BLNoClearReview.c -o /tmp/test-5-checks
+          /tmp/test-5-checks
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_trained_vision.c src/BLTrainedVision.c -lm -o /tmp/test-learned-vision
+          /tmp/test-learned-vision
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v33_timed_deep_search.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLFrameSafety.c \
+            src/BLV25Strategy.c src/BLDualStrategy.c src/BlockBlastSolver.c \
+            -lm -o /tmp/test-v33-timed
+          /tmp/test-v33-timed
+          python3 - <<'PY'
+          from pathlib import Path
+          solver=Path('src/BLThreeMoveClear.c').read_text()
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          scanner=Path('src/BLScreenScan.m').read_text()
+          assert 'BLFindThreeMoveClearTimed' in solver
+          assert 'monotonicMs()>=ctx->deadlineMs' in solver
+          assert 'BLFindThreeMoveClearTimed(boardSnapshot' in overlay
+          assert 'BLNoClearReviewBegin' in overlay
+          assert 'BLNoClearReviewObserve' in overlay
+          assert '50 fresh' in overlay.lower()
+          assert 'BLNoClearProofIsReady' in overlay
+          assert 'no clear available' in overlay
+          assert 'BLTrainedVisionOpinionRGBA' in scanner
+          assert 'if(trainedOpinion<0 && !lumaVerified)' in scanner
+          assert 'if(clearPlan.found)clearPlan.completeSearch=0;' in overlay
+          print('PASS timed deep search and no false no-clear after incomplete/invalid candidate')
+          PY
+      - name: Prove 1000-streak tracking and no-clear notification safety across entire tray
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_combo100.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLV25Strategy.c \
+            src/BLDualStrategy.c src/BlockBlastSolver.c -lm -o /tmp/test-combo100
+          /tmp/test-combo100
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_no_clear_full_tray.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c src/BLNoClearReview.c \
+            -lm -o /tmp/test-no-clear-full-tray
+          /tmp/test-no-clear-full-tray
+          python3 - <<'PY'
+          from pathlib import Path
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLNoClearProofIsReady' in overlay
+          assert 'BL_NO_CLEAR_RECHECKS 50U' in Path('src/BLNoClearReview.h').read_text()
+          assert 'BL_COMBO_STREAK_MAX 1000' in Path('src/BlockBlastSolver.h').read_text()
+          assert 'Combo %d/1000:' in overlay
+          assert 'uint16_t comboRun;' in Path('src/BlockBlastSolver.c').read_text()
+          assert 'BLFindThreeMoveClearTimed' in overlay
+          assert 'BLComboContext fullTrayWindow={0};' in overlay
+          assert '_noClearBanner.hidden=NO;' in overlay
+          assert 'no clear available' in overlay
+          print('PASS exact on-game no-clear wording only after all-tray proof and fifty new frames')
+          PY
+      - name: Validate 100 different future shapes and 100 seeded strategy scenarios
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_future100.c \
+            src/BLFuture100.c src/BLThreeMoveClear.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
+            src/BlockBlastSolver.c -lm -o /tmp/test-future-100
+          /tmp/test-future-100
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_100_scenarios.c \
+            src/BLFuture100.c src/BLThreeMoveClear.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
+            src/BlockBlastSolver.c -lm -o /tmp/test-100-scenarios
+          /tmp/test-100-scenarios
+          for seed in 16223123 28354711 41991171; do
+            cc -O2 -std=c11 -Wall -Wextra -Werror -DBL_SCENARIO_SEED=${seed} tests/test_v34_100_scenarios.c \
+              src/BLFuture100.c src/BLThreeMoveClear.c src/BLGuideSafety.c \
+              src/BLFrameSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
+              src/BlockBlastSolver.c -lm -o /tmp/test-100-scenarios-independent
+            /tmp/test-100-scenarios-independent
+          done
+          python3 - <<'PY'
+          from pathlib import Path
+          ui=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLFuture100GuardedChoice' in ui
+          assert 'if(smartMode)' in ui and 'BLFuture100GuardedChoice' in ui
+          assert 'if(smartMode)' in ui and 'BLFindThreeMoveClearTimed' in ui
+          print('PASS future-100 gated within Smart Survival; current combo-clear override retained')
+          PY
+      - name: Prove stopped Automatic cannot retain a synthetic finger or drag offscreen
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          touch=Path('src/BLInProcessTouch.m').read_text()
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          drag=Path('src/BLAutoDrag.c').read_text()
+          assert '+ (void)forceCancelAllTouches' in touch
+          assert 'UITouchPhaseCancelled' in touch
+          assert '[view touchesCancelled:one withEvent:nil]' in touch
+          assert 'fromCoordinateSpace:UIScreen.mainScreen.coordinateSpace' in touch
+          assert 'CGRectContainsPoint(CGRectInset(win.bounds,8,8),local)' in touch
+          stop=overlay.split('- (void)stopAutoPlayWithReason:')[1].split('- (void)toggleAutoPlay')[0]
+          assert '_autoPlacing=NO' in stop
+          assert '[BLInProcessTouch forceCancelAllTouches]' in stop
+          assert '_autoTouchSlot=0' in stop
+          assert 'finger release failed' in overlay
+          assert 'release watchdog cancelled the synthetic finger' in overlay
+          assert 'BLAutoDragEndsOnHighlight' in overlay
+          assert 'BLAutoDragPoint(&plan,(float)step/(float)steps' in overlay
+          assert 'const CFTimeInterval endHold=.18' in overlay
+          assert 'phase:UITouchPhaseEnded slot:self->_autoTouchSlot' in overlay
+          assert 'Finger released at highlighted target.' in overlay
+          assert 'Last touch' in overlay
+          assert 'for(int step=0;step<=20;step++)' in drag
+          assert 'fx-pitchX*.5f<edge' in drag
+          print('PASS emergency cancel, checked finger-up, window-space mapping and offscreen path guard')
+          PY
+      - name: Verify bounded fresh-frame Automatic vision retry and detailed scanner reason
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_vision_recovery.c \
+            src/BLVisionRecovery.c -o /tmp/test-vision-recovery
+          /tmp/test-vision-recovery
+          python3 - <<'PY'
+          from pathlib import Path
+          ui=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLVisionRecoveryFailure(&_autoVisionRecovery' in ui
+          assert 'BLVisionRecoveryReset(&self->_autoVisionRecovery)' in ui
+          assert 'Automatic WAITING' in ui
+          assert 'Last scanner reason' in ui
+          assert 'themeVerified' in ui
+          assert 'BLAutoTargetIsProvenEmpty' in ui
+          assert 'BLIsExpectedTransition' in ui
+          assert 'No drag.' in ui
+          print('PASS Automatic waits without guessing, reports scanner failure, and retains occupied-cell proof')
+          PY
+      - name: Route around missing UIEvent add-touch without bypassing any other safety check
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_touch_route.c \
+            src/BLTouchRoute.c -o /tmp/test-touch-route
+          /tmp/test-touch-route
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/BLInProcessTouch.m').read_text()
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLRuntimeTouchRoute' in src
+          assert 'BLDispatchDirectGameView' in src
+          assert 'touch.window!=game||view.window!=game' in src
+          assert '[view touchesBegan:one withEvent:nil]' in src
+          assert '[view touchesMoved:one withEvent:nil]' in src
+          assert '[view touchesEnded:one withEvent:nil]' in src
+          assert 'BLTouchRouteDirectGameView' in src
+          assert 'BLIsExpectedTransition' in overlay
+          assert 'BLAutoTargetIsProvenEmpty' in overlay
+          print('PASS experimental direct touch guarded by actual-game window, prior vision and post-move verification')
+          PY
+      - name: Verify first automatic move from a strictly empty board in 128 color themes
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_uniform_empty_auto.c \
+            src/BLVisionContrast.c -lm -o /tmp/test-uniform-empty
+          /tmp/test-uniform-empty
+          python3 - <<'PY'
+          from pathlib import Path
+          screen=Path('src/BLScreenScan.m').read_text()
+          assert 'BLVisionUniformEmptyBoard' in screen
+          assert 'found.board==0' in screen
+          assert 'if(themeVerified)*themeVerified=YES' in screen
+          assert 'if(provenEmptyMask)*provenEmptyMask=emptyProof' in screen
+          print('PASS uniform-empty first move gated by scanner and second 64-cell proof')
+          PY
+      - name: Test independent contrast scanner and one-placement auto-drag gate
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_contrast_themes.c \
+            src/BLVisionContrast.c -lm -o /tmp/test-v34-contrast
+          /tmp/test-v34-contrast
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_reviewed_theme_samples.c \
+            src/BLVisionContrast.c -lm -o /tmp/test-reviewed-theme
+          /tmp/test-reviewed-theme
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_auto_drag.c \
+            src/BLAutoDrag.c src/BLGuideSafety.c -lm -o /tmp/test-v34-auto-drag
+          /tmp/test-v34-auto-drag
+          python3 - <<'PY'
+          from pathlib import Path
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          screen=Path('src/BLScreenScan.m').read_text()
+          assert 'toggleAutoPlay' in overlay
+          assert 'startOneAutomaticDrag' in overlay
+          assert 'BLAutoBuildDrag' in overlay
+          assert 'BLIsExpectedTransition' in overlay
+          assert 'BLInferObservedPlacement' in overlay
+          assert '_stableAutoFrames>=5' in overlay
+          assert 'BLInProcessTouch isAvailable' in overlay
+          assert 'BLAutoDetectDetailed' in screen
+          assert 'BLVisionLumaBoard' in screen
+          assert 'BLAutoTargetIsProvenEmpty' in overlay
+          assert '_autoVisionVerified' in overlay
+          assert 'independentlyEmpty' in overlay
+          assert 'BLVisionContrastBoard' in screen
+          assert 'Native vision uncertain.' in screen
+          assert 'src/BLInProcessTouch.m' in Path('.github/workflows/v34-future100-iphone.yml').read_text()
+          print('PASS automatic opt-in, five-scan gate, one drag, verified legal transition, and color correction wiring')
+          PY
+      - name: Verify partial-tray rescue without sacrificing expiring combo
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_full_tray_rescue.c \
+            src/BLFuture100.c src/BLGuideSafety.c -lm -o /tmp/test-v34-rescue
+          /tmp/test-v34-rescue
+      - name: Prove no-clear upper-bound pruning preserves real combo rescues
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_clear_pruning.c \
+            src/BLThreeMoveClear.c src/BLGuideSafety.c -lm -o /tmp/test-v34-pruning
+          /tmp/test-v34-pruning
+      - name: Paired multi-round synthetic survival and combo benchmark
+        run: |
+          cc -O3 -std=c11 -Wall -Wextra -Werror tests/benchmark_v34_paired_games.c \
+            src/BLFuture100.c src/BLThreeMoveClear.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLV25Strategy.c src/BLDualStrategy.c \
+            src/BlockBlastSolver.c -lm -o /tmp/benchmark-v34-games
+          timeout 180s /tmp/benchmark-v34-games
+      - name: Inspect user consent, crop, stability and unreviewed metadata controls
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          c=Path('src/BLTrainingCollector.m').read_text()
+          ui=Path('src/BlockBlastOverlay.m').read_text()
+          assert '_enabled=NO' in c
+          assert '@"reviewed":@NO' in c and '@"trainable":@NO' in c
+          assert 'CGRectIntersection(pixelCrop' in c
+          assert 'kTrainingMaximum=200' in c
+          assert 'kTrainingMinimumGap=1.5' in c
+          assert 'BLCapturedPieceLabels' in c
+          assert 'BLTrainingWriteZIP' in c
+          assert '_stableAutoFrames>=3' in ui
+          assert '_trainingStableSince>=0.65' in ui
+          assert 'toggleVisionTraining' in ui
+          assert 'exportVisionTraining' in ui
+          assert 'deleteAllWithCompletion' in ui
+          assert 'BLV25FindTwoStrategies' in ui
+          assert 'BLFindThreeMoveClear' in ui
+          print('PASS: explicit opt-in, sandbox-only capture, data review, original smart solver')
+          PY
+  iphone:
+    needs: regression
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile iPhone ARM64 training-enabled library
+        run: |
+          mkdir -p dist
+          xcrun --sdk iphoneos clang -target arm64-apple-ios15.0 \
+            -arch arm64 -O3 -fobjc-arc -std=gnu11 -dynamiclib \
+            -install_name @rpath/BlockBlastAI.dylib \
+            -framework Foundation -framework UIKit -framework CoreGraphics \
+            -framework ReplayKit -framework CoreMedia -framework CoreVideo \
+            -framework CoreImage -framework Vision -framework CoreML \
+            src/BlockBlastOverlay.m src/BLScreenScan.m src/BLVisionCore.c \
+            src/BLAdaptiveTheme.c src/BLTransition.c src/BlockBlastSolver.c \
+            src/BLDualStrategy.c src/BLV25Strategy.c src/BLGuideSafety.c \
+            src/BLFrameSafety.c src/BLThreeMoveClear.c src/BLYOLOVision.m \
+            src/BLTrainingCollector.m src/BLTrainingZIP.c \
+            src/BLNoClearReview.c src/BLTrainedVision.c \
+            src/BLFuture100.c src/BLVisionContrast.c \
+            src/BLAutoDrag.c src/BLInProcessTouch.m src/BLTouchRoute.c \
+            src/BLVisionRecovery.c \
+            -o dist/BlockBlastAI.dylib
+          file dist/BlockBlastAI.dylib
+          test -s dist/BlockBlastAI.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BlockBlastAI-v34-AUTOMATIC-VISION-REPAIR-IPHONE
+          path: dist/BlockBlastAI.dylib
