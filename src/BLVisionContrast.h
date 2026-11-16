@@ -27,6 +27,13 @@ int BLVisionLumaBoard(const uint8_t *rgba,int width,int height,
                       const BLVisionResult *geometry,
                       BLVisionLumaEvidence *out);
 
+// Auto-play's first move can start on a genuinely empty grid. A multi-color
+// classifier has no filled class to split on such a frame. Certify ONLY when
+// all 64 cell centers agree and an independent grid-seam pattern is present.
+// This does not interpret ambiguous color patterns as empty.
+int BLVisionUniformEmptyBoard(const uint8_t *rgba,int width,int height,
+                              const BLVisionResult *geometry,
+                              uint64_t *provenEmptyMask);
 #ifdef __cplusplus
 }
 #endif
