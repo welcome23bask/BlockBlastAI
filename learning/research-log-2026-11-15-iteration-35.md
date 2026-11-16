@@ -1,0 +1,23 @@
+# Iteration 35 — bounded whole-hypothetical-next-tray resilience
+
+Date: November 15, 2026 Central / Nov 16 UTC. Scope: research branch `feature/v2.2-10x-research-gate` only.
+
+## Why this experiment
+
+Previous iteration 34 achieved higher synthetic mean survival, estimated score, p10 survival (non-inferior), lower combo breaks, zero illegal/deadline regressions and zero capped games in both normal/heavy/shifted-heavy holdouts, but only 1.08x–1.81x ratios, well below 10x. Fixed 4-weight adjustments and merely counting individual future shape landing zones are not sufficient for safe *multi-piece* future tray planning.
+
+## Exact gameplay hypothesis
+
+Research-only `learning/BLTrainableStrategy.c` commit `703e4e4ea931b8361fa1024437130062c8450015` augments diverse current-three-piece complete legal afterstate reranking with **three fixed hypothetical challenging next trays**: (1) 3x3 square, five-bar, 2x2 square; (2) two 3x3 squares and 3x2 rectangle; (3) three irregular hard 3x3-bounding shapes. Each probe recursively applies exact 8x8 legal placements and simultaneous row/column clears for all three hypothetical pieces. Each sample has a strict 192-node budget: a legally completed tray earns a modest bonus, an exhaustively impossible tray incurs a modest penalty, and a budget-exhausted/unknown result earns no bonus or penalty. Unlike cheating, no hidden future RNG state is passed to the policy. It remains a **synthetic robustness proxy**, not a guarantee about the real proprietary piece generator.
+
+The code still retains the paired hard-shape space check, urgent last-chance combo rescue, proactive combo protection with dangerous-board veto and unchanged strict 10x benchmark gates. The independent baseline is compiled from unchanged `src/BLDualStrategy.c`.
+
+Research-only unit test commit `47e6ab919f7474403164631dc899f5e31a3abdda` asserts the fixed sample trays can legally be completed from an empty board and cannot be placed on a full board, in addition to the earlier full 3-piece legality and combo rescue regression suite.
+
+## Bounded experiment
+
+[GitHub Actions run 43795171397](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43795171397), head revision `9121faef97860e71b1014861e626fea05c4b4050`, queued at initial log write. It should compile the exact source, perform fail-fast seed preflight, execute the extended legality selftests, train one isolated epoch with five initial games per generator plus up to four candidates on a separate eight-game-per-generator training split, then run two 30-game-per-generator holdouts. Epochs: training 1835, holdouts 1953/1954. All three were absent from the central seed ledger and from 30 accessible research logs; unrecorded external runs cannot be excluded, so strict global never-use certification remains incomplete. No overlapping Actions run was visible when this workflow was triggered. 12-minute job timeout and no candidate promotion.
+
+## Pending verdict and hard constraints
+
+Do NOT infer any new performance before run finishes. Require exact 8x8/three-piece legality, all per-generator >=10x mean survival, >=10x simulated estimated score, >=10x p10 survival, zero illegal placements, no worse combo breaks per move and no more avoidable deadlines, zero capped games and independent fresh-seed replication. Simulated estimates are NOT observed Block Blast points. Saved checkpoint remains `16 120 120 30 60`, saved candidate remains `120 120 30 60`; main, deployment, and v3.4 iPhone dylib unchanged.
