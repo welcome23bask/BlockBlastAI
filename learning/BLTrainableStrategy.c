@@ -10,6 +10,12 @@
 #ifndef BL_RESEARCH_FAIR_ROOT
 #define BL_RESEARCH_FAIR_ROOT 0
 #endif
+// Explore how two *unknown future* large shapes could coexist after a tray.
+// This is a conservative geometric proxy, not knowledge of the next tray.
+#ifndef BL_RESEARCH_PAIR_LOOKAHEAD
+#define BL_RESEARCH_PAIR_LOOKAHEAD 1
+#endif
+#define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
 static int blTrainWeights[4]={0};
@@ -33,6 +39,11 @@ typedef struct {
     int haveMax,haveCombo,haveSmart,haveSmartCombo;
     uint32_t budget,visited;
     int truncated;
+    // Four diverse completed-tray afterstates per objective. Full search
+    // still determines legal plans; future stress is only a late reranker.
+    BLPath topAll[BL_FUTURE_TOP],topCombo[BL_FUTURE_TOP];
+    int topAllQ[BL_FUTURE_TOP],topComboQ[BL_FUTURE_TOP];
+    int topAllN,topComboN;
 } BLSearch;
 static int bits(uint64_t v) {return __builtin_popcountll(v);}
 static uint64_t clear_full(uint64_t after,int *lines) {
@@ -173,6 +184,94 @@ static int dangerously_worse(uint64_t comboBoard,uint64_t safeBoard) {
            fit(comboBoard,shapes[i],ws[i],hs[i])==0)return 1;
     return 0;
 }
+// True only when two hypothetical large next-tray pieces have disjoint
+// legal landing zones *simultaneously*. This cannot guarantee a later
+// 3-piece tray, because actual future pieces are unknown and clears could
+// make additional orders feasible. A positive result certifies space for
+// those two fixed shapes without relying on any hypothetical line clear.
+static int pair_fits_now(uint64_t board,
+                         uint64_t a,int wa,int ha,
+                         uint64_t b,int wb,int hb) {
+    for(int ra=0;ra<=8-ha;++ra)for(int ca=0;ca<=8-wa;++ca){
+        uint64_t maskA=a<<(ra*8+ca);
+        if(board&maskA)continue;
+        for(int rb=0;rb<=8-hb;++rb)for(int cb=0;cb<=8-wb;++cb) {
+            uint64_t maskB=b<<(rb*8+cb);
+            if(!((board|maskA)&maskB))return 1;
+        }
+    }
+    return 0;
+}
+// A fixed suite of hard PIECE PAIRS, not samples from the game's hidden RNG.
+// Includes two 3x3 squares, square/bar, square/irregular, crossing bars,
+// and two irregular shapes. Used only for bounded afterstate reranking.
+int BLResearchPairCoverage(uint64_t board) {
+    int n=0;
+    n+=pair_fits_now(board,UINT64_C(0x70707),3,3,
+                           UINT64_C(0x70707),3,3);
+    n+=pair_fits_now(board,UINT64_C(0x70707),3,3,
+                           UINT64_C(0x1f),5,1);
+    n+=pair_fits_now(board,UINT64_C(0x70707),3,3,
+                           UINT64_C(0x0101010101),1,5);
+    n+=pair_fits_now(board,UINT64_C(0x70707),3,3,
+                           UINT64_C(0x40603),3,3);
+    n+=pair_fits_now(board,UINT64_C(0x1f),5,1,
+                           UINT64_C(0x0101010101),1,5);
+    n+=pair_fits_now(board,UINT64_C(0x20303),3,3,
+                           UINT64_C(0x20702),3,3);
+    return n;
+}
+#if BL_RESEARCH_PAIR_LOOKAHEAD
+static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
+                              int score[BL_FUTURE_TOP],int *count,
+                              const BLPath *path,int quality) {
+    // Do not fill all finalist slots with nearly identical boards that
+    // cannot explore different hard-piece landing arrangements.
+    for(int i=0;i<*count;++i) {
+        if(bits(pool[i].board^path->board)<=2) {
+            if(quality>score[i]){pool[i]=*path;score[i]=quality;}
+            return;
+        }
+    }
+    if(*count<BL_FUTURE_TOP) {
+        pool[*count]=*path;
+        score[*count]=quality;
+        ++*count;
+        return;
+    }
+    int worst=0;
+    for(int i=1;i<BL_FUTURE_TOP;++i)
+        if(score[i]<score[worst])worst=i;
+    if(quality>score[worst]) {
+        pool[worst]=*path;
+        score[worst]=quality;
+    }
+}
+static void rerank_afterstates(BLSearch *ctx) {
+    int best=INT_MIN;
+    for(int i=0;i<ctx->topAllN;++i) {
+        int utility=ctx->topAllQ[i]+550*
+            BLResearchPairCoverage(ctx->topAll[i].board);
+        if(utility>best) {
+            best=utility;
+            ctx->smartPath=ctx->topAll[i];
+            ctx->smartQuality=utility;
+            ctx->haveSmart=1;
+        }
+    }
+    best=INT_MIN;
+    for(int i=0;i<ctx->topComboN;++i) {
+        int utility=ctx->topComboQ[i]+550*
+            BLResearchPairCoverage(ctx->topCombo[i].board);
+        if(utility>best) {
+            best=utility;
+            ctx->smartComboPath=ctx->topCombo[i];
+            ctx->smartComboQuality=utility;
+            ctx->haveSmartCombo=1;
+        }
+    }
+}
+#endif // BL_RESEARCH_PAIR_LOOKAHEAD
 static int preserved(const BLSearch *ctx,const BLPath *path) {
     if(ctx->initial.known && ctx->initial.streak>0)
         return !path->broken && path->streak>0;
@@ -203,6 +302,14 @@ static void save_if_best(BLSearch *ctx,const BLPath *path) {
     // that require knowing the game's hidden next pieces.
     if(path->depth>=ctx->smartPath.depth) {
         int sq=survival_value(path->board);
+#if BL_RESEARCH_PAIR_LOOKAHEAD
+        if(path->depth==ctx->total) {
+            record_afterstate(ctx->topAll,ctx->topAllQ,&ctx->topAllN,path,sq);
+            if(comboOK)
+                record_afterstate(ctx->topCombo,ctx->topComboQ,
+                                  &ctx->topComboN,path,sq);
+        }
+#endif
         if(!ctx->haveSmart || path->depth>ctx->smartPath.depth ||
            (path->depth==ctx->smartPath.depth &&
             (sq>ctx->smartQuality ||
@@ -475,6 +582,11 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
     search_fair_first(&ctx,&start);
 #else
     search(&ctx,&start);
+#endif
+#if BL_RESEARCH_PAIR_LOOKAHEAD
+    // The expensive two-shape co-fit assessment runs for at most eight
+    // finalists, never for every leaf of the 180k-node current-tray search.
+    rerank_afterstates(&ctx);
 #endif
     out.exploredNodes=ctx.visited;
     out.exhaustive=!ctx.truncated;
