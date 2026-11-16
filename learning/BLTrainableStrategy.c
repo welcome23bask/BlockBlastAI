@@ -103,7 +103,15 @@
 // TWO-step capacity, unlike iteration 46's count of immediate clear types.
 // Only public shapes and exact board geometry; no hidden future RNG.
 #ifndef BL_RESEARCH_HARD_RESCUE_CHAIN
-#define BL_RESEARCH_HARD_RESCUE_CHAIN 1
+#define BL_RESEARCH_HARD_RESCUE_CHAIN 0
+#endif
+// Iteration 48: lower-tail geometric rescue diversity across BOTH clear axes.
+// The prior two-step chain rewarded any rescue but shifted-heavy survival
+// remained near 1.1x. This instead scores the weaker of row-clearing and
+// column-clearing hard-shape type diversity, using only exact legal placements.
+// No next-tray RNG, no hidden piece order, no baseline or phone changes.
+#ifndef BL_RESEARCH_BIAXIAL_HARD_CLEAR
+#define BL_RESEARCH_BIAXIAL_HARD_CLEAR 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -499,6 +507,34 @@ static int BLResearchHardClearDiversity(uint64_t board) {
     }
     return distinct*125;
 }
+// At most seven hard templates x 64 exact placements; no speculative rollout.
+static int BLResearchBiaxialHardClear(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    static const struct {uint64_t mask;int w,h;} hard[]={
+        {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
+        {UINT64_C(0x705),3,2},{UINT64_C(0x701),3,2},
+        {UINT64_C(0x704),3,2},{UINT64_C(0x20303),3,3},
+        {UINT64_C(0x20702),3,3}
+    };
+    int rowTypes=0,colTypes=0;
+    for(int i=0;i<7;++i) {
+        int row=0,col=0;
+        for(int r=0;r<=8-hard[i].h && !(row&&col);++r)
+            for(int c=0;c<=8-hard[i].w && !(row&&col);++c) {
+                uint64_t placed=hard[i].mask<<(8*r+c);
+                if(placed&board)continue;
+                uint64_t after=board|placed;
+                for(int k=0;k<8;++k) {
+                    if(((after>>(8*k))&255)==255)row=1;
+                    if((after&(UINT64_C(0x0101010101010101)<<k))==
+                        (UINT64_C(0x0101010101010101)<<k))col=1;
+                }
+            }
+        rowTypes+=row;colTypes+=col;
+    }
+    int weaker=rowTypes<colTypes?rowTypes:colTypes;
+    return 180*weaker+30*(rowTypes+colTypes);
+}
 // Bounded two-step rescue: count distinct hard first-piece types that can
 // clear immediately AND leave a legal landing for a different hard type.
 // Cap each type to its first 12 legal clear-producing placements, and never
@@ -676,6 +712,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_HARD_CLEAR_DIVERSITY
         utility+=BLResearchHardClearDiversity(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_BIAXIAL_HARD_CLEAR
+        utility+=BLResearchBiaxialHardClear(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topAll[i].board);
 #endif
@@ -736,6 +775,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_HARD_CLEAR_DIVERSITY
         utility+=BLResearchHardClearDiversity(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_BIAXIAL_HARD_CLEAR
+        utility+=BLResearchBiaxialHardClear(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topCombo[i].board);
