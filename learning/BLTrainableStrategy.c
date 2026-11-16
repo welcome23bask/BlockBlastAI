@@ -84,6 +84,13 @@
 #ifndef BL_RESEARCH_CONNECTED_FREE_REGION
 #define BL_RESEARCH_CONNECTED_FREE_REGION 0
 #endif
+// Iteration 45: reward robust *two-orientation escape corridors* on crowded
+// completed trays. This is not the rejected global hard-piece minimum: it
+// rewards the weaker of horizontal/vertical five-bar capacities, only if
+// BOTH orientations still have legal landings. No future RNG is consulted.
+#ifndef BL_RESEARCH_ORTHOGONAL_ESCAPE
+#define BL_RESEARCH_ORTHOGONAL_ESCAPE 1
+#endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -251,6 +258,15 @@ int BLResearchShapeMixtureValue(uint64_t board) {
     // Penalize unavailable types and fragile single-landing types. This is a
     // bounded afterstate score, never a guarantee about any future tray.
     return 5*capped-95*unplaceable-25*oneLanding;
+}
+// Bounded corridor balance on actual board geometry; zero when either
+// orientation is unavailable, to avoid extrapolating from impossible moves.
+static int BLResearchOrthogonalEscape(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    int h=fit(board,UINT64_C(0x1f),5,1);
+    int v=fit(board,UINT64_C(0x0101010101),1,5);
+    int m=h<v?h:v;
+    return m>0?((m>6?6:m)*95):0;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -584,6 +600,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_CONNECTED_FREE_REGION
         utility+=BLResearchFreeFragmentationPenalty(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_ORTHOGONAL_ESCAPE
+        utility+=BLResearchOrthogonalEscape(ctx->topAll[i].board);
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartPath=ctx->topAll[i];
@@ -635,6 +654,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_CONNECTED_FREE_REGION
         utility+=BLResearchFreeFragmentationPenalty(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_ORTHOGONAL_ESCAPE
+        utility+=BLResearchOrthogonalEscape(ctx->topCombo[i].board);
 #endif
         if(utility>best) {
             best=utility;
