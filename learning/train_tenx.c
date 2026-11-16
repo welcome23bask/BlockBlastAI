@@ -144,7 +144,10 @@ static int train(int argc,char **argv){
                     if(trial[j]<-250)trial[j]=-250;
                 }
             }
-            double score=0;
+            // The acceptance gate requires every generator to pass.
+            // Optimize the weakest generator rather than allowing large
+            // gains on easy boards to conceal heavy-piece regressions.
+            double score=INFINITY;
             int comboUnsafe=0,illegalUnsafe=0;
             for(int scenario=0;scenario<3;scenario++){
                 TenXStats s=measure(trial,seeds,training_seed_epoch,scenario,0);
@@ -173,7 +176,7 @@ static int train(int argc,char **argv){
                 if(s.illegal)illegalUnsafe=1;
                 if(s.skips>ref.skips || candidateBreakRate>baselineBreakRate+1e-9)
                     comboUnsafe=1;
-                score+=tenx_fitness(s,ref);
+                score=fmin(score,tenx_fitness(s,ref));
             }
             if(comboUnsafe){++rejectedCombo;continue;}
             if(illegalUnsafe){++rejectedIllegal;continue;}
