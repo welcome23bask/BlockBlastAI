@@ -9,6 +9,7 @@
 void BLSetTrainWeights(const int weights[4]);
 int BLResearchPairCoverage(uint64_t board);
 int BLResearchSampledFutureBonus(uint64_t board);
+int BLResearchFutureClearAccess(uint64_t board);
 int BLResearchShapeMixtureValue(uint64_t board);
 BLTwoStrategies BLV17FindTwoStrategies(uint64_t board,const BLPiece pieces[3],
                                       BLComboContext combo,uint32_t budget);
@@ -63,6 +64,12 @@ int main(void) {
     // The cheap future-tray stress proxy must require two nonoverlapping
     // legal large-piece landings, not merely two independently fitting
     // shapes that collide in the same small patch.
+    // No single piece in the audited representative shape suite spans eight
+    // squares along a line; an empty board cannot clear a line immediately.
+    assert(BLResearchFutureClearAccess(0)==0);
+    assert(BLResearchFutureClearAccess(UINT64_MAX)==0);
+    // A horizontal five-bar legally fills (0,0)..(0,4), completing row 0.
+    assert(BLResearchFutureClearAccess(UINT64_C(0xe0))>0);
     assert(BLResearchPairCoverage(0)==6);
     assert(BLResearchPairCoverage(UINT64_MAX)==0);
     assert(BLResearchPairCoverage(~UINT64_C(0x70707))==0);
