@@ -21,6 +21,11 @@
 #ifndef BL_RESEARCH_NEXT_TRAY_ROLLOUT
 #define BL_RESEARCH_NEXT_TRAY_ROLLOUT 0
 #endif
+// Distributional lower-tail hypothesis: maximize the weakest hard-shape
+// placement coverage, not average fixed future-tray rollout outcomes.
+#ifndef BL_RESEARCH_MIN_HARD_COVERAGE
+#define BL_RESEARCH_MIN_HARD_COVERAGE 1
+#endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -96,6 +101,22 @@ static int future_quality(uint64_t board) {
 // A position can be mostly empty but still unable to accept a 3x3 square
 // or a five-long bar. Add a quantified cost for disconnected pockets and
 // reward *different* kinds of usable future piece footprints.
+// A bounded robust proxy: prioritize the least-placeable of seven irregular
+// future pieces. This sees only public board geometry, never hidden RNG.
+static int worst_hard_coverage(uint64_t board) {
+    static const struct {uint64_t mask;int w,h;} shapes[7]={
+        {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
+        {UINT64_C(0x705),3,2},{UINT64_C(0x701),3,2},
+        {UINT64_C(0x704),3,2},{UINT64_C(0x20303),3,3},
+        {UINT64_C(0x20702),3,3}
+    };
+    int minimum=64;
+    for(int i=0;i<7;++i){
+        int n=fit(board,shapes[i].mask,shapes[i].w,shapes[i].h);
+        if(n<minimum)minimum=n;
+    }
+    return minimum>6?6:minimum;
+}
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
     int a=fit(board,UINT64_C(0x70707),3,3);
@@ -308,7 +329,11 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
 static void rerank_afterstates(BLSearch *ctx) {
     int best=INT_MIN;
     for(int i=0;i<ctx->topAllN;++i) {
-        int utility=ctx->topAllQ[i]+550*
+        int utility=ctx->topAllQ[i]
+#if BL_RESEARCH_MIN_HARD_COVERAGE
+            + 450*worst_hard_coverage(ctx->topAll[i].board)
+#endif
+            +550*
             BLResearchPairCoverage(ctx->topAll[i].board);
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topAll[i].board);
@@ -322,7 +347,11 @@ static void rerank_afterstates(BLSearch *ctx) {
     }
     best=INT_MIN;
     for(int i=0;i<ctx->topComboN;++i) {
-        int utility=ctx->topComboQ[i]+550*
+        int utility=ctx->topComboQ[i]
+#if BL_RESEARCH_MIN_HARD_COVERAGE
+            + 450*worst_hard_coverage(ctx->topCombo[i].board)
+#endif
+            +550*
             BLResearchPairCoverage(ctx->topCombo[i].board);
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topCombo[i].board);
