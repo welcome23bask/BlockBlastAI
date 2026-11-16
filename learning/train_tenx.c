@@ -1,6 +1,9 @@
 // v2.2 Offline self-play: evolutionary tuning of the COMPLETE THREE-PIECE
 // SMART SURVIVAL search. Not an iPhone runtime module.
-#define MAXMOVES 1400
+// 1400 artificially made >=10x average survival impossible on some normal
+// holdouts (e.g. baseline mean 162.13). Give both policies a higher equal cap
+// and fail closed if a game's survival is still right-censored at the cap.
+#define MAXMOVES 4096
 #define main legacy_training_main
 #include "learn_combo_guarded.c"
 #undef main
@@ -60,7 +63,7 @@ static Result episode_complete(uint32_t seed,int scenario,const int weight[4],in
     }
     return out;
 }
-typedef struct {int n,illegal,p10;double moves,score,breaks,skips,searchCalls,truncatedCalls;} TenXStats;
+typedef struct {int n,illegal,p10,capped;double moves,score,breaks,skips,searchCalls,truncatedCalls;} TenXStats;
 static uint32_t seed_for(int scenario,int game,int epoch){
     return (uint32_t)(163000000u+20000000u*scenario+
                       (uint32_t)epoch*1000000u+(uint32_t)game*13717u);
@@ -78,6 +81,7 @@ static TenXStats measure_range(const int w[4],int n,int epoch,int scenario,int o
         s.truncatedCalls+=truncated;
         s.moves+=r.moves;s.score+=r.proxy;s.breaks+=r.breaks;
         s.skips+=r.skipped;s.illegal+=r.illegal;lengths[i]=r.moves;
+        if(r.moves>=MAXMOVES)++s.capped;
     }
     qsort(lengths,n,sizeof(int),compare_int);
     s.p10=lengths[(n-1)/10];free(lengths);return s;
@@ -100,9 +104,9 @@ static double tenx_fitness(TenXStats s,TenXStats baseline){
 }
 static void metrics(const char *tag,TenXStats s){
     printf("%s games=%d avg_moves=%.3f p10=%d proxy=%.1f "
-           "breaks_per_100=%.3f avoidable_combo_misses=%.0f illegal=%d search_trunc_pct=%.2f\n",
+           "breaks_per_100=%.3f avoidable_combo_misses=%.0f illegal=%d capped_games=%d search_trunc_pct=%.2f\n",
            tag,s.n,s.moves/s.n,s.p10,s.score/s.n,
-           100*s.breaks/(s.moves?s.moves:1),s.skips,s.illegal,
+           100*s.breaks/(s.moves?s.moves:1),s.skips,s.illegal,s.capped,
            100*s.truncatedCalls/(s.searchCalls?s.searchCalls:1));
 }
 static int train(int argc,char **argv){
@@ -295,6 +299,12 @@ static int test(int argc,char **argv){
         metrics(scenario==0?"candidate_normal":scenario==1?"candidate_stress":"candidate_shifted",challenger);
         if(old.moves<=0||old.score<=0||old.p10<=0||old.illegal||challenger.illegal){
             fprintf(stderr,"Invalid baseline/result. Fail closed.\n");return 3;
+        }
+        if(old.capped || challenger.capped) {
+            printf("scenario=%d CENSORED_SURVIVAL baseline=%d candidate=%d "
+                   "MAXMOVES=%d - independent 10x verification blocked\n",
+                   scenario,old.capped,challenger.capped,MAXMOVES);
+            passed=0;
         }
         double survival=challenger.moves/old.moves;
         double points=challenger.score/old.score;
