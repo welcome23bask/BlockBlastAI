@@ -127,7 +127,10 @@
 #define BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY 0
 // Iteration 55: future legal small-piece clear must recover the weakest hard-shape access,
 // not merely 3x3 square mobility; bounded public-geometry afterstate test only.
-#define BL_RESEARCH_POST_CLEAR_HARD_RESCUE 1
+#define BL_RESEARCH_POST_CLEAR_HARD_RESCUE 0
+// Iteration 56: reward hard-shape placements that preserve a DIFFERENT hard shape's legal fit.
+// Exact deterministic one-piece hypothetical, no hidden future RNG.
+#define BL_RESEARCH_HARD_CROSS_FIT 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -457,6 +460,33 @@ static int BLResearchPostClearSquareRecovery(uint64_t board) {
 // that restores accessibility for the *worst* of square, 5-horizontal and
 // 5-vertical. Avoids rewarding 3x3-only gains while heavy bars remain trapped.
 // Future shapes are public templates, not sampled hidden next-tray RNG.
+// Cross-shape continuation: how many distinct hard-shape families have a legal
+// first placement leaving a different family still placeable? This directly
+// measures trap avoidance, not post-clear square recovery.
+static int BLResearchHardCrossFit(uint64_t board) {
+    if(64-bits(board)>=38)return 0;
+    const uint64_t masks[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
+    const int widths[3]={3,5,1},heights[3]={3,1,5};
+    int supported=0;
+    for(int first=0;first<3;++first){
+        int viable=0;
+        for(int r=0;r<=8-heights[first]&&!viable;++r)
+            for(int c=0;c<=8-widths[first]&&!viable;++c){
+                uint64_t placement=masks[first]<<(8*r+c);
+                if(board&placement)continue;
+                int lines=0;
+                uint64_t after=clear_full(board|placement,&lines);
+                for(int second=0;second<3;++second){
+                    if(second==first)continue;
+                    if(fit(after,masks[second],widths[second],heights[second])>0){
+                        viable=1;break;
+                    }
+                }
+            }
+        supported+=viable;
+    }
+    return 420*supported;
+}
 static int BLResearchPostClearHardRescue(uint64_t board) {
     if(64-bits(board)>=40)return 0;
     const uint64_t small[5]={UINT64_C(1),UINT64_C(3),UINT64_C(0x101),UINT64_C(7),UINT64_C(0x10101)};
@@ -923,6 +953,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_HARD_CROSS_FIT
+        utility+=BLResearchHardCrossFit(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
         utility+=BLResearchPostClearSquareRecovery(ctx->topAll[i].board);
 #endif
@@ -1004,6 +1037,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_HARD_CROSS_FIT
+        utility+=BLResearchHardCrossFit(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
         utility+=BLResearchPostClearSquareRecovery(ctx->topCombo[i].board);
