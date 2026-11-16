@@ -612,8 +612,17 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
             // routes. Preserve baseline behavior when weights are zero.
             int tuned=(blTrainWeights[0]||blTrainWeights[1]||
                        blTrainWeights[2]||blTrainWeights[3]);
-            int sameSafety=ctx.smartComboQuality>=ctx.smartQuality-
-                           (tuned?5000:4700);
+            // A witnessed streak with one non-clearing placement already
+            // consumed has only two moves left to produce a clearing line.
+            // Give a proven *complete legal* combo route a modestly larger
+            // utility tolerance one step BEFORE the urgent last-chance
+            // rescue. Still reject routes that destroy crucial large-piece
+            // landing zones on crowded boards; all benchmark gates remain.
+            int proactive=ctx.initial.known && ctx.initial.streak>0 &&
+                          ctx.initial.misses==1 &&
+                          ctx.smartComboPath.depth==ctx.total;
+            int gap=tuned?(proactive?6250:5000):4700;
+            int sameSafety=ctx.smartComboQuality>=ctx.smartQuality-gap;
             // Last-chance observed combo: a complete legal three-piece
             // route that clears immediately should prevent an avoidable
             // deadline miss. Keep all safety/performance gates in testing.
