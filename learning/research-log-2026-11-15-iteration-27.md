@@ -25,3 +25,19 @@ Scanned all research logs visible in the connected research-branch directory (it
 Triggered GitHub Actions run [43787752985](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43787752985) on the research branch. The run was confirmed in progress while writing this log; outcome and compilation cannot yet be asserted. Examine preflight, compilation, `TRAIN_INCUMBENT` output, two strict holdout verdicts, and per-generator metrics. If any fail, preserve evidence and diagnose the precise cause before the next research-only change.
 
 No improvement or 10x threshold is verified. Simulated proxy scores are not actual Block Blast scores. Saved checkpoint `16 120 120 30 60`, main, deployment, and iPhone dylib remain unchanged.
+
+## Completed experiment results (updated after GitHub Actions finished)
+
+Run [43787752985](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43787752985) completed with an expected failing performance verdict; source compilation, seed preflight, one training epoch, both independent provisional holdouts and evidence preservation all executed. Preflight printed `SEED_PREFLIGHT=OK training=1827 holdouts=1937,1938`. This means the documented-seed validation worked; it does not establish full external seed provenance.
+
+With the irregular-shape feature, training found **7 combo-safe feasible candidates of 21** (14 rejected for combo, zero for illegal), compared with **0 of 21** in prior iteration 21. The provisional selected weights were `120 180 30 0`; no persistent weights were promoted.
+
+- **Holdout 1937:** normal survival/estimated-score/p10 ratios `1.2273/1.2416/1.1429`, heavy `0.8472/0.6919/0.8696`, shifted-heavy `1.2737/1.5247/1.0000`. Candidate normal combo-break rate 2.570 vs baseline 2.140 per 100; avoidable deadlines 3 vs 0. Candidate heavy combo-break rate 3.878 vs 2.931.
+- **Holdout 1938:** normal `1.3882/1.4612/1.0000`, heavy `0.9004/0.8402/1.0000`, shifted-heavy `0.9336/0.8576/1.0625`. Candidate normal combo-break rate 2.479 vs baseline 2.362 per 100. Candidate heavy avoidable deadlines 1 vs 0, shifted-heavy 2 vs 0.
+- All six candidate/baseline scenario measurements reported zero illegal placements. Both holdouts explicitly reported `TEN_X_VERDICT=NOT REACHED - NO DEPLOY`.
+
+**Newly confirmed training defect:** incumbent paired training metrics normal survival 3.3404x, proxy 3.9781x, p10 2.4483x but heavy survival 0.6987x, proxy 0.5933x, p10 0.7419x. `train_tenx.c` was summing scenario fitness, so a spectacular normal-generator gain could dominate substantial heavy losses. This was incompatible with the user's per-generator 10x gate and explains choosing unstable strategies.
+
+**Next targeted fix (source-only; NOT yet tested):** change candidate selection from a sum to the **minimum per-generator fitness**, optimizing weakest-generator performance while retaining existing zero-illegal/strict combo safety checks. Commit `9d72435d9e80e84e39238f66c32a9cf6c457256b`. Reserve used epochs 1827, 1937 and 1938 in both train and holdout roles to prevent accidental reuse: commit `b7a3a4a5e3d3a267778adf69d601219e3ffe65eb`. This makes the currently configured workflow intentionally fail if re-run with already used epochs. The next bounded iteration MUST update the workflow to newly audited unused seed epochs, check no active run, and independently benchmark again. Do NOT launch duplicate experiments on the old IDs or falsely claim that worst-case fitness has been measured.
+
+The 10x result has not been reached. Simulator-estimated scores are not actual game scores. v1.7 baseline, persistent checkpoint/candidate, main, iPhone dylib and deployment remain unchanged.
