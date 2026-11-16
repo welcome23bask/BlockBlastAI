@@ -17,3 +17,15 @@ Research-only selftest commit `11c83d88017b56ce613446f74c3e83d42729cc26` checks 
 ## Unchanged non-negotiable gates
 
 Compare to separately built unchanged v1.7 SMART SURVIVAL on independent paired normal, heavy, shifted-heavy 8x8 three-piece simulations. Both holdouts require **>=10x mean survival AND synthetic estimated score EACH generator, >=10x p10 survival**, zero illegal moves, no worse combo breaks per move or avoidable combo deadlines, zero capped games at 4096, independent replication before success. No checkpoint promotion, main, iPhone build, release or deployment. Initial result not yet known; if failed, record all metrics and analyze weakest generator before any fresh-seed rerun.
+
+## Completed holdout result — provisional noninferior research winner, NOT 10×
+
+[Run 43807467128](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43807467128) completed fresh 1845 train epoch, both independent paired 30-game-per-generator holdouts 1973 and 1974, actual source compile, 8x8/three-piece and fragmentation tests, 4096 cap checks, and the strict rejection verifier. All 21 locally tuned candidate weights failed training combo-safety on the first split, so **no weights were selected or promoted**; isolated `120 120 30 60` unchanged. The full 10x verdict appropriately failed; failure evidence artifact `blockblast-tenx-bounded-research-43807467128` was uploaded.
+
+| Generator | 1973 mean survival / synthetic estimated score / p10 | 1974 mean survival / synthetic estimated score / p10 |
+|---|---|---|
+| Normal | **3.2370× / 3.9292× / 1.3158×** | **2.0571× / 2.4231× / 1.0857×** |
+| Heavy | **1.0164× / 1.0239× / 1.1500×** | **1.0665× / 1.1735× / 1.1765×** |
+| Shifted-heavy | **1.2894× / 1.6831× / 1.1667×** | **1.2402× / 1.6471× / 1.0000×** |
+
+Both holdouts report zero invalid moves, zero right-censored 4096-move games, and no additional avoidable combo deadline misses. All six combo-break rates per move improved over separately compiled v1.7. All 18 survival/score/p10 ratios above are ≥1; this establishes a **promising synthetic non-regression pattern on these specific two independent holdouts**, not proof of future generalized non-regression, not a formal 10x pass and not actual phone-game success. Weakest generator: **heavy** (mean survival just 1.0164× and synthetic score 1.0239× on 1973); shifted-heavy 1974 p10 is unchanged, not improved. The independent strict benchmark still requires ≥10× survival AND estimated score per generator and ≥10× p10 twice; those gates failed. No promotion/merge/iPhone build/validated checkpoint edit. Research-only source commit `fb9b648958cc3671b0a55fdd823af7f236c838cf` (workflow HEAD) remains a **provisional candidate**, never release or checkpoint. Future bounded research should seek robust heavy-piece long-horizon value, not blindly retune the same four weights or repeat a used seed/settings run. The next learned-hazard research protocol is documented separately in `learning/tenx-next-learned-hazard-protocol.md`.
