@@ -95,6 +95,15 @@ int main(void) {
     trained=BLFindTwoStrategies(almostRow,ones,urgent,1);
     validate_plan(almostRow,ones,&trained.smartSurvival,3);
     assert(trained.smartSurvival.moves[0].linesCleared>0);
+    // Proactive case: after one miss, a known full-tray clearing route
+    // should preserve the observed streak before the final deadline.
+    BLComboContext proactive={.known=1,.streak=5,.misses=1};
+    trained=BLFindTwoStrategies(almostRow,ones,proactive,180000);
+    validate_plan(almostRow,ones,&trained.smartSurvival,3);
+    int proClears=0;
+    for(int k=0;k<trained.smartSurvival.movesFound;k++)
+        proClears+=trained.smartSurvival.moves[k].linesCleared;
+    assert(proClears>0);
     // A fresh empty board has no immediately clearable row or column from
     // singletons; an urgency flag must NEVER invent a line clear.
     trained=BLFindTwoStrategies(0,ones,urgent,180000);
