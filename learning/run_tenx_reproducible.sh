@@ -18,14 +18,21 @@ a="$1"; b="$2"
 if (( a < 17 || a > 2000 || b < 17 || b > 2000 || a == b )); then
   echo "Holdout epochs must be distinct and between 17 and 2000." >&2; exit 2
 fi
-for e in "$a" "$b"; do
-  case "$e" in 92|93|989|1201|1202|1901|1902|1903|1904|1905|1906|1907|1908|1909|1910|1911|1912|1913|1914|1915|1916|1822|1827|1937|1938)
-    echo "Previously used/planned epoch: $e" >&2; exit 2;;
-  esac
-done
-# Seed namespaces are cross-role: never reuse a previously planned holdout as training.
-# A source checkpoint may deliberately remain unchanged after failed gates.
-# Never mistake a repeated checkpoint epoch for a fresh training seed.
+# One cross-role epoch ledger prevents train/holdout exclusion lists from drifting.
+# The audit covers documented runs, not unrecorded local sessions.
+ledger="learning/tenx_used_epochs.txt"
+if [[ ! -f "$ledger" ]]; then
+  echo "ERROR: missing required cross-role seed ledger: $ledger" >&2
+  exit 2
+fi
+if ! awk 'NF && $1 !~ /^#/ {if(NF!=1 || $1 !~ /^[0-9]+$/ || seen[$1]++) exit 1}' "$ledger"; then
+  echo "ERROR: malformed or duplicate epoch in $ledger" >&2
+  exit 2
+fi
+# Load reserved epochs once, then enforce the same exclusions for every role.
+mapfile -t known_used < <(awk 'NF && $1 !~ /^#/ {print $1}' "$ledger")
+# A source checkpoint can remain unchanged after failed gates; never mistake
+# the old logical checkpoint epoch for a fresh training namespace.
 train_epoch="${TENX_TRAIN_SEED_EPOCH:-}"
 if [[ ! "$train_epoch" =~ ^[0-9]+$ ]] ||
    ((train_epoch < 17 || train_epoch > 2000 ||
@@ -33,16 +40,17 @@ if [[ ! "$train_epoch" =~ ^[0-9]+$ ]] ||
   echo "Supply a distinct provisional TENX_TRAIN_SEED_EPOCH in 17..2000." >&2
   exit 2
 fi
-for used in 1716 1901 1902 1903 1904 1905 1906 1907 1908 1818 1819 1820 1821 1822 1827 1937 1938 1915 1916 1909 1910 1911 1912 1913 1914; do
-  if (( train_epoch == used )); then
-    echo "Training seed epoch previously used/planned: $used" >&2; exit 2
-  fi
+for e in "$a" "$b" "$train_epoch"; do
+  for used in "${known_used[@]}"; do
+    if ((e == used)); then
+      echo "ERROR: seed epoch $e already reserved (training/holdout cross-role)" >&2
+      exit 2
+    fi
+  done
 done
-# Optional zero-compile validation used by CI before spending Actions minutes.
-# This validates only the known-reserved seed ledger; it is NOT proof that
-# unrecorded historical runs never used the same seeds.
+# No-compile validation before Actions minutes are spent on training.
 if [[ "${TENX_PREFLIGHT_ONLY:-0}" == "1" ]]; then
-  printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (known-ledger only)\n' "$train_epoch" "$a" "$b"
+  printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (documented-ledger only)\\n' "$train_epoch" "$a" "$b"
   exit 0
 fi
 rev="$(git rev-parse HEAD)"
