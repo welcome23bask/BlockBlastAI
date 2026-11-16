@@ -846,9 +846,6 @@ static void rerank_afterstates(BLSearch *ctx) {
         utility+=BLResearchRedundantHardLandings(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_FREE_CELL_MOBILITY
-        utility+=BLResearchFreeCellMobility(ctx->topAll[i].board);
-#endif
-#if BL_RESEARCH_FREE_CELL_MOBILITY
         utility+=BLResearchFreeCellMobility(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
