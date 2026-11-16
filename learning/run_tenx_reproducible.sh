@@ -55,7 +55,7 @@ done
 python3 learning/audit_raw_seed_aliases.py "$train_epoch" "$a" "$b"
 # No-compile validation before Actions minutes are spent on training.
 if [[ "${TENX_PREFLIGHT_ONLY:-0}" == "1" ]]; then
-  printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (documented-ledger only)\n' "$train_epoch" "$a" "$b"
+  printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (documented-ledger + source-verified raw-start audit; undocumented history unverified)\n' "$train_epoch" "$a" "$b"
   exit 0
 fi
 rev="$(git rev-parse HEAD)"
