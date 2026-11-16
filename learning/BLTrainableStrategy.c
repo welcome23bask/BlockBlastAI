@@ -48,7 +48,15 @@
 // afterstates that a top-four pure-quality pool would have discarded.
 // No new future RNG access, no extra search nodes, no baseline changes.
 #ifndef BL_RESEARCH_DUAL_POOL
-#define BL_RESEARCH_DUAL_POOL 1
+#define BL_RESEARCH_DUAL_POOL 0
+#endif
+// Iteration 40: conservative *baseline-anchored feasibility shield*.
+// On cramped boards, a lower-risk full three-piece plan from the completely
+// unchanged v1.7 solver may replace a candidate plan ONLY if it does not
+// worsen a known combo deadline. This is a research-only ensemble decision,
+// not a modification to v1.7, not access to hidden game state.
+#ifndef BL_RESEARCH_BASELINE_RISK_SHIELD
+#define BL_RESEARCH_BASELINE_RISK_SHIELD 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -87,6 +95,23 @@ typedef struct {
     int topRiskN,topComboRiskN;
 #endif
 } BLSearch;
+#if BL_RESEARCH_BASELINE_RISK_SHIELD
+// Only the research runner links the unchanged v1.7 strategy separately as
+// v17.o, with BLFindTwoStrategies renamed at compile time. Never link this
+// opt-in experiment into live v3.4 iPhone builds.
+BLTwoStrategies BLV17FindTwoStrategies(uint64_t,const BLPiece[3],
+                                      BLComboContext,uint32_t);
+static int plan_keeps_existing_combo(const BLSolution *plan,
+                                     BLComboContext combo) {
+    if(!combo.known || combo.streak<=0)return 1;
+    int misses=combo.misses>=0&&combo.misses<3?combo.misses:0;
+    for(int i=0;i<plan->movesFound;++i){
+        if(plan->moves[i].linesCleared>0)misses=0;
+        else if(++misses>=3)return 0;
+    }
+    return 1;
+}
+#endif
 static int bits(uint64_t v) {return __builtin_popcountll(v);}
 static uint64_t clear_full(uint64_t after,int *lines) {
     uint64_t erase=0;
@@ -894,5 +919,38 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
             out.smartFutureQuality=survival_value(rescue.board);
         }
     }
+#if BL_RESEARCH_BASELINE_RISK_SHIELD
+    // A conservative board-risk exception, not a general copy of baseline:
+    // only expensive-query v1.7 on a crowded board or imminent combo. Both
+    // candidate plans were constructed from exact legal current pieces.
+    if(out.smartSurvival.movesFound>0) {
+        BLSolution *cand=&out.smartSurvival;
+        uint64_t after=cand->moves[cand->movesFound-1].after;
+        if(bits(after)>32 || (combo.known&&combo.streak>0&&combo.misses>=1)) {
+            BLTwoStrategies old=BLV17FindTwoStrategies(board,pieces,combo,
+                                                        ctx.budget);
+            BLSolution ref=old.smartSurvival;
+            if(ref.movesFound>=cand->movesFound && ref.movesFound>0) {
+                int oldKeeps=plan_keeps_existing_combo(&ref,combo);
+                int candKeeps=plan_keeps_existing_combo(cand,combo);
+                if(oldKeeps>=candKeeps) {
+                    uint64_t oldAfter=ref.moves[ref.movesFound-1].after;
+                    int oldQ=survival_value(oldAfter)
+                        +450*worst_hard_coverage(oldAfter)
+                        +550*BLResearchPairCoverage(oldAfter);
+                    int candQ=survival_value(after)
+                        +450*worst_hard_coverage(after)
+                        +550*BLResearchPairCoverage(after);
+                    if(ref.movesFound>cand->movesFound ||
+                       oldKeeps>candKeeps || oldQ>candQ+1000) {
+                        out.smartSurvival=ref;
+                        out.smartComboPreserved=oldKeeps;
+                        out.smartFutureQuality=oldQ;
+                    }
+                }
+            }
+        }
+    }
+#endif
     return out;
 }
