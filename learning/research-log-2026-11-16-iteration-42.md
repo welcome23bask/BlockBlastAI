@@ -15,3 +15,15 @@ New research-only code commit `208a343bc8c2cf6798c509a62bc3868d7979abe9` uses `B
 ## Strict unchanged gates and disposition
 
 Require both independent holdouts to show **at least 10x mean survival AND 10x estimated score in EACH generator**, 10x p10 survival, zero illegal placements, no additional combo breaks per move or avoidable combo deadline misses, zero right-censored 4096-move games; independent replication before success or promotion. Simulator-estimated scores are NOT actual Block Blast game scores. No iPhone v3.4, main, deployment, saved checkpoint or validated candidate edits. Initial state: training underway, verdict unknown. Preserve negative results.
+
+## Completed result — better mean survival, but strict gate rejects shifted-heavy p10
+
+[Run 43806245696](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43806245696) finished exact-source compile, selftests, seed preflight, stage-one 21 training candidates and four independent stage-two candidates, and both paired 30-game/generator holdouts. Four of four finalists showed some stage-two regression; no trained weights promoted (isolated candidate `120 120 30 60`). Artifact `blockblast-tenx-bounded-research-43806245696` uploaded on failure.
+
+| Generator | Holdout 1967 mean survival / synthetic estimated score / p10 | Holdout 1968 mean survival / synthetic estimated score / p10 |
+|---|---|---|
+| Normal | 2.0630× / 2.4661× / 2.3043× | 2.2664× / 2.5717× / 1.1034× |
+| Heavy | 1.3939× / 1.6510× / 1.4375× | 1.2118× / 1.4605× / 1.2727× |
+| Shifted-heavy | 1.2319× / 1.4381× / 1.1429× | 1.2032× / 1.4174× / **0.9412×** |
+
+All moves legal (zero illegal), zero capped games at 4096, zero additional avoidable combo deadline misses. Combo-break rates improved in all six independent comparisons. This is a strong **mean-metric** signal relative to original v1.7 across the three generators, but the shifted-heavy 1968 lower-tail p10 dropped 17→16 moves and the unchanged ≥10× gates fail both holdouts, with weakest mean shifted-heavy 1.2032×. Treat these as synthetic estimates, never actual Block Blast points, and do not promote checkpoint/weights or touch live v3.4/main. Next bounded targeted hypothesis: add a conservative **hard-shape minimum-access floor** among already fully legal afterstate finalists when the future-clearing feature picks a brittle board; preserve combo gates. Do not rerun the same settings/seeds.
