@@ -18,6 +18,30 @@ int main(void) {
     assert(plan.toY==300);
     assert(plan.fromY>500);
     assert(plan.toX>=80 && plan.toX<=250);
+    assert(BLAutoDragEndsOnHighlight(&plan,&m,tray,43,220,323,500));
+    float sx=0,sy=0;
+    BLAutoDragPoint(&plan,1.f,&sx,&sy);
+    assert(sx==plan.toX && sy==plan.toY);
+    // The iPhone failure was a continuous overshooting drag from
+    // (90,702) toward (240,384) on a 430x932 display. Every generated
+    // point MUST remain between those endpoints and finish EXACTLY at
+    // (240,384) without extrapolation.
+    BLDragPlan realFailure={.fromX=90,.fromY=702,.toX=240,.toY=384,
+                             .pieceIndex=1,.anchorX=1,.anchorY=0};
+    float lastX=90,lastY=702;
+    for(int i=0;i<=18;i++){
+        float x=0,y=0;
+        BLAutoDragPoint(&realFailure,(float)i/18.f,&x,&y);
+        assert(x>=90 && x<=240 && y>=384 && y<=702);
+        assert(x>=lastX && y<=lastY);
+        lastX=x;lastY=y;
+    }
+    assert(lastX==240 && lastY==384);
+    BLAutoDragPoint(&realFailure,1.2f,&sx,&sy);
+    assert(sx==240 && sy==384);
+    BLDragPlan wrongTarget=plan;
+    wrongTarget.toX+=40;
+    assert(!BLAutoDragEndsOnHighlight(&wrongTarget,&m,tray,43,220,323,500));
     // Runaway-drag protections: do not initiate near the edge, below the
     // phone viewport, or toward another screen's coordinate origin.
     float normalTx=tx[1],normalTy=ty[1];
