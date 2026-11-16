@@ -50,7 +50,7 @@ for e in "$a" "$b" "$train_epoch"; do
 done
 # No-compile validation before Actions minutes are spent on training.
 if [[ "${TENX_PREFLIGHT_ONLY:-0}" == "1" ]]; then
-  printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (documented-ledger only)\\n' "$train_epoch" "$a" "$b"
+  printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (documented-ledger only)\n' "$train_epoch" "$a" "$b"
   exit 0
 fi
 rev="$(git rev-parse HEAD)"
@@ -64,8 +64,8 @@ cleanup() {
       if [[ -f "$source" ]]; then cp "$source" "$evidence_dir/"; fi
     done
   done
-  printf "EVIDENCE_DIRECTORY=%s\\n" "$evidence_dir"
-  printf "SOURCE_REVISION=%s\\n" "$rev"
+  printf "EVIDENCE_DIRECTORY=%s\n" "$evidence_dir"
+  printf "SOURCE_REVISION=%s\n" "$rev"
   rm -rf "$work"
   return "$status"
 }
