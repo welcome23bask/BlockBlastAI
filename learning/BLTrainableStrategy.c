@@ -122,7 +122,9 @@
 #define BL_RESEARCH_LINE_REPAIR_POTENTIAL 0
 // Iteration 53: exact single-piece repair feasibility; unlike union-cell reachability,
 // every missing line cell must be filled by ONE legal placement.
-#define BL_RESEARCH_EXACT_REPAIR 1
+#define BL_RESEARCH_EXACT_REPAIR 0
+// Iteration 54: evaluate actual next-one-piece clears by how much 3x3 mobility they restore.
+#define BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -422,6 +424,31 @@ static int BLResearchExactRepair(uint64_t board) {
         else score-=140;
     }
     return score;
+}
+// Unlike near-full-line rewards, simulate each legal public small-piece clear
+// and measure whether the resulting cleared board regains 3x3 capacity.
+// No hidden future tray, RNG, or phone state is accessed.
+static int BLResearchPostClearSquareRecovery(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    const uint64_t masks[5]={UINT64_C(1),UINT64_C(3),UINT64_C(0x101),UINT64_C(7),UINT64_C(0x10101)};
+    const int widths[5]={1,2,1,3,1},heights[5]={1,1,2,1,3};
+    int initial=fit(board,UINT64_C(0x70707),3,3);
+    int best=0,distinct=0;
+    for(int k=0;k<5;k++)for(int r=0;r<=8-heights[k];r++)
+        for(int c=0;c<=8-widths[k];c++){
+            uint64_t m=masks[k]<<(8*r+c);
+            if(board&m)continue;
+            int cleared=0;
+            uint64_t next=clear_full(board|m,&cleared);
+            if(!cleared)continue;
+            int after=fit(next,UINT64_C(0x70707),3,3);
+            int gain=after-initial;
+            if(gain>best)best=gain;
+            if(gain>=2)distinct++;
+        }
+    if(best>8)best=8;
+    if(distinct>4)distinct=4;
+    return best*90+distinct*35;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -857,6 +884,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_EXACT_REPAIR
         utility+=BLResearchExactRepair(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
+        utility+=BLResearchPostClearSquareRecovery(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
 #endif
@@ -932,6 +962,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_EXACT_REPAIR
         utility+=BLResearchExactRepair(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
+        utility+=BLResearchPostClearSquareRecovery(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
