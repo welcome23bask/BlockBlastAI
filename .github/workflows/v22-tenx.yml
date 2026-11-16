@@ -32,17 +32,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1507 bash learning/run_tenx_reproducible.sh 1558 1609
+          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1508 bash learning/run_tenx_reproducible.sh 1559 1610
       - name: Compile exact source and run one bounded training epoch with two synthetic holdouts
         id: research
         shell: bash
         run: |
           set -o pipefail
           # Epochs are provisional: the full historical seed ledger must still be audited.
-          # Iteration 51: test free-cell mobility coverage across legal bulky footprints; disjoint-square-pair OFF.
+          # Iteration 52: test repairable near-full row/column lines; free-cell mobility OFF.
           # Five initial paired training games/generator, up to 4 finalists on 8 disjoint training games, two 30-game/generator holdouts.
           # The runner rejects failing verdicts. Never promote a candidate from this job.
-          TENX_TRAIN_SEED_EPOCH=1507 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1558 1609 2>&1 | tee /tmp/tenx-research-console.txt
+          TENX_TRAIN_SEED_EPOCH=1508 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1559 1610 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -54,7 +54,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional training seed 1507 and holdouts 1558,1609; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 1508 and holdouts 1559,1610; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
