@@ -130,7 +130,10 @@
 #define BL_RESEARCH_POST_CLEAR_HARD_RESCUE 0
 // Iteration 56: reward hard-shape placements that preserve a DIFFERENT hard shape's legal fit.
 // Exact deterministic one-piece hypothetical, no hidden future RNG.
-#define BL_RESEARCH_HARD_CROSS_FIT 1
+#define BL_RESEARCH_HARD_CROSS_FIT 0
+// Iteration 57: worst-family *immediate line-clear* continuation among hard shapes.
+// Unlike cross-fit, a non-clearing first hard piece cannot earn a reward.
+#define BL_RESEARCH_HARD_CLEAR_TAIL 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -463,6 +466,29 @@ static int BLResearchPostClearSquareRecovery(uint64_t board) {
 // Cross-shape continuation: how many distinct hard-shape families have a legal
 // first placement leaving a different family still placeable? This directly
 // measures trap avoidance, not post-clear square recovery.
+// Conservative lower-tail hard-shape clear accessibility: a cramped board
+// scores only if EACH of square, horizontal bar, vertical bar can legally
+// clear a line immediately. Exact public geometry; no future RNG.
+static int BLResearchHardClearTail(uint64_t board) {
+    if (64-bits(board)>=38) return 0;
+    const uint64_t masks[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
+    const int widths[3]={3,5,1},heights[3]={3,1,5};
+    int clearTypes=0,minimum=1000;
+    for(int k=0;k<3;k++){
+        int count=0;
+        for(int r=0;r<=8-heights[k];r++)for(int c=0;c<=8-widths[k];c++){
+            uint64_t placed=masks[k]<<(8*r+c);
+            if(board&placed)continue;
+            int lines=0;
+            (void)clear_full(board|placed,&lines);
+            if(lines>0)count++;
+        }
+        if(count>0)clearTypes++;
+        if(count<minimum)minimum=count;
+    }
+    // Cap redundant landings, emphasize the weakest family over aggregate.
+    return 180*clearTypes+90*(minimum>4?4:minimum);
+}
 static int BLResearchHardCrossFit(uint64_t board) {
     if(64-bits(board)>=38)return 0;
     const uint64_t masks[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
@@ -953,8 +979,8 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topAll[i].board);
 #endif
-#if BL_RESEARCH_HARD_CROSS_FIT
-        utility+=BLResearchHardCrossFit(ctx->topAll[i].board);
+#if BL_RESEARCH_HARD_CLEAR_TAIL
+        utility+=BLResearchHardClearTail(ctx->topAll[i].board);
 #endif
 #if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
         utility+=BLResearchPostClearSquareRecovery(ctx->topAll[i].board);
@@ -1038,8 +1064,8 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topCombo[i].board);
 #endif
-#if BL_RESEARCH_HARD_CROSS_FIT
-        utility+=BLResearchHardCrossFit(ctx->topCombo[i].board);
+#if BL_RESEARCH_HARD_CLEAR_TAIL
+        utility+=BLResearchHardClearTail(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
         utility+=BLResearchPostClearSquareRecovery(ctx->topCombo[i].board);
