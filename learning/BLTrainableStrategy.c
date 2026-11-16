@@ -131,6 +131,26 @@ static int survival_value(uint64_t board) {
     if(blTrainWeights[3])
         q+=blTrainWeights[3]*(fit(board,UINT64_C(0x10303),2,3)+
                               fit(board,UINT64_C(0x30301),2,3));
+    // Research-only shifted-heavy survival hypothesis. The synthetic hard
+    // generator favors irregular shapes 21..27 that are NOT represented by
+    // the square/bar/rectangle footprint features above. Count their actual
+    // legal landing zones after a full tray; no hidden future piece is used.
+    // The independent v1.7 SMART SURVIVAL baseline is compiled separately
+    // from src/BLDualStrategy.c and remains unchanged.
+    static const struct {uint64_t mask; int width,height;} hard[7]={
+        {UINT64_C(0x40603),3,3}, {UINT64_C(0x507),3,2},
+        {UINT64_C(0x705),3,2},   {UINT64_C(0x701),3,2},
+        {UINT64_C(0x704),3,2},   {UINT64_C(0x20303),3,3},
+        {UINT64_C(0x20702),3,3}
+    };
+    int covered=0,cappedLandings=0;
+    for(int i=0;i<7;++i) {
+        int n=fit(board,hard[i].mask,hard[i].width,hard[i].height);
+        covered+=(n>0);
+        cappedLandings+=(n>4?4:n);
+    }
+    q+=170*covered+18*cappedLandings;
+    if(covered<3)q-=(3-covered)*350;
     return q;
 }
 // Hard safety check when keeping a small clear would sacrifice the only
