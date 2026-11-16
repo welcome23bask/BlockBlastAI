@@ -17,3 +17,15 @@ Current issue: old late future-pair reranking evaluates at most four finalists s
 Compare with untouched v1.7 SMART SURVIVAL on independent paired normal, heavy, shifted-heavy 8×8 three-piece synthetic games; require survival ≥10x AND synthetic estimated score ≥10x for every generator in each of two holdouts, p10 survival ≥10x, illegal placements zero, combo breaks per move no worse, avoidable combo deadlines no worse, capped games zero at 4096, independent replication before success. Synthetic estimated score is **NOT actual Block Blast score**. No saved checkpoint/production/phone/main changes or deployment regardless of partial gains.
 
 At initial log save: active run, verdict unknown. Preserve all failed metrics and identify worst generator afterwards.
+
+## Completed result — NO PROMOTION
+
+[Run 43804845920](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43804845920) passed preflight and compile/three-piece legality selftests and executed the complete paired synthetic training and both holdouts. All four stage-two weight candidates showed at least one survival/p10/estimated-score regression; none was verified safe. The immutable saved checkpoint and candidate weights remain `120 120 30 60`, and failure artifact `blockblast-tenx-bounded-research-43804845920` was uploaded.
+
+| Generator | 1961 survival / synthetic estimated score / p10 | 1962 survival / synthetic estimated score / p10 |
+|---|---|---|
+| Normal | **0.9917x** / 1.0554x / 1.0513x | 1.4496x / 1.6984x / **0.8200x** |
+| Heavy | 1.1610x / 1.3195x / 1.0000x | 1.0969x / 1.3241x / 1.0000x |
+| Shifted-heavy | 1.0405x / 1.1205x / 1.0000x | **1.0221x** / 1.0886x / 1.0000x |
+
+All illegal-move, combo-deadline and censored-game counts zero; combo-break rates improved in all six comparisons. But normal mean survival fell under v1.7 on 1961, normal p10 fell substantially on 1962, and shifted-heavy remained barely above baseline. **Diagnosis:** increasing finalist risk diversity expands the search frontier but does not ensure survival-calibrated selection; the risk surrogate can favor future-shape coverage at the expense of actual lower-tail durability. Default feature should be OFF after rejection, retained for explicit A/B only. Neither holdout approached 10×; synthetic estimated score is not the actual game's score. Epochs 1839/1961/1962 are reserved. No merge/build/deploy/checkpoint change.
