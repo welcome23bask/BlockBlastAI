@@ -503,6 +503,17 @@ static BLTouchRoute BLRuntimeTouchRoute(void) {
 
     if(direct) {
         if(!BLDispatchDirectGameView(idx)) {
+            // Some engines reject a move phase without a UIEvent.
+            // Never abandon a Began touch without a best-effort Cancelled.
+            UITouch *touch=g_slots[idx];
+            if(touch && touch.view) {
+                [touch setPhase:UITouchPhaseCancelled];
+                [touch setTimestamp:NSProcessInfo.processInfo.systemUptime];
+                @try {
+                    [touch.view touchesCancelled:
+                        [NSSet setWithObject:touch] withEvent:nil];
+                } @catch(__unused NSException *e) {}
+            }
             g_slots[idx]=nil;
             return 0;
         }
