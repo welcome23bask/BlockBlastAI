@@ -83,6 +83,11 @@ int main(void) {
     trained=BLFindTwoStrategies(almostRow,ones,urgent,180000);
     validate_plan(almostRow,ones,&trained.smartSurvival,3);
     assert(trained.smartSurvival.moves[0].linesCleared>0);
+    // Extreme search truncation: the independent emergency check should
+    // still find a legal first-move clear and full three-piece completion.
+    trained=BLFindTwoStrategies(almostRow,ones,urgent,1);
+    validate_plan(almostRow,ones,&trained.smartSurvival,3);
+    assert(trained.smartSurvival.moves[0].linesCleared>0);
     // A fresh empty board has no immediately clearable row or column from
     // singletons; an urgency flag must NEVER invent a line clear.
     trained=BLFindTwoStrategies(0,ones,urgent,180000);
