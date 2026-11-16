@@ -111,6 +111,7 @@ for epoch in sys.argv[1:]:
     assert s.count("score_ratio=")==3
     assert s.count("p10_ratio=")==3
     assert s.count("illegal=0")==6
+    assert s.count("capped_games=0")==6, "Right-censored game; increase cap before certification"
     assert "nan" not in s.lower()
     verdicts=re.findall(r"^TEN_X_VERDICT=(.+)$",s,re.M)
     assert len(verdicts)==1, "Missing or duplicated verdict"
