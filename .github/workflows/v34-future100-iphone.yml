@@ -1,4 +1,4 @@
-name: v3.4 Automatic Direct-Touch Compatibility iPhone
+name: v3.4 Automatic Vision Retry and Scan Diagnostics iPhone
 on:
   push:
     branches: [feature/v3.4-100-shape-survival-safety]
@@ -125,6 +125,24 @@ jobs:
           assert 'if(smartMode)' in ui and 'BLFindThreeMoveClearTimed' in ui
           print('PASS future-100 gated within Smart Survival; current combo-clear override retained')
           PY
+      - name: Verify bounded fresh-frame Automatic vision retry and detailed scanner reason
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_vision_recovery.c \
+            src/BLVisionRecovery.c -o /tmp/test-vision-recovery
+          /tmp/test-vision-recovery
+          python3 - <<'PY'
+          from pathlib import Path
+          ui=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLVisionRecoveryFailure(&_autoVisionRecovery' in ui
+          assert 'BLVisionRecoveryReset(&self->_autoVisionRecovery)' in ui
+          assert 'Automatic WAITING' in ui
+          assert 'Last scanner reason' in ui
+          assert 'themeVerified' in ui
+          assert 'BLAutoTargetIsProvenEmpty' in ui
+          assert 'BLIsExpectedTransition' in ui
+          assert 'No drag.' in ui
+          print('PASS Automatic waits without guessing, reports scanner failure, and retains occupied-cell proof')
+          PY
       - name: Route around missing UIEvent add-touch without bypassing any other safety check
         run: |
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_touch_route.c \
@@ -239,10 +257,11 @@ jobs:
             src/BLNoClearReview.c src/BLTrainedVision.c \
             src/BLFuture100.c src/BLVisionContrast.c \
             src/BLAutoDrag.c src/BLInProcessTouch.m src/BLTouchRoute.c \
+            src/BLVisionRecovery.c \
             -o dist/BlockBlastAI.dylib
           file dist/BlockBlastAI.dylib
           test -s dist/BlockBlastAI.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v34-DIRECT-TOUCH-FALLBACK-IPHONE
+          name: BlockBlastAI-v34-AUTO-VISION-RETRY-IPHONE
           path: dist/BlockBlastAI.dylib
