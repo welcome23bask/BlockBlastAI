@@ -1,0 +1,7 @@
+# Iteration 49 — redundant hard-shape landing alternatives
+
+Prior run 43836985435 failed strict gates. Holdout 1555 survival ratios normal 1.7469, heavy 1.1347, shifted-heavy 0.9358; shifted-heavy estimated score 0.8889, p10 0.8500, combo breaks 2.584 vs v1.7 2.233 per 100. Holdout 1606 survival ratios normal 1.7666, heavy 1.0761, shifted-heavy 1.3070; heavy p10 0.9565. Zero illegal/censored. Four stage-two weight candidates rejected. Evidence https://github.com/welcome23bask/BlockBlastAI/actions/runs/43836985435/artifacts/14211941202 . Proxy score is NOT actual game score.
+
+New bounded research-only hypothesis (source 8b6cf273): on crowded completed-tray boards, reward >=2 distinct exact legal landings per difficult template and penalize fragile single-landings. Unlike rejected zero-fit floor or biaxial line-clear diversity, targets single-slot traps. Biaxial flag OFF. No future RNG access. Not the future trained hazard model.
+
+Workflow 1bc5260f launched https://github.com/welcome23bask/BlockBlastAI/actions/runs/43849572797 with train epoch 1505, independent holdouts 1556 and 1607. No overlap at launch. Ledger reservation f8485096 followed workflow snapshot. Proposed IDs absent from accessible ledger and distinct from each other; runner must validate historical raw-start alias exclusions and seed preflight before compilation. External/local history incomplete. Strict unchanged six gates, 4096 cap, evidence retention. Results pending, no promotion, no live/main changes.
