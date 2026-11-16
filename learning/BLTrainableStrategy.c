@@ -21,10 +21,18 @@
 #ifndef BL_RESEARCH_NEXT_TRAY_ROLLOUT
 #define BL_RESEARCH_NEXT_TRAY_ROLLOUT 0
 #endif
-// Distributional lower-tail hypothesis: maximize the weakest hard-shape
-// placement coverage, not average fixed future-tray rollout outcomes.
+// Iteration 36's minimax over the single rarest future hard piece improved
+// normal survival, but heavy survival remained only ~1.12x on holdout.
+// Retain the old hypothesis for isolated A/B, default OFF for iteration 37.
 #ifndef BL_RESEARCH_MIN_HARD_COVERAGE
-#define BL_RESEARCH_MIN_HARD_COVERAGE 1
+#define BL_RESEARCH_MIN_HARD_COVERAGE 0
+#endif
+// Iteration 37: reward the bottom-three hard-piece landing counts DURING
+// every explored current-tray afterstate, before the top-four finalist filter.
+// Unlike single-shape minimax, this trades off several hard shapes and can
+// select a less immediately pretty board that preserves multiple exits.
+#ifndef BL_RESEARCH_BOTTOM3_HARD_COVERAGE
+#define BL_RESEARCH_BOTTOM3_HARD_COVERAGE 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -188,13 +196,34 @@ static int survival_value(uint64_t board) {
         {UINT64_C(0x20702),3,3}
     };
     int covered=0,cappedLandings=0;
+#if BL_RESEARCH_BOTTOM3_HARD_COVERAGE
+    int smallest[3]={64,64,64};
+#endif
     for(int i=0;i<7;++i) {
         int n=fit(board,hard[i].mask,hard[i].width,hard[i].height);
         covered+=(n>0);
         cappedLandings+=(n>4?4:n);
+#if BL_RESEARCH_BOTTOM3_HARD_COVERAGE
+        // Maintain the exact three smallest landing counts (including 0).
+        if(n<smallest[0]) {
+            smallest[2]=smallest[1];smallest[1]=smallest[0];smallest[0]=n;
+        } else if(n<smallest[1]) {
+            smallest[2]=smallest[1];smallest[1]=n;
+        } else if(n<smallest[2])smallest[2]=n;
+#endif
     }
     q+=170*covered+18*cappedLandings;
     if(covered<3)q-=(3-covered)*350;
+#if BL_RESEARCH_BOTTOM3_HARD_COVERAGE
+    // Lower-tail CVaR-style coverage proxy: bottom 3 of 7, each capped so
+    // excess placements of one easy shape cannot hide a zero-fit shape.
+    // A double-zero on a crowded afterstate is especially vulnerable to
+    // the next unknown heavy tray; no hidden RNG data is used here.
+    int tail=0;
+    for(int i=0;i<3;++i)tail+=(smallest[i]>6?6:smallest[i]);
+    q+=135*tail;
+    if(smallest[1]==0 && (64-bits(board))<28)q-=425;
+#endif
     return q;
 }
 // Hard safety check when keeping a small clear would sacrifice the only
