@@ -40,7 +40,15 @@
 // This rejects the iteration-37 bottom-three aggregate which worsened
 // shifted-heavy combo breaks on holdout 1957. Research-only, not iPhone.
 #ifndef BL_RESEARCH_PROACTIVE_PARETO
-#define BL_RESEARCH_PROACTIVE_PARETO 1
+#define BL_RESEARCH_PROACTIVE_PARETO 0
+#endif
+// Iteration 39: preserve additional complete-tray finalists selected on
+// risk-adjusted *hard-shape* coverage, in parallel to ordinary quality.
+// The late future-pair ranking can now consider genuinely different legal
+// afterstates that a top-four pure-quality pool would have discarded.
+// No new future RNG access, no extra search nodes, no baseline changes.
+#ifndef BL_RESEARCH_DUAL_POOL
+#define BL_RESEARCH_DUAL_POOL 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -71,6 +79,13 @@ typedef struct {
     BLPath topAll[BL_FUTURE_TOP],topCombo[BL_FUTURE_TOP];
     int topAllQ[BL_FUTURE_TOP],topComboQ[BL_FUTURE_TOP];
     int topAllN,topComboN;
+#if BL_RESEARCH_DUAL_POOL && BL_RESEARCH_MIN_HARD_COVERAGE
+    // Separate risk-oriented finalist diversity; each stored path is an
+    // already proven current-tray legal route, never an imaginary rollout.
+    BLPath topRisk[BL_FUTURE_TOP],topComboRisk[BL_FUTURE_TOP];
+    int topRiskQ[BL_FUTURE_TOP],topComboRiskQ[BL_FUTURE_TOP];
+    int topRiskN,topComboRiskN;
+#endif
 } BLSearch;
 static int bits(uint64_t v) {return __builtin_popcountll(v);}
 static uint64_t clear_full(uint64_t after,int *lines) {
@@ -382,6 +397,23 @@ static void rerank_afterstates(BLSearch *ctx) {
             ctx->haveSmart=1;
         }
     }
+#if BL_RESEARCH_DUAL_POOL && BL_RESEARCH_MIN_HARD_COVERAGE
+    // Crucial difference from iteration 36: rare-shape-aware finalists
+    // compete with ordinary finalists, not only AFTER quality truncation.
+    for(int i=0;i<ctx->topRiskN;++i) {
+        int utility=ctx->topRiskQ[i]+550*
+            BLResearchPairCoverage(ctx->topRisk[i].board);
+#if BL_RESEARCH_NEXT_TRAY_ROLLOUT
+        utility+=BLResearchSampledFutureBonus(ctx->topRisk[i].board);
+#endif
+        if(utility>best) {
+            best=utility;
+            ctx->smartPath=ctx->topRisk[i];
+            ctx->smartQuality=utility;
+            ctx->haveSmart=1;
+        }
+    }
+#endif
     best=INT_MIN;
     for(int i=0;i<ctx->topComboN;++i) {
         int utility=ctx->topComboQ[i]
@@ -400,6 +432,21 @@ static void rerank_afterstates(BLSearch *ctx) {
             ctx->haveSmartCombo=1;
         }
     }
+#if BL_RESEARCH_DUAL_POOL && BL_RESEARCH_MIN_HARD_COVERAGE
+    for(int i=0;i<ctx->topComboRiskN;++i) {
+        int utility=ctx->topComboRiskQ[i]+550*
+            BLResearchPairCoverage(ctx->topComboRisk[i].board);
+#if BL_RESEARCH_NEXT_TRAY_ROLLOUT
+        utility+=BLResearchSampledFutureBonus(ctx->topComboRisk[i].board);
+#endif
+        if(utility>best) {
+            best=utility;
+            ctx->smartComboPath=ctx->topComboRisk[i];
+            ctx->smartComboQuality=utility;
+            ctx->haveSmartCombo=1;
+        }
+    }
+#endif
 }
 #endif // BL_RESEARCH_PAIR_LOOKAHEAD
 static int preserved(const BLSearch *ctx,const BLPath *path) {
@@ -438,6 +485,18 @@ static void save_if_best(BLSearch *ctx,const BLPath *path) {
             if(comboOK)
                 record_afterstate(ctx->topCombo,ctx->topComboQ,
                                   &ctx->topComboN,path,sq);
+#if BL_RESEARCH_DUAL_POOL && BL_RESEARCH_MIN_HARD_COVERAGE
+            // Rerank utility can now discover lower-base-quality boards that
+            // retain actual landing locations for the least-placeable hard
+            // shape. Keep this pool separate to avoid overwriting safe base
+            // quality finalists or forcing all policy decisions to change.
+            int riskQ=sq+450*worst_hard_coverage(path->board);
+            record_afterstate(ctx->topRisk,ctx->topRiskQ,
+                              &ctx->topRiskN,path,riskQ);
+            if(comboOK)
+                record_afterstate(ctx->topComboRisk,ctx->topComboRiskQ,
+                                  &ctx->topComboRiskN,path,riskQ);
+#endif
         }
 #endif
         if(!ctx->haveSmart || path->depth>ctx->smartPath.depth ||
