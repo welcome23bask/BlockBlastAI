@@ -540,8 +540,8 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_HARD_ZERO_FLOOR
         // Zero-fit floor is conditional on scarce free space, rather than
         // applying a global reward that dominated earlier experiments.
-        if(64-bits(ctx->topAll.board)<28 &&
-           worst_hard_coverage(ctx->topAll.board)==0)
+        if(64-bits(ctx->topAll[i].board)<28 &&
+           worst_hard_coverage(ctx->topAll[i].board)==0)
             utility-=850;
 #endif
 #if BL_RESEARCH_FUTURE_CLEAR_ACCESS
@@ -589,8 +589,8 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_HARD_ZERO_FLOOR
         // Zero-fit floor is conditional on scarce free space, rather than
         // applying a global reward that dominated earlier experiments.
-        if(64-bits(ctx->topCombo.board)<28 &&
-           worst_hard_coverage(ctx->topCombo.board)==0)
+        if(64-bits(ctx->topCombo[i].board)<28 &&
+           worst_hard_coverage(ctx->topCombo[i].board)==0)
             utility-=850;
 #endif
 #if BL_RESEARCH_FUTURE_CLEAR_ACCESS
