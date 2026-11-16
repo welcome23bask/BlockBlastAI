@@ -32,17 +32,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1829 bash learning/run_tenx_reproducible.sh 1941 1942
+          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1830 bash learning/run_tenx_reproducible.sh 1943 1944
       - name: Compile exact source and run one bounded training epoch with two synthetic holdouts
         id: research
         shell: bash
         run: |
           set -o pipefail
           # Epochs are provisional: the full historical seed ledger must still be audited.
-          # Iteration 29: test urgent combo rescue plus validated 5-game worst-generator training.
+          # Iteration 30: test fair first-move stratification and measured node truncation.
           # Five paired training games/generator; 21 candidates; 30 games/generator in each of two holdouts.
           # The runner rejects failing verdicts. Never promote a candidate from this job.
-          TENX_TRAIN_SEED_EPOCH=1829 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1941 1942 2>&1 | tee /tmp/tenx-research-console.txt
+          TENX_TRAIN_SEED_EPOCH=1830 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1943 1944 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -54,7 +54,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional training seed 1829 and holdouts 1941,1942; checked against accessible research logs, unrecorded historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 1830 and holdouts 1943,1944; checked against accessible research logs, unrecorded historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
