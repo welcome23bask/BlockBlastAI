@@ -16,6 +16,7 @@ on:
       - feature/v3.2-opt-in-vision-capture
       - feature/v3.3-vision-train-five-rechecks
       - feature/v3.4-100-shape-survival-safety
+      - feature/v3.4-automatic-vision-repair
     paths:
       - 'src/**'
       - 'tests/**'
