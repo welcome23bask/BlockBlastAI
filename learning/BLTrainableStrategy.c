@@ -117,7 +117,9 @@
 // Iteration 50: exact non-overlapping 3x3 landing pairs, not individual landing counts.
 #define BL_RESEARCH_DISJOINT_SQUARE_PAIR 0
 // Iteration 51: mobility coverage of free cells by diverse exact legal bulky footprints.
-#define BL_RESEARCH_FREE_CELL_MOBILITY 1
+#define BL_RESEARCH_FREE_CELL_MOBILITY 0
+// Iteration 52: reward accessible nearly-complete row/column repair lines, not bulky-footprint coverage.
+#define BL_RESEARCH_LINE_REPAIR_POTENTIAL 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -343,6 +345,45 @@ static int BLResearchFreeCellMobility(uint64_t board) {
     uint64_t shared=(covered[0]&covered[1])|(covered[0]&covered[2])|(covered[1]&covered[2]);
     int unreachable=bits((~board)&(~any));
     return 28*bits(any)+16*bits(shared)-45*unreachable;
+}
+// Research-only: exact occupancy of rows/columns that are one or two cells
+// from clearing. A potential clear must have its missing cells in a legal
+// 2x2 or 3-long placement; merely counting near-full lines overvalues holes.
+// This is a geometric late rerank of legal complete-tray afterstates, with
+// no next-tray RNG, no alteration to the independent v1.7 baseline.
+static int BLResearchLineRepairPotential(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    uint64_t accessible=0;
+    const uint64_t shapes[4]={UINT64_C(0x3),UINT64_C(0x101),UINT64_C(0x303),UINT64_C(0x7)};
+    const int widths[4]={2,1,2,3},heights[4]={1,2,2,1};
+    for(int k=0;k<4;k++)
+        for(int r=0;r<=8-heights[k];r++)
+            for(int c=0;c<=8-widths[k];c++){
+                uint64_t m=shapes[k]<<(r*8+c);
+                if(!(board&m))accessible|=m;
+            }
+    int score=0;
+    for(int r=0;r<8;r++){
+        uint64_t line=UINT64_C(255)<<(8*r);
+        uint64_t holes=line&~board;
+        int n=bits(holes);
+        if(n>=1 && n<=3){
+            int reachable=bits(holes&accessible);
+            if(reachable==n)score+=(4-n)*125;
+            else score-=90*(n-reachable);
+        }
+    }
+    for(int c=0;c<8;c++){
+        uint64_t line=UINT64_C(0x0101010101010101)<<c;
+        uint64_t holes=line&~board;
+        int n=bits(holes);
+        if(n>=1 && n<=3){
+            int reachable=bits(holes&accessible);
+            if(reachable==n)score+=(4-n)*125;
+            else score-=90*(n-reachable);
+        }
+    }
+    return score;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -772,8 +813,8 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
         utility+=BLResearchRedundantHardLandings(ctx->topAll[i].board);
 #endif
-#if BL_RESEARCH_FREE_CELL_MOBILITY
-        utility+=BLResearchFreeCellMobility(ctx->topAll[i].board);
+#if BL_RESEARCH_LINE_REPAIR_POTENTIAL
+        utility+=BLResearchLineRepairPotential(ctx->topAll[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
@@ -845,8 +886,8 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_REDUNDANT_HARD_LANDINGS
         utility+=BLResearchRedundantHardLandings(ctx->topCombo[i].board);
 #endif
-#if BL_RESEARCH_FREE_CELL_MOBILITY
-        utility+=BLResearchFreeCellMobility(ctx->topCombo[i].board);
+#if BL_RESEARCH_LINE_REPAIR_POTENTIAL
+        utility+=BLResearchLineRepairPotential(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
         utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
