@@ -346,8 +346,16 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
                        blTrainWeights[2]||blTrainWeights[3]);
             int sameSafety=ctx.smartComboQuality>=ctx.smartQuality-
                            (tuned?5000:4700);
-            if(sameSafety &&
-               !dangerously_worse(ctx.smartComboPath.board,ctx.smartPath.board)) {
+            // Last-chance observed combo: a complete legal three-piece
+            // route that clears immediately should prevent an avoidable
+            // deadline miss. Keep all safety/performance gates in testing.
+            int urgent=ctx.initial.known && ctx.initial.streak>0 &&
+                       ctx.initial.misses==2;
+            int urgentComplete=urgent &&
+                ctx.smartComboPath.depth==ctx.total;
+            if(urgentComplete ||
+               (sameSafety &&
+                !dangerously_worse(ctx.smartComboPath.board,ctx.smartPath.board))) {
                 chosen=ctx.smartComboPath;
                 chosenQ=ctx.smartComboQuality;
             } else {
