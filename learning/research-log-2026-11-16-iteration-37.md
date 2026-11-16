@@ -15,3 +15,15 @@ In source commit `49e43f41c3df428ea7233baafaf4e9aa6d3d939e`, research-only `lear
 ## Non-negotiable acceptance conditions
 
 Identical unchanged v1.7 SMART SURVIVAL baseline; independent fresh paired 8×8/three-piece normal, heavy, shifted-heavy simulations; per generator and **per holdout** mean survival ≥10x, synthetic estimated score ≥10x, p10 survival ≥10x; zero illegal moves, no worse combo breaks per move or avoidable combo deadline count; zero right-censored games at 4096; independent replication before claiming any success. Synthetic estimated score is **NOT** the actual game's points. Keep every failed metric/log/artifact. No saved checkpoint promotion, no main edits, no v3.4 iPhone edits, no deployment or iPhone build. A 10× claim is prohibited until all strict gates pass twice.
+
+## Completed result — candidate REJECTED
+
+[Actions run 43803697188](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43803697188) compiled, passed fail-fast preflight and exact 8x8/3-piece selftests, completed 21 training trials plus all four second-stage training candidates, and both independent 30-game/generator holdouts 1957 and 1958. **Zero of four second-stage candidates passed**: all had combo-unsafe and survival/score/p10 regression indicators on at least one training generator. No checkpoint or weights promoted. Evidence artifact `blockblast-tenx-bounded-research-43803697188` uploaded even though the correct 10x gate failed.
+
+| Generator | 1957 survival / synthetic estimated score / p10 | 1958 survival / synthetic estimated score / p10 |
+| --- | --- | --- |
+| Normal | 1.4868x / 1.7127x / 1.0638x | 2.0006x / 2.4254x / 1.3462x |
+| Heavy | 1.1243x / 1.3171x / 1.1176x | 1.2941x / 1.6531x / 1.1765x |
+| Shifted-heavy | 1.1425x / 1.3357x / 1.0000x | **1.0489x** / 1.1745x / **1.0000x** |
+
+Every measured move was legal, no avoidable combo deadlines, no censored games at 4096. However shifted-heavy holdout 1957 candidate combo-break rate was **2.894 per 100 moves versus v1.7 baseline 2.166**, a strictly disqualifying increase. Shifted-heavy 1958 mean survival fell to only 1.0489x. Normal 1958 gained 2.0006x survival and 2.4254x synthetic estimated score, but this is not universal, and neither comes close to the 10x all-generator criterion. **Diagnosis**: prioritizing bottom-three landing zones during every current-tray evaluation can interfere with maintaining valuable existing combos under shifted-heavy pieces. Reject this default and retain code behind opt-in for isolated testing, not promotion. Never misrepresent synthetic score as the actual game score.
