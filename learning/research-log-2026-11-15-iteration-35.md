@@ -21,3 +21,19 @@ Research-only unit test commit `47e6ab919f7474403164631dc899f5e31a3abdda` assert
 ## Pending verdict and hard constraints
 
 Do NOT infer any new performance before run finishes. Require exact 8x8/three-piece legality, all per-generator >=10x mean survival, >=10x simulated estimated score, >=10x p10 survival, zero illegal placements, no worse combo breaks per move and no more avoidable deadlines, zero capped games and independent fresh-seed replication. Simulated estimates are NOT observed Block Blast points. Saved checkpoint remains `16 120 120 30 60`, saved candidate remains `120 120 30 60`; main, deployment, and v3.4 iPhone dylib unchanged.
+
+## Completed result: rejected rollout hypothesis
+
+[Run 43795171397](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43795171397) completed both real CI compilation/selftests and both 30-game-per-generator paired synthetic holdouts on source `9121faef97860e71b1014861e626fea05c4b4050`. Fail-fast preflight, 8x8/3-piece legality selftests and evidence upload succeeded. Initial training 13/21 candidates passed combo safety, but all four independently checked second-stage training finalists showed at least one survival/p10/proxy regression, so NO weights were selected or promoted; the isolated result retained `120 120 30 60`. The all-generator strict 10x verdict failed both holdouts. All reported placements were legal, with no additional avoidable combo deadlines and zero right-censored games at the 4096 move cap.
+
+| Generator | Holdout 1953 survival / estimated-score / p10 | Holdout 1954 survival / estimated-score / p10 |
+| --- | --- | --- |
+| Normal | 1.2905x / 1.4258x / **0.8868x** | 1.7491x / 2.0283x / 1.0000x |
+| Heavy | 1.0624x / 1.1996x / 1.4706x | **0.9554x** / 1.0354x / 1.0000x |
+| Shifted-heavy | 1.1623x / 1.3335x / 1.1765x | **0.9492x** / **0.9591x** / **0.8500x** |
+
+Combo-break rate decreased versus v1.7 in all six comparisons, but the inconsistent survival and lower-tail regressions demonstrate that the three fixed future-tray sample bonuses do NOT generalize reliably. Do not select or deploy this policy. The scripted verifier correctly rejected it. Simulation score estimates are NOT actual phone-game scores.
+
+**Research disposition:** Commit `d390f88ac5cb3e7a93955067c6f3dca8001fbde0` sets `BL_RESEARCH_NEXT_TRAY_ROLLOUT=0` by default, retaining the code behind an explicit opt-in for future controlled A/B. Commit `ca30888039193a112d0966c1dd644de17b2871b5` separately fixed a bounded-search performance defect: recursion exhaustion must short-circuit siblings instead of continuing to enumerate zero-budget branches. Both commits occurred *after* the measured run's source revision, so an exact-source compile regression test on the revised research branch remains required; neither is claimed to improve measured gameplay yet.
+
+The seed ledger now reserves train epoch 1835 and both holdouts 1953/1954 via commit `ec6ccd15896772ef880e4f62b7352dcb1a0324ae`. The saved checkpoint remains unchanged; no main/deploy/iPhone changes. The 10x goal is unverified. Avoid repeating these identical future-tray probes as if they were a new learning attempt.
