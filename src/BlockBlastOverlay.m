@@ -16,6 +16,7 @@
 #import "BLFuture100.h"
 #import "BLAutoDrag.h"
 #import "BLInProcessTouch.h"
+#import "BLVisionRecovery.h"
 #import "BLGuideSafety.h"
 #import "BLTrainingCollector.h"
 #include <math.h>
@@ -111,6 +112,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     CGFloat _autoTrayPitch[3];
     uint64_t _autoDefinitelyEmpty; // independent tile-center color evidence
     BOOL _autoVisionVerified;       // never drag if skin classification ambiguous
+    BLVisionRecovery _autoVisionRecovery; // distinct failed scans, never stale plans
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -592,10 +594,30 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     // The next stable frame must prove continuity or reset the tracker.
     ++_solveGeneration;
     _moveLabel.text=@"";
-    if(_autoPlayEnabled)
-        [self stopAutoPlayWithReason:
-            @"Automatic paused: board/tray scan uncertain. Fix vision before rearming."];
-    if(reason) _status.text=reason;
+    if(_autoPlayEnabled) {
+        // One bad frame is NOT a reason to force the user to manually
+        // rearm. Keep automatic SCANNING active, while discarding the old
+        // board, solution, highlight and any permission to drag.
+        NSString *detail=reason.length?reason:
+            @"Unknown board or tray reading; retrying.";
+        BOOL fatal=BLVisionRecoveryFailure(&_autoVisionRecovery,
+                          BLCaptureFrameCounter(),CFAbsoluteTimeGetCurrent());
+        if(fatal) {
+            NSString *msg=[NSString stringWithFormat:
+                @"Automatic stopped after %u distinct uncertain frames. Last scanner reason: %@",
+                _autoVisionRecovery.failures,detail];
+            [self stopAutoPlayWithReason:msg];
+            BLVisionRecoveryReset(&_autoVisionRecovery);
+        } else {
+            NSString *msg=[NSString stringWithFormat:
+                @"Automatic WAITING — retrying board/tray (%u/12 fresh failures). No drag. %@",
+                _autoVisionRecovery.failures,detail];
+            _autoPlayStatus.text=msg;
+            _status.text=msg;
+        }
+    } else if(reason) {
+        _status.text=reason;
+    }
     if(bubbleTitle) [_bubble setTitle:bubbleTitle forState:UIControlStateNormal];
     [self refreshTiles];
     [self refreshGuides];
@@ -681,6 +703,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     }
     _autoPlayEnabled=YES;
     _autoAwaiting=NO;
+    BLVisionRecoveryReset(&_autoVisionRecovery);
     _autoVerifiedPlacements=0;
     _autoRetryAfter=0;
     _stableAutoFrames=0;
@@ -794,6 +817,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
 - (void)autoTick {
     if(!_autoEnabled || _autoBusy || _autoPlacing ||
        !_panel.hidden || !_calibrationLayer.hidden) return;
+    if(_autoPlayEnabled && _autoAwaiting && _autoDragAt>0 &&
+       CFAbsoluteTimeGetCurrent()-_autoDragAt>7.0) {
+        [self stopAutoPlayWithReason:
+            @"Automatic stopped: no verified board transition within 7 seconds after drag."];
+        return;
+    }
     if(_autoRetryAfter>0 && CFAbsoluteTimeGetCurrent()<_autoRetryAfter) return;
     if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) return;
     // 1. Capture was restarted since the last frame we trusted: forget everything.
@@ -882,8 +911,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         self->_autoErrors=0;
         self->_autoRetryAfter=0;
         if(self->_autoPlayEnabled && !themeVerified) {
-            [self stopAutoPlayWithReason:
-              @"Automatic stopped: this theme is not independently verified. Manual highlights remain available."];
+            [self invalidateDetection:
+              @"Theme not independently verified by tile-center colors; waiting for matching fresh captures. No drag."
+                             bubble:@"AI …"];
+            return;
         }
         // Reject anomalous geometry and sudden tray/board contradictions.
         CGFloat pitchX=(last.x-first.x)/7.0, pitchY=(last.y-first.y)/7.0;
@@ -921,9 +952,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
             return;
         }
         if(!goodGeom) {
-            [self invalidateDetection:@"AI paused — board coordinates changed unexpectedly. Waiting for a stable capture." bubble:@"AI …"];
+            [self invalidateDetection:@"Board coordinates moved unexpectedly; rescanning exact 8×8 geometry." bubble:@"AI …"];
             return;
         }
+        BLVisionRecoveryReset(&self->_autoVisionRecovery);
         // Smooth minor detector jitter; large jumps were already rejected.
         // Never smooth a new grid after reconnecting or a board transition.
         if(self->_solvedAutoHash!=0 && sameBoard && sameTray &&
