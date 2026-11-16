@@ -4,6 +4,12 @@
 #include "BLDualStrategy.h"
 #include <string.h>
 #include <limits.h>
+// The fair-root hypothesis was falsified on shifted-heavy holdouts 1943/1944.
+// Keep it available for controlled A/B studies but default to the better
+// characterized original research traversal; never alter src/ v1.7 baseline.
+#ifndef BL_RESEARCH_FAIR_ROOT
+#define BL_RESEARCH_FAIR_ROOT 0
+#endif
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
 static int blTrainWeights[4]={0};
@@ -272,6 +278,7 @@ static void search(BLSearch *ctx,BLPath *path) {
     }
     if(!any)save_if_best(ctx,path);
 }
+#if BL_RESEARCH_FAIR_ROOT
 // Research-only search fairness: the depth-first baseline spends its full
 // node budget on the first indexed piece/landing location on busy boards.
 // Allocate the SAME total node budget across legal first actions, so all
@@ -333,6 +340,7 @@ done:
     ctx->budget=fullBudget;
     ctx->truncated=anyTruncated;
 }
+#endif // BL_RESEARCH_FAIR_ROOT
 static void pack(BLSolution *to,const BLPath *from,int approximate) {
     memset(to,0,sizeof(*to));
     to->movesFound=from->depth;
@@ -380,7 +388,11 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
         start.streak=combo.streak>63?63:combo.streak;
         start.misses=(combo.misses>=0&&combo.misses<3)?combo.misses:0;
     }
+#if BL_RESEARCH_FAIR_ROOT
     search_fair_first(&ctx,&start);
+#else
+    search(&ctx,&start);
+#endif
     out.exploredNodes=ctx.visited;
     out.exhaustive=!ctx.truncated;
     if(ctx.haveMax) {
