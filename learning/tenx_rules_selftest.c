@@ -8,6 +8,7 @@
 
 void BLSetTrainWeights(const int weights[4]);
 int BLResearchPairCoverage(uint64_t board);
+int BLResearchSampledFutureBonus(uint64_t board);
 BLTwoStrategies BLV17FindTwoStrategies(uint64_t board,const BLPiece pieces[3],
                                       BLComboContext combo,uint32_t budget);
 static uint64_t place_checked(uint64_t b,uint64_t mask,int *cleared) {
@@ -64,6 +65,11 @@ int main(void) {
     assert(BLResearchPairCoverage(0)==6);
     assert(BLResearchPairCoverage(UINT64_MAX)==0);
     assert(BLResearchPairCoverage(~UINT64_C(0x70707))==0);
+    // Exact legal three-piece synthetic stress trays must fit on an empty
+    // 8x8 board and fail on a completely occupied one. The probes are
+    // fixed counterfactual scenarios and cannot peek at actual future RNG.
+    assert(BLResearchSampledFutureBonus(0)>0);
+    assert(BLResearchSampledFutureBonus(UINT64_MAX)<0);
     BLPiece ones[3]={0};
     for(int i=0;i<3;i++){ones[i].count=1;ones[i].x[0]=0;ones[i].y[0]=0;}
     BLComboContext combo={0};
