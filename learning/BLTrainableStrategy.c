@@ -15,8 +15,11 @@
 #ifndef BL_RESEARCH_PAIR_LOOKAHEAD
 #define BL_RESEARCH_PAIR_LOOKAHEAD 1
 #endif
+// Three fixed next-tray rollouts overfit/shifted heavy on holdouts
+// 1953/1954. Retain for explicit research A/B but default OFF.
+// Independent v1.7 source and phone runtime remain untouched.
 #ifndef BL_RESEARCH_NEXT_TRAY_ROLLOUT
-#define BL_RESEARCH_NEXT_TRAY_ROLLOUT 1
+#define BL_RESEARCH_NEXT_TRAY_ROLLOUT 0
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
