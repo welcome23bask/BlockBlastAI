@@ -115,3 +115,44 @@ int BLAutoTargetIsProvenEmpty(const BLPiece tray[3],const BLMove *move,
     // classifier must independently certify every destination EMPTY.
     return targets!=0 && (targets&certainlyEmptyMask)==targets;
 }
+
+void BLAutoDragPoint(const BLDragPlan *plan,float fraction,
+                     float *x,float *y) {
+    if(!plan||!x||!y)return;
+    if(fraction<0.f)fraction=0.f;
+    if(fraction>1.f)fraction=1.f;
+    // Cubic ease-out slows the block as it reaches the target, avoiding
+    // overshoot caused by extrapolated speed or a hard last-frame jump.
+    float remain=1.f-fraction;
+    float smooth=1.f-remain*remain*remain;
+    *x=plan->fromX+(plan->toX-plan->fromX)*smooth;
+    *y=plan->fromY+(plan->toY-plan->fromY)*smooth;
+    if(fraction>=1.f){*x=plan->toX;*y=plan->toY;}
+}
+int BLAutoDragEndsOnHighlight(const BLDragPlan *plan,
+                              const BLMove *move,const BLPiece tray[3],
+                              float fx,float fy,float lx,float ly) {
+    if(!plan||!move||!tray||move->pieceIndex<0||
+       move->pieceIndex>=3)return 0;
+    if(plan->pieceIndex!=move->pieceIndex)return 0;
+    if(!isfinite(fx)||!isfinite(fy)||!isfinite(lx)||!isfinite(ly))
+        return 0;
+    float px=(lx-fx)/7.f,py=(ly-fy)/7.f;
+    if(px<=0||py<=0)return 0;
+    const BLPiece *piece=&tray[move->pieceIndex];
+    int anchorPresent=0;
+    for(int i=0;i<piece->count;i++)
+        if(piece->x[i]==plan->anchorX &&
+           piece->y[i]==plan->anchorY)anchorPresent=1;
+    if(!anchorPresent)return 0;
+    int col=move->col+plan->anchorX;
+    int row=move->row+plan->anchorY;
+    if(col<0||col>=8||row<0||row>=8)return 0;
+    float highlightX=fx+col*px;
+    float highlightY=fy+row*py;
+    if(fabsf(plan->toX-highlightX)>.15f ||
+       fabsf(plan->toY-highlightY)>.15f)return 0;
+    float endX=0,endY=0;
+    BLAutoDragPoint(plan,1.f,&endX,&endY);
+    return endX==plan->toX && endY==plan->toY;
+}
