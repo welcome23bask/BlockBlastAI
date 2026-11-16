@@ -24,7 +24,8 @@ static uint64_t place_checked(uint64_t b,uint64_t mask,int *cleared) {
 }
 static void validate_plan(uint64_t board,const BLPiece pieces[3],
                           const BLSolution *plan,int expected) {
-    assert(plan->movesFound==expected);
+    assert(expected<0 || plan->movesFound==expected);
+    assert(plan->movesFound>=0 && plan->movesFound<=3);
     unsigned used=0;
     for(int i=0;i<plan->movesFound;i++) {
         BLMove m=plan->moves[i];
@@ -75,6 +76,43 @@ int main(void) {
     partial[1].count=0;
     trained=BLFindTwoStrategies(0,partial,combo,180000);
     validate_plan(0,partial,&trained.smartSurvival,2);
+    // If a witnessed combo is on its final non-clearing allowance and a
+    // complete legal tray route can clear now, the first move must clear.
+    BLComboContext urgent={.known=1,.streak=5,.misses=2};
+    uint64_t almostRow=UINT64_C(0xfe); // top row missing (0,0)
+    trained=BLFindTwoStrategies(almostRow,ones,urgent,180000);
+    validate_plan(almostRow,ones,&trained.smartSurvival,3);
+    assert(trained.smartSurvival.moves[0].linesCleared>0);
+    // A fresh empty board has no immediately clearable row or column from
+    // singletons; an urgency flag must NEVER invent a line clear.
+    trained=BLFindTwoStrategies(0,ones,urgent,180000);
+    validate_plan(0,ones,&trained.smartSurvival,3);
+    assert(trained.smartSurvival.moves[0].linesCleared==0);
+    // Challenge the solver's exact masks with large, irregular pieces as
+    // well as singleton boards. Do not assume any complete tray exists.
+    BLPiece mixed[3]={0};
+    mixed[0].count=9;
+    for(int y=0;y<3;y++)for(int x=0;x<3;x++) {
+        int k=y*3+x;mixed[0].x[k]=x;mixed[0].y[k]=y;
+    }
+    mixed[1].count=5;
+    for(int x=0;x<5;x++){mixed[1].x[x]=x;mixed[1].y[x]=0;}
+    mixed[2].count=5;
+    const int lx[5]={0,0,0,1,2},ly[5]={0,1,2,2,2};
+    for(int k=0;k<5;k++){mixed[2].x[k]=lx[k];mixed[2].y[k]=ly[k];}
+    uint32_t rng=0x593def21u;
+    for(int trial=0;trial<24;trial++) {
+        rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;
+        uint64_t board=(uint64_t)rng;
+        rng^=rng<<13;rng^=rng>>17;rng^=rng<<5;
+        board|=((uint64_t)rng<<32);
+        // Both solver variants must return internally legal move-by-move
+        // transitions even on cramped, unevenly filled synthetic boards.
+        trained=BLFindTwoStrategies(board,mixed,combo,180000);
+        validate_plan(board,mixed,&trained.smartSurvival,-1);
+        baseline=BLV17FindTwoStrategies(board,mixed,combo,180000);
+        validate_plan(board,mixed,&baseline.smartSurvival,-1);
+    }
     printf("TENX_RULES_SELFTEST=PASS (row+column clears, legal 3-piece search, used-piece mask)\n");
     return 0;
 }
