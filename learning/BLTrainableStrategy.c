@@ -95,7 +95,15 @@
 // crowded complete afterstates, rather than horizontal/vertical bar capacity.
 // Only exact legal hypothetical one-piece placements; no next-tray RNG.
 #ifndef BL_RESEARCH_HARD_CLEAR_DIVERSITY
-#define BL_RESEARCH_HARD_CLEAR_DIVERSITY 1
+#define BL_RESEARCH_HARD_CLEAR_DIVERSITY 0
+#endif
+// Iteration 47: lower-tail rescue feasibility: after an exactly legal
+// hypothetical difficult-piece placement that clears a line, can the board
+// still accommodate a second difficult piece? This measures recoverable
+// TWO-step capacity, unlike iteration 46's count of immediate clear types.
+// Only public shapes and exact board geometry; no hidden future RNG.
+#ifndef BL_RESEARCH_HARD_RESCUE_CHAIN
+#define BL_RESEARCH_HARD_RESCUE_CHAIN 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -491,6 +499,37 @@ static int BLResearchHardClearDiversity(uint64_t board) {
     }
     return distinct*125;
 }
+// Bounded two-step rescue: count distinct hard first-piece types that can
+// clear immediately AND leave a legal landing for a different hard type.
+// Cap each type to its first 12 legal clear-producing placements, and never
+// infer the next piece or treat this as a real future-tray simulation.
+static int BLResearchHardRescueChain(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    static const struct {uint64_t mask;int w,h;} hard[]={
+        {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
+        {UINT64_C(0x705),3,2},{UINT64_C(0x20303),3,3},
+        {UINT64_C(0x20702),3,3}
+    };
+    int rescued=0;
+    for(int i=0;i<5;++i) {
+        int success=0,checked=0;
+        for(int r=0;r<=8-hard[i].h && !success;++r)
+            for(int c=0;c<=8-hard[i].w && !success;++c) {
+                uint64_t placed=hard[i].mask<<(r*8+c);
+                if(placed&board)continue;
+                int lines=0;
+                uint64_t next=clear_full(board|placed,&lines);
+                if(!lines)continue;
+                if(++checked>12)break;
+                for(int j=0;j<5;++j)if(j!=i &&
+                    fit(next,hard[j].mask,hard[j].w,hard[j].h)>0) {
+                    success=1;break;
+                }
+            }
+        rescued+=success;
+    }
+    return rescued*155;
+}
 // A fixed suite of hard PIECE PAIRS, not samples from the game's hidden RNG.
 // Includes two 3x3 squares, square/bar, square/irregular, crossing bars,
 // and two irregular shapes. Used only for bounded afterstate reranking.
@@ -637,6 +676,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_HARD_CLEAR_DIVERSITY
         utility+=BLResearchHardClearDiversity(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_HARD_RESCUE_CHAIN
+        utility+=BLResearchHardRescueChain(ctx->topAll[i].board);
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartPath=ctx->topAll[i];
@@ -694,6 +736,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_HARD_CLEAR_DIVERSITY
         utility+=BLResearchHardClearDiversity(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_HARD_RESCUE_CHAIN
+        utility+=BLResearchHardRescueChain(ctx->topCombo[i].board);
 #endif
         if(utility>best) {
             best=utility;
