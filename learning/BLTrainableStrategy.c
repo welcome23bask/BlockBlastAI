@@ -133,7 +133,10 @@
 #define BL_RESEARCH_HARD_CROSS_FIT 0
 // Iteration 57: worst-family *immediate line-clear* continuation among hard shapes.
 // Unlike cross-fit, a non-clearing first hard piece cannot earn a reward.
-#define BL_RESEARCH_HARD_CLEAR_TAIL 1
+#define BL_RESEARCH_HARD_CLEAR_TAIL 0
+// Iteration 58: penalize shared critical landing cells across all hard families.
+// A single contested empty pocket is a brittle common-mode failure point.
+#define BL_RESEARCH_HARD_LANDING_BOTTLENECK 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -488,6 +491,32 @@ static int BLResearchHardClearTail(uint64_t board) {
     }
     // Cap redundant landings, emphasize the weakest family over aggregate.
     return 180*clearTypes+90*(minimum>4?4:minimum);
+}
+// Exact legal hard-family footprints, without hidden next-tray information.
+// A cell is a common-mode bottleneck when every legal landing of multiple
+// difficult shape families requires it. Penalize only crowded boards.
+static int BLResearchHardLandingBottleneck(uint64_t board) {
+    if(64-bits(board)>=38)return 0;
+    const uint64_t masks[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
+    const int widths[3]={3,5,1},heights[3]={3,1,5};
+    uint64_t mandatory[3]={0,0,0};
+    int available[3]={0,0,0};
+    for(int k=0;k<3;++k){
+        uint64_t common=~UINT64_C(0);
+        for(int r=0;r<=8-heights[k];++r)
+            for(int c=0;c<=8-widths[k];++c){
+                uint64_t placed=masks[k]<<(8*r+c);
+                if(board&placed)continue;
+                common&=placed;
+                ++available[k];
+            }
+        if(available[k])mandatory[k]=common;
+    }
+    int contested=0;
+    for(int a=0;a<3;++a)for(int b=a+1;b<3;++b)
+        if(available[a]&&available[b])contested+=bits(mandatory[a]&mandatory[b]);
+    int zero=(available[0]==0)+(available[1]==0)+(available[2]==0);
+    return -160*contested-240*zero;
 }
 static int BLResearchHardCrossFit(uint64_t board) {
     if(64-bits(board)>=38)return 0;
@@ -979,6 +1008,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_HARD_LANDING_BOTTLENECK
+        utility+=BLResearchHardLandingBottleneck(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_HARD_CLEAR_TAIL
         utility+=BLResearchHardClearTail(ctx->topAll[i].board);
 #endif
@@ -1063,6 +1095,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_HARD_LANDING_BOTTLENECK
+        utility+=BLResearchHardLandingBottleneck(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_CLEAR_TAIL
         utility+=BLResearchHardClearTail(ctx->topCombo[i].board);
