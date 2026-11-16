@@ -23,11 +23,11 @@
 #endif
 // Iteration 36's minimax over the single rarest future hard piece improved
 // normal survival, but heavy survival remained only ~1.12x on holdout.
-// Retain the old hypothesis for isolated A/B, default OFF for iteration 37.
+// Restore as the last combo-safe characterized hypothesis for iteration 38.
 #ifndef BL_RESEARCH_MIN_HARD_COVERAGE
 #define BL_RESEARCH_MIN_HARD_COVERAGE 1
 #endif
-// Iteration 37: reward the bottom-three hard-piece landing counts DURING
+// Iteration 37 (rejected on shifted-heavy combo rate): reward the bottom-three hard-piece landing counts DURING
 // every explored current-tray afterstate, before the top-four finalist filter.
 // Unlike single-shape minimax, this trades off several hard shapes and can
 // select a less immediately pretty board that preserves multiple exits.
