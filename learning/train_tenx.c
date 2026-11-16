@@ -155,6 +155,21 @@ static int train(int argc,char **argv){
                 // happens to improve on a small training sample.
                 double candidateBreakRate=s.breaks/(s.moves+1e-9);
                 double baselineBreakRate=ref.breaks/(ref.moves+1e-9);
+                // Diagnose the incumbent on all three generators even if
+                // all 21 candidates ultimately fail the combo-safety gate.
+                // These are paired synthetic training games, not holdouts.
+                if(attempt==0) {
+                    printf("TRAIN_INCUMBENT scenario=%d survival_ratio=%.4f "
+                           "score_ratio=%.4f p10_ratio=%.4f "
+                           "breaks_per_100_candidate=%.3f baseline=%.3f "
+                           "avoidable_deadlines_candidate=%.0f baseline=%.0f "
+                           "illegal=%d\n",
+                           scenario,s.moves/(ref.moves>0?ref.moves:1.0),
+                           s.score/(ref.score>0?ref.score:1.0),
+                           (double)s.p10/(ref.p10>0?ref.p10:1),
+                           100*candidateBreakRate,100*baselineBreakRate,
+                           s.skips,ref.skips,s.illegal);
+                }
                 if(s.illegal)illegalUnsafe=1;
                 if(s.skips>ref.skips || candidateBreakRate>baselineBreakRate+1e-9)
                     comboUnsafe=1;
