@@ -201,6 +201,15 @@ static int tray_slot(const uint8_t *im,int w,int h,int flip,
                      int slot,int trayTop,int trayBottom,double small,BLPiece *out) {
     const int x0=slot*w/3,x1=(slot+1)*w/3;
     BLRGB bg=region_median(im,w,h,x0,trayTop,x1,trayBottom,flip);
+    // Wide tray tiles can dominate a slot's sampled colors. Cross-check
+    // against two outside scene edges (without memorizing any tile hue).
+    BLRGB edge=region_median(im,w,h,maxi(2,w/60),trayTop,
+                            maxi(15,w/25),trayBottom,flip);
+    if(diff(bg,edge)>64) {
+        BLRGB far=region_median(im,w,h,w-maxi(15,w/25),trayTop,
+                               w-maxi(2,w/60),trayBottom,flip);
+        if(diff(edge,far)<46)bg=edge;
+    }
     const int step=maxi(3,w/310),cols=(x1-x0)/step,rows=(trayBottom-trayTop)/step;
     if(cols<5||rows<5)return 0;
     int hist[766]={0},samples=0;
