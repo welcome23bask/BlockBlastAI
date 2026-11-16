@@ -1,4 +1,4 @@
-name: v3.4 Automatic Emergency Release and Coordinate Safety iPhone
+name: v3.4 Automatic Exact Highlight Drop and Touch Release iPhone
 on:
   push:
     branches: [feature/v3.4-100-shape-survival-safety]
@@ -142,7 +142,12 @@ jobs:
           assert '[BLInProcessTouch forceCancelAllTouches]' in stop
           assert '_autoTouchSlot=0' in stop
           assert 'finger release failed' in overlay
-          assert 'touch watchdog forced finger release' in overlay
+          assert 'release watchdog cancelled the synthetic finger' in overlay
+          assert 'BLAutoDragEndsOnHighlight' in overlay
+          assert 'BLAutoDragPoint(&plan,(float)step/(float)steps' in overlay
+          assert 'const CFTimeInterval endHold=.18' in overlay
+          assert 'phase:UITouchPhaseEnded slot:self->_autoTouchSlot' in overlay
+          assert 'Finger released at highlighted target.' in overlay
           assert 'Last touch' in overlay
           assert 'for(int step=0;step<=20;step++)' in drag
           assert 'fx-pitchX*.5f<edge' in drag
@@ -286,5 +291,5 @@ jobs:
           test -s dist/BlockBlastAI.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v34-FINGER-RELEASE-SAFE-IPHONE
+          name: BlockBlastAI-v34-EXACT-HIGHLIGHT-DROP-IPHONE
           path: dist/BlockBlastAI.dylib
