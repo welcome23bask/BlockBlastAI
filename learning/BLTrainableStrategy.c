@@ -71,6 +71,12 @@
 #ifndef BL_RESEARCH_FUTURE_CLEAR_ACCESS
 #define BL_RESEARCH_FUTURE_CLEAR_ACCESS 1
 #endif
+// Iteration 43: lower-tail hard-shape accessibility floor combined with
+// exact one-piece clear access; unlike the rejected global minimax bonus,
+// only penalize *zero* hard-shape landing on cramped completed trays.
+#ifndef BL_RESEARCH_HARD_ZERO_FLOOR
+#define BL_RESEARCH_HARD_ZERO_FLOOR 1
+#endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -531,6 +537,13 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_HARD_ZERO_FLOOR
+        // Zero-fit floor is conditional on scarce free space, rather than
+        // applying a global reward that dominated earlier experiments.
+        if(64-bits(ctx->topAll.board)<28 &&
+           worst_hard_coverage(ctx->topAll.board)==0)
+            utility-=850;
+#endif
 #if BL_RESEARCH_FUTURE_CLEAR_ACCESS
         utility+=BLResearchFutureClearAccess(ctx->topAll[i].board);
 #endif
@@ -572,6 +585,13 @@ static void rerank_afterstates(BLSearch *ctx) {
             ;
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_HARD_ZERO_FLOOR
+        // Zero-fit floor is conditional on scarce free space, rather than
+        // applying a global reward that dominated earlier experiments.
+        if(64-bits(ctx->topCombo.board)<28 &&
+           worst_hard_coverage(ctx->topCombo.board)==0)
+            utility-=850;
 #endif
 #if BL_RESEARCH_FUTURE_CLEAR_ACCESS
         utility+=BLResearchFutureClearAccess(ctx->topCombo[i].board);
