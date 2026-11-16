@@ -272,6 +272,67 @@ static void search(BLSearch *ctx,BLPath *path) {
     }
     if(!any)save_if_best(ctx,path);
 }
+// Research-only search fairness: the depth-first baseline spends its full
+// node budget on the first indexed piece/landing location on busy boards.
+// Allocate the SAME total node budget across legal first actions, so all
+// three visible piece orders can receive some consideration. Search still
+// requires exact 8x8 legality and never predicts the next unknown tray.
+static void search_fair_first(BLSearch *ctx,const BLPath *start) {
+    int roots=0;
+    for(int p=0;p<3;++p) {
+        if(ctx->pieces[p].count<=0)continue;
+        for(int j=0;j<ctx->counts[p];++j)
+            if(!(start->board&ctx->placements[p][j].mask))++roots;
+    }
+    if(roots<2) {
+        BLPath one=*start;
+        search(ctx,&one);
+        return;
+    }
+    const uint32_t fullBudget=ctx->budget;
+    int remaining=roots,anyTruncated=0;
+    for(int p=0;p<3;++p) {
+        if(ctx->pieces[p].count<=0)continue;
+        for(int j=0;j<ctx->counts[p];++j) {
+            const BLPlace *pos=&ctx->placements[p][j];
+            if(start->board&pos->mask)continue;
+            if(ctx->visited>=fullBudget){anyTruncated=1;goto done;}
+            uint32_t quota=(fullBudget-ctx->visited)/(uint32_t)remaining;
+            if(quota==0)quota=1;
+            ctx->budget=ctx->visited+quota;
+            ctx->truncated=0;
+            BLPath next=*start;
+            int lines=0;
+            next.board=clear_full(start->board|pos->mask,&lines);
+            next.used|=1<<p;
+            next.moves[0]=(BLMove){
+                .pieceIndex=p,.row=pos->row,.col=pos->col,
+                .linesCleared=lines,.before=start->board,.after=next.board
+            };
+            next.depth=1;
+            next.lines+=lines;
+            if(lines>0) {
+                next.firstClear=1;
+                next.seenClear=1;
+                next.streak=next.streak<63?next.streak+1:63;
+                next.misses=0;
+            } else if(next.streak>0) {
+                ++next.misses;
+                if(next.misses>=3) {
+                    if(ctx->initial.known&&ctx->initial.streak>0)
+                        next.broken=1;
+                    next.streak=0;next.misses=0;
+                }
+            }
+            search(ctx,&next);
+            anyTruncated|=ctx->truncated;
+            --remaining;
+        }
+    }
+done:
+    ctx->budget=fullBudget;
+    ctx->truncated=anyTruncated;
+}
 static void pack(BLSolution *to,const BLPath *from,int approximate) {
     memset(to,0,sizeof(*to));
     to->movesFound=from->depth;
@@ -319,7 +380,7 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
         start.streak=combo.streak>63?63:combo.streak;
         start.misses=(combo.misses>=0&&combo.misses<3)?combo.misses:0;
     }
-    search(&ctx,&start);
+    search_fair_first(&ctx,&start);
     out.exploredNodes=ctx.visited;
     out.exhaustive=!ctx.truncated;
     if(ctx.haveMax) {
