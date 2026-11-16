@@ -77,6 +77,8 @@ int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
     // A previous iPhone run carried a tile offscreen; fail closed rather
     // than risk another uncalibrated border or orientation mismatch.
     const float edge=fmaxf(22.f,fminf(pitchX,pitchY)*.45f);
+    if(fx-pitchX*.5f<edge || lx+pitchX*.5f>w-edge ||
+       fy-pitchY*.5f<edge || ly+pitchY*.5f>h-edge)return 0;
     if(x0<edge||x0>w-edge||y0<ly+pitchY*.8f||y0>h-edge ||
        x1<edge||x1>w-edge||y1<edge||y1>h-edge ||
        y0<y1+pitchY*1.5f)return 0;
