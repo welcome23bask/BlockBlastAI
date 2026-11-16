@@ -29,3 +29,15 @@ At log creation: CI running, no outcome claimed.
 | Shifted-heavy | 1.0299x / **0.9952x** / 1.4167x | **0.9278x / 0.9335x / 0.9412x** |
 
 Every simulated placement was legal, no right-censored games, zero additional avoidable combo deadlines. But the full train combo-safety gate failed and shifted-heavy independent holdout 1964 **regressed on all three primary metrics**. Baseline-guided afterstate proxy comparison cannot guarantee higher actual simulator survival. The v1.7 anchored risk shield must be default OFF. Neither holdout reaches any universal 10x result. Synthetic estimated score is **not actual Block Blast game score**. No saved checkpoint, main or v3.4 changes.
+
+## Completed outcome — shield rejected
+
+[Actions run 43805340214](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43805340214) compiled, passed 8x8/three-piece selftests and preflight, trained on all 21 proposed candidates and ran both independent 30-game/generator synthetic holdouts. **Zero of 21** weight variants met even the initial multi-generator combo-safety screen; no stage-two finalists and no weights or checkpoint promotion. Failure artifact `blockblast-tenx-bounded-research-43805340214` retained. The unchanged v1.7 source remained the paired control throughout.
+
+| Generator | 1963 survival / synthetic estimated score / p10 | 1964 survival / synthetic estimated score / p10 |
+|---|---|---|
+| Normal | 1.3404x / 1.5449x / **0.8600x** | 1.8203x / 2.1104x / 1.5172x |
+| Heavy | 1.0834x / 1.2320x / 1.1000x | 1.1610x / 1.4642x / 1.1875x |
+| Shifted-heavy | 1.0299x / **0.9952x** / 1.4167x | **0.9278x / 0.9335x / 0.9412x** |
+
+All moves legal, zero capped games, no additional avoidable combo deadlines; combo-break rates improved on six holdout comparisons. Yet p10 regressed on normal 1963 and shifted-heavy 1964, proxy score regressed on shifted-heavy both holdouts, and shifted-heavy mean survival regressed on 1964. The v1.7-guided crowded-board shield did **not** provide a no-regret guarantee; local geometry and combo criteria do not predict global survival for these generators. Reject flag by default, retain code for explicitly controlled isolated A/B. The strict all-generator replicated 10x gate failed. Synthetic score estimates are NOT the real game score. The saved candidate/checkpoint remain unchanged; no merge, phone build, or deployment.
