@@ -39,7 +39,17 @@ No illegal placements were reported; candidate avoidable deadlines were **no wor
 
 ## Iteration 30 — bounded fair-root search trial
 
-[GitHub Actions run 43790591777](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43790591777), source `28163cbe`, was in progress at initial log drafting. Provisional training epoch 1830, holdout epochs 1943 and 1944, five paired training games/generator, 21 candidates, two 30-game/generator synthetic holdouts, same strict gates, and added search-truncation percentage instrumentation. Update this section once the run has completed.
+[GitHub Actions run 43790591777](https://github.com/welcome23bask/BlockBlastAI/actions/runs/43790591777), source `28163cbe`, **completed** preflight (train 1830; holdouts 1943,1944), compile, rule selftest PASS, one five-game-per-generator training epoch, both 30-game-per-generator paired holdouts, and evidence preservation. Training found **9/21 combo-safe candidates**, 12 combo rejections, 0 illegal; provisional selected weights 180,60,30,60. Both strict holdouts failed.
+
+| Generator | 1943 mean survival / proxy / p10 ratio | 1944 mean survival / proxy / p10 ratio |
+| --- | --- | --- |
+| normal | 1.9438x / 2.1762x / 1.4706x | 1.1219x / 1.1438x / 0.9756x |
+| heavy | 1.2748x / 1.5329x / 1.0000x | 1.1417x / 1.2134x / 1.0526x |
+| shifted-heavy | **0.9404x / 0.8788x / 1.0000x** | **0.9793x / 0.9251x / 1.0000x** |
+
+All reported placements legal. No additional avoidable combo deadlines. Shifted-heavy combo-break rate improved versus baseline, but shifted-heavy survival and score proxy were **worse** on both holdouts. Truncation instrumentation found approximately 0.7–2.1% of baseline decisions and 1.8–2.7% of candidate decisions exhausted the solver's search budget. This suggests first-root DFS starvation exists but is not, by itself, the dominant cause of the 10x gap: fair-root stratification did not fix shifted-heavy survival. Do not promote this experiment as a winning policy. The simulator's scores are estimates only.
+
+The bounded fair-root design has now been experimentally evaluated and should be considered an **unverified, generator-sensitive hypothesis**, not the default recommendation for the phone. Target the shifted-heavy survival/tail weakness and generalization across independent holdouts next.
 
 ## Provenance and deployment
 
