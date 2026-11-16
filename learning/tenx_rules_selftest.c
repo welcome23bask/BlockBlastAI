@@ -110,6 +110,11 @@ int main(void) {
     for(int k=0;k<trained.smartSurvival.movesFound;k++)
         proClears+=trained.smartSurvival.moves[k].linesCleared;
     assert(proClears>0);
+    // With one recorded miss, a saved streak must clear before a third miss:
+    // checking only a clear somewhere in the tray is insufficient.
+    assert(trained.smartSurvival.movesFound>=2);
+    assert(trained.smartSurvival.moves[0].linesCleared>0 ||
+           trained.smartSurvival.moves[1].linesCleared>0);
     // A fresh empty board has no immediately clearable row or column from
     // singletons; an urgency flag must NEVER invent a line clear.
     trained=BLFindTwoStrategies(0,ones,urgent,180000);
