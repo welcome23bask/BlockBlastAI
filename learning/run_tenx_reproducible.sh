@@ -48,6 +48,11 @@ for e in "$a" "$b" "$train_epoch"; do
     fi
   done
 done
+# Additional research-only fail-closed audit: distinct epoch IDs do NOT
+# guarantee distinct legacy 32-bit RNG starts across scenario offsets 20/40.
+# Conservatively compare all three proposed role epochs and all reserved
+# historical epochs, without modifying the executing seed snapshot.
+python3 learning/audit_raw_seed_aliases.py "$train_epoch" "$a" "$b"
 # No-compile validation before Actions minutes are spent on training.
 if [[ "${TENX_PREFLIGHT_ONLY:-0}" == "1" ]]; then
   printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (documented-ledger only)\n' "$train_epoch" "$a" "$b"
