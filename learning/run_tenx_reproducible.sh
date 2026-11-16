@@ -19,11 +19,11 @@ if (( a < 17 || a > 2000 || b < 17 || b > 2000 || a == b )); then
   echo "Holdout epochs must be distinct and between 17 and 2000." >&2; exit 2
 fi
 for e in "$a" "$b"; do
-  case "$e" in 92|93|989|1201|1202|1901|1902|1903|1904|1905|1906|1907|1908|1909|1910|1911|1912|1913|1914)
+  case "$e" in 92|93|989|1201|1202|1901|1902|1903|1904|1905|1906|1907|1908|1909|1910|1911|1912|1913|1914|1915|1916|1822)
     echo "Previously used/planned epoch: $e" >&2; exit 2;;
   esac
 done
-# A source checkpoint may deliberately remain unchanged after failed gates.
+# Seed namespaces are cross-role: never reuse a previously planned holdout as training.\n# A source checkpoint may deliberately remain unchanged after failed gates.
 # Never mistake a repeated checkpoint epoch for a fresh training seed.
 train_epoch="${TENX_TRAIN_SEED_EPOCH:-}"
 if [[ ! "$train_epoch" =~ ^[0-9]+$ ]] ||
@@ -32,7 +32,7 @@ if [[ ! "$train_epoch" =~ ^[0-9]+$ ]] ||
   echo "Supply a distinct provisional TENX_TRAIN_SEED_EPOCH in 17..2000." >&2
   exit 2
 fi
-for used in 1716 1901 1902 1903 1904 1905 1906 1907 1908 1818 1819 1820 1821 1909 1910 1911 1912 1913 1914; do
+for used in 1716 1901 1902 1903 1904 1905 1906 1907 1908 1818 1819 1820 1821 1822 1915 1916 1909 1910 1911 1912 1913 1914; do
   if (( train_epoch == used )); then
     echo "Training seed epoch previously used/planned: $used" >&2; exit 2
   fi
