@@ -89,7 +89,13 @@ echo "PROVISIONAL_TRAIN_SEED_EPOCH=$train_epoch"
 echo "PROVISIONAL_HOLDOUT_EPOCHS=$a,$b"
 # One bounded epoch with a new training namespace, even though unchanged
 # checkpoint weights may still resume at logical epoch 16.
-TENX_TRAIN_SEED_EPOCH="$train_epoch" ./tenx_lab train 1 3 | tee training.txt
+train_games="${TENX_TRAIN_GAMES:-3}"
+if [[ ! "$train_games" =~ ^[0-9]+$ ]] || ((train_games<1 || train_games>30)); then
+  echo "ERROR: TENX_TRAIN_GAMES must be 1..30" >&2
+  exit 2
+fi
+echo "TRAINING_GAMES_PER_GENERATOR=$train_games"
+TENX_TRAIN_SEED_EPOCH="$train_epoch" ./tenx_lab train 1 "$train_games" | tee training.txt
 echo "TRAINED_CHECKPOINT=$(cat tenx_checkpoint.txt)"
 echo "CANDIDATE_WEIGHTS=$(cat tenx_candidate_weights.txt)"
 # Caller must verify these epoch IDs were never used for training or testing.
