@@ -75,7 +75,14 @@
 // exact one-piece clear access; unlike the rejected global minimax bonus,
 // only penalize *zero* hard-shape landing on cramped completed trays.
 #ifndef BL_RESEARCH_HARD_ZERO_FLOOR
-#define BL_RESEARCH_HARD_ZERO_FLOOR 1
+#define BL_RESEARCH_HARD_ZERO_FLOOR 0
+#endif
+// Iteration 44: favor a single large contiguous empty region over multiple
+// small disconnected pockets ONLY on relatively crowded afterstates. This
+// complements the promising future single-piece clear-access feature and
+// avoids speculative hidden future trays. Research-only late rerank.
+#ifndef BL_RESEARCH_CONNECTED_FREE_REGION
+#define BL_RESEARCH_CONNECTED_FREE_REGION 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -383,6 +390,33 @@ static int pair_fits_now(uint64_t board,
 // asks a factual geometric question about a single placement, without any
 // guess about order or probabilities of unseen future trays. Bounded to
 // 10 representative shapes and at most three clearable sites per shape.
+// A large count of empty cells may be unusable if split into separate
+// islands. This exact 4-connected empty-space penalty is intentionally
+// bounded, and only applied when fewer than 40 cells remain empty. It
+// supplements (rather than replaces) legal shape fits / line-clear access.
+int BLResearchFreeFragmentationPenalty(uint64_t board) {
+    uint64_t free=~board;
+    int total=bits(free);
+    if(total>=40 || total==0)return 0;
+    const uint64_t edgeR=UINT64_C(0x7f7f7f7f7f7f7f7f);
+    const uint64_t edgeL=UINT64_C(0xfefefefefefefefe);
+    int largest=0;
+    while(free) {
+        uint64_t island=free&(~free+UINT64_C(1)),old;
+        do {
+            old=island;
+            uint64_t near=((island&edgeR)<<1)|((island&edgeL)>>1)|
+                          (island<<8)|(island>>8);
+            island|=near&free;
+        } while(island!=old);
+        int area=bits(island);
+        if(area>largest)largest=area;
+        free&=~island;
+    }
+    int fragmented=total-largest;
+    if(fragmented>16)fragmented=16;
+    return -100*fragmented;
+}
 int BLResearchFutureClearAccess(uint64_t board) {
     static const struct {uint64_t mask;int w,h;} sample[]={
         {UINT64_C(0x70707),3,3},
@@ -547,6 +581,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_FUTURE_CLEAR_ACCESS
         utility+=BLResearchFutureClearAccess(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_CONNECTED_FREE_REGION
+        utility+=BLResearchFreeFragmentationPenalty(ctx->topAll[i].board);
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartPath=ctx->topAll[i];
@@ -595,6 +632,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_FUTURE_CLEAR_ACCESS
         utility+=BLResearchFutureClearAccess(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_CONNECTED_FREE_REGION
+        utility+=BLResearchFreeFragmentationPenalty(ctx->topCombo[i].board);
 #endif
         if(utility>best) {
             best=utility;
