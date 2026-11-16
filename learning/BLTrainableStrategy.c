@@ -62,7 +62,14 @@
 // all 28 public synthetic laboratory shape templates. Assess only already
 // proven legal current-tray finalists, NOT hidden next-tray RNG samples.
 #ifndef BL_RESEARCH_SHAPE_MIXTURE
-#define BL_RESEARCH_SHAPE_MIXTURE 1
+#define BL_RESEARCH_SHAPE_MIXTURE 0
+#endif
+// Iteration 42: future single-piece LINE CLEAR accessibility, not just raw
+// landing-space accessibility. This counts exactly legal immediate clears by
+// representative next shapes from already completed current-tray boards;
+// never samples or peeks at the game's hidden next-tray RNG.
+#ifndef BL_RESEARCH_FUTURE_CLEAR_ACCESS
+#define BL_RESEARCH_FUTURE_CLEAR_ACCESS 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -365,6 +372,38 @@ static int pair_fits_now(uint64_t board,
     }
     return 0;
 }
+// Measure the opportunity to clear an entire line when ONE hypothetical
+// subsequent shape is available. Unlike the failed three-piece rollout, this
+// asks a factual geometric question about a single placement, without any
+// guess about order or probabilities of unseen future trays. Bounded to
+// 10 representative shapes and at most three clearable sites per shape.
+int BLResearchFutureClearAccess(uint64_t board) {
+    static const struct {uint64_t mask;int w,h;} sample[]={
+        {UINT64_C(0x70707),3,3},
+        {UINT64_C(0x1f),5,1},{UINT64_C(0x0101010101),1,5},
+        {UINT64_C(0x303),2,2},{UINT64_C(0x707),3,2},
+        {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
+        {UINT64_C(0x705),3,2},{UINT64_C(0x20303),3,3},
+        {UINT64_C(0x20702),3,3}
+    };
+    int score=0;
+    for(unsigned i=0;i<sizeof(sample)/sizeof(sample[0]);++i) {
+        int clearing=0;
+        for(int r=0;r<=8-sample[i].h && clearing<3;++r) {
+            for(int c=0;c<=8-sample[i].w && clearing<3;++c) {
+                uint64_t placed=sample[i].mask<<(8*r+c);
+                if(placed&board)continue;
+                int lines=0;
+                (void)clear_full(board|placed,&lines);
+                if(lines>0)++clearing;
+            }
+        }
+        // One available future clear is valuable; a third redundant landing
+        // must not dominate the entire original whole-tray evaluation.
+        if(clearing>0)score+=160+35*clearing;
+    }
+    return score;
+}
 // A fixed suite of hard PIECE PAIRS, not samples from the game's hidden RNG.
 // Includes two 3x3 squares, square/bar, square/irregular, crossing bars,
 // and two irregular shapes. Used only for bounded afterstate reranking.
@@ -492,6 +531,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_FUTURE_CLEAR_ACCESS
+        utility+=BLResearchFutureClearAccess(ctx->topAll[i].board);
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartPath=ctx->topAll[i];
@@ -530,6 +572,9 @@ static void rerank_afterstates(BLSearch *ctx) {
             ;
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_FUTURE_CLEAR_ACCESS
+        utility+=BLResearchFutureClearAccess(ctx->topCombo[i].board);
 #endif
         if(utility>best) {
             best=utility;
