@@ -324,6 +324,60 @@ static NSInteger BLProviderFreeSlot(Class cls) {
         (NSInteger (*)(id,SEL))objc_msgSend;
     return cls?invoke(cls,NSSelectorFromString(@"getAvailablePointId")):0;
 }
+// Compatibility path for newer UIKit builds without the recycled
+// UIEvent _addTouch:forDelayedDelivery: selector. Dispatch directly to the
+// hit-tested GAME view, not BlockBlastAI's overlay. This is a best-effort,
+// in-process UIResponder delivery, not a system-wide injected HID event.
+// The overlay MUST verify the actual board changed after any attempt.
+static BOOL BLCanDeliverDirectToGame(void) {
+    if(!ResolveTouchWindow())return NO;
+    Class touch=[UITouch class];
+    return [touch instancesRespondToSelector:@selector(setWindow:)] &&
+           [touch instancesRespondToSelector:@selector(setView:)] &&
+           [touch instancesRespondToSelector:@selector(setPhase:)] &&
+           [touch instancesRespondToSelector:@selector(setTimestamp:)] &&
+           [touch instancesRespondToSelector:
+              @selector(_setLocationInWindow:resetPrevious:)];
+}
+static BOOL BLDispatchDirectGameView(NSInteger idx) {
+    if(idx<0||idx>=kSlotCount)return NO;
+    UITouch *touch=g_slots[idx];
+    if(!touch)return NO;
+    UIWindow *game=ResolveTouchWindow();
+    UIView *view=touch.view;
+    // Fail closed: no detached views, overlay controls, or different windows.
+    if(!game||!view||touch.window!=game||view.window!=game ||
+       [view isKindOfClass:[UIControl class]])return NO;
+    UITouchPhase phase=touch.phase;
+    NSSet<UITouch *> *one=[NSSet setWithObject:touch];
+    // No synthetic UIEvent is available. Some game engines accept the
+    // responder calls; others require UIKit's native event pipeline.
+    // Calls do NOT establish that a game processed the drag.
+    @try {
+        switch(phase) {
+            case UITouchPhaseBegan:
+                [view touchesBegan:one withEvent:nil];
+                break;
+            case UITouchPhaseMoved:
+                [view touchesMoved:one withEvent:nil];
+                break;
+            case UITouchPhaseEnded:
+                [view touchesEnded:one withEvent:nil];
+                break;
+            case UITouchPhaseCancelled:
+                [view touchesCancelled:one withEvent:nil];
+                break;
+            default:return NO;
+        }
+        if(phase==UITouchPhaseBegan || phase==UITouchPhaseMoved){
+            [touch setPhase:UITouchPhaseStationary];
+            [touch setTimestamp:NSProcessInfo.processInfo.systemUptime];
+        }
+        return YES;
+    } @catch(__unused NSException *e) {
+        return NO;
+    }
+}
 static NSString *BLHIDMissingPart(void){
     if(!BLResolveHID())return @"HID framework/symbols unavailable";
     if(![UITouch instancesRespondToSelector:@selector(_setLocationInWindow:resetPrevious:)])
@@ -343,7 +397,10 @@ static NSString *BLHIDMissingPart(void){
 
 + (BOOL)isAvailable {
     if(BLExistingFakeTouchProvider())return YES;
-    return BLHIDMissingPart()==nil;
+    if(BLHIDMissingPart()==nil)return YES;
+    // Missing add-touch doesn't imply an app-owned responder cannot receive
+    // direct touch phases. Do not assume this will work in all game engines.
+    return BLCanDeliverDirectToGame();
 }
 + (NSString *)capabilityReport {
     Class provider=BLExistingFakeTouchProvider();
@@ -351,10 +408,15 @@ static NSString *BLHIDMissingPart(void){
         @"Touch provider detected: %@ (game drag still unverified)",
         NSStringFromClass(provider)];
     NSString *missing=BLHIDMissingPart();
-    if(missing)return [NSString stringWithFormat:
-        @"Automatic unavailable: %@. No compatible in-app touch provider found.",
+    if(!missing)
+        return @"HID touch method available; actual game acceptance unverified.";
+    if(BLCanDeliverDirectToGame())
+        return [NSString stringWithFormat:
+            @"UIKit method missing (%@). Testing direct game-view touches; first real drag unverified.",
+            missing];
+    return [NSString stringWithFormat:
+        @"Automatic unavailable: %@; direct game-view fallback unsupported.",
         missing];
-    return @"HID touch method available; actual game acceptance unverified.";
 }
 
 + (NSInteger)touchAt:(CGPoint)point
@@ -369,9 +431,10 @@ static NSString *BLHIDMissingPart(void){
         // This is the provider's own slot ID; pass unchanged for move/end.
         return BLProviderTouch(provider,providerSlot,point,phase);
     }
-    if(BLHIDMissingPart()!=nil)return 0;
+    BOOL direct=(BLHIDMissingPart()!=nil);
+    if(direct && !BLCanDeliverDirectToGame())return 0;
     UIWindow *win = ResolveTouchWindow();
-    if (!win) return 0;
+    if(!win)return 0;
 
     NSInteger idx = -1;
     if (phase == UITouchPhaseBegan) {
@@ -379,6 +442,11 @@ static NSString *BLHIDMissingPart(void){
         idx = FindFreeSlot();
         if (idx < 0) return 0;
         g_slots[idx] = MakeBeganTouch(point, win);
+        if(!g_slots[idx] || !g_slots[idx].view ||
+           g_slots[idx].view.window!=win) {
+            g_slots[idx]=nil;
+            return 0;
+        }
     } else {
         if (slot < 1 || slot > kSlotCount) return 0;
         idx = slot - 1;
@@ -389,7 +457,14 @@ static NSString *BLHIDMissingPart(void){
         [t setPhase:phase];
     }
 
-    Flush(idx);
+    if(direct) {
+        if(!BLDispatchDirectGameView(idx)) {
+            g_slots[idx]=nil;
+            return 0;
+        }
+    }else{
+        Flush(idx);
+    }
     return idx + 1;
 }
 
