@@ -40,7 +40,7 @@ static void draw(int variant,int occupied,int seamless){
     }
     if(occupied) {
         // Test both saturated bright and very dark tiles over changing skins.
-        int r=3,c=5,x=22+c*48,y=228+r*48;
+        int r=3,col=5,x=22+col*48,y=228+r*48;
         int sign=(variant%2)?1:-1;
         rect(x+4,y+4,x+44,y+44,
              clamp(c[0]+sign*100),clamp(c[1]+sign*100),
