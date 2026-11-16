@@ -1,0 +1,20 @@
+# Future distinct research hypothesis: learn a calibrated short-horizon *death hazard* (not another hand-tuned score bonus)
+
+Status: design for **next bounded research iteration only**, NOT coded or tested yet. Research branch only. Read the completed outcomes of iteration 44 before choosing this or any new hypothesis. Do NOT present a design document as actual training improvement.
+
+## Evidence motivating a different approach
+
+- Iteration 42, run 43806245696, generated all-six positive mean-survival and synthetic-score ratios and improved combo-break rates, but shifted-heavy holdout 1968 p10 was 16 vs v1.7's 17. Strong average value can coexist with an unsafe 10th-percentile outcome.
+- Iteration 43b, run 43806781521, added a conditional hard-shape zero-fit floor; despite positive mean ratios, shifted-heavy holdout 1971 p10 dropped to 15 vs 18. A guessed hard-piece floor is not a calibrated failure predictor.
+- Earlier deterministic future-tray rollout, broad mixture counts, bottom-three minimax, proactive combo override, risk-diverse finalist pools, and baseline fallback were independently rejected or showed strict metric regressions. Do NOT repeat the exact settings or used seeds.
+- Independent open-source solver research (rshk941/block-blast-solver; Botkraker/block-blast-AI) explores learned board-value functions rather than only static geometrical bonuses. The repository's synthetic shape distribution and true iPhone game distribution may differ; do not transplant weights or claim real scoring.
+
+## Proposed implementation, kept bounded
+
+1. Build a **training-only** dataset of legal completed-tray board states from the exact synthetic simulator, distributed across normal, heavy and shifted-heavy generators, and at multiple occupancies and combo stages. Save the train-epoch and seed provenance. Future piece RNG may be observed by the *training-label simulator*, but policy inference must never read hidden RNG state or next-tray IDs.
+2. Assign empirical hazard labels: did a fixed reference continuation die before successfully playing the next 3 complete trays? If feasible, also label next-5-tray survival. Stop at an explicit budget; report censored labels rather than treating them as wins or safe outcomes. Use separate training IDs/offsets from model-selection data; never use 30-game holdouts in fitting.
+3. Train a small **regularized linear/logistic model** on pre-next-tray-observable features: occupied count, 3x3 and 5-bar fit indicators, zero-fit hard-shape count, largest connected free region, number of disconnected pockets, current combo state, and exact one-piece future-clear accessibility. Fit a conservative *maximum hazard across scenarios* or a p10-calibrated hazard, not aggregate mean alone. Do not silently encode the known generator scenario at inference unless that scenario is truly observable in the phone game.
+4. Select only among **already exactly legal** current-tray afterstate finalists. Compare hazard-ranked route to unmodified research heuristic using the same current board and pieces. Preserve mandatory urgent real combo clears and the legality fallback. No new iPhone build or baseline edits.
+5. Use a training-only selection split distinct from the fitting episodes and two freshly reserved independent holdout epochs. Keep equal model/search budgets for normal/heavy/shifted-heavy, 4096 uncensored cap, training and CI time limits, and all current non-negotiable 10x gates. Record mean/p10 survival, synthetic estimated score, illegal moves, combo-break rates and avoidable deadlines per scenario. Reject when ANY metric regresses; never promote a checkpoint without >=10x mean AND score on each generator, >=10x p10, zero illegals, nonworsening combo/deadlines, no censoring and independent replication.
+
+This protocol is a research roadmap; no outcome is claimed. Preserve learning/tenx_used_epochs.txt across training/holdout roles, exact .github/workflows/v22-tenx.yml push trigger, and learning/run_tenx_reproducible.sh preflight. Keep main, validated checkpoint and v3.4 phone source immutable.
