@@ -39,6 +39,23 @@ def catalog():
     return masks
 
 
+def verify_generator_source():
+    """Fail closed if the source arrays or redraw probabilities drift."""
+    game_source = SOURCE.read_text(encoding="utf-8")
+    trainer_source = SOURCE.with_name("train_tenx.c").read_text(encoding="utf-8")
+    big_match = re.search(r"static\s+const\s+int\s+big\[\]\s*=\s*\{([^}]+)\}", game_source)
+    hard_match = re.search(r"const\s+int\s+hard\[\]\s*=\s*\{([^}]+)\}", trainer_source)
+    if not big_match or not hard_match:
+        raise ValueError("Synthetic generator arrays moved; priors need review")
+    read_ids = lambda match: frozenset(map(int, re.findall(r"\d+", match.group(1))))
+    if read_ids(big_match) != BIG or read_ids(hard_match) != HARD:
+        raise ValueError("Synthetic generator sets changed; recalibrate priors")
+    if "if(stress && random32()%3<2)" not in game_source:
+        raise ValueError("Heavy re-draw probability changed")
+    if "if(random32()%4!=0)" not in trainer_source:
+        raise ValueError("Shifted-heavy re-draw probability changed")
+
+
 def shape_priors(shape_count):
     if shape_count != 28:
         raise ValueError("Prior formula requires the audited 28-shape simulator")
@@ -106,6 +123,7 @@ def main():
     parser.add_argument("--board", help="64-bit board hex occupancy, e.g. 0x0")
     args = parser.parse_args()
     shapes = catalog()
+    verify_generator_source()
     selftest(shapes)
     if args.board:
         result = audit(int(args.board, 0), shapes)
