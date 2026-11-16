@@ -1,4 +1,4 @@
-name: v3.4 Automatic Vision Retry and Scan Diagnostics iPhone
+name: v3.4 Automatic Emergency Release and Coordinate Safety iPhone
 on:
   push:
     branches: [feature/v3.4-100-shape-survival-safety]
@@ -124,6 +124,29 @@ jobs:
           assert 'if(smartMode)' in ui and 'BLFuture100GuardedChoice' in ui
           assert 'if(smartMode)' in ui and 'BLFindThreeMoveClearTimed' in ui
           print('PASS future-100 gated within Smart Survival; current combo-clear override retained')
+          PY
+      - name: Prove stopped Automatic cannot retain a synthetic finger or drag offscreen
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          touch=Path('src/BLInProcessTouch.m').read_text()
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          drag=Path('src/BLAutoDrag.c').read_text()
+          assert '+ (void)forceCancelAllTouches' in touch
+          assert 'UITouchPhaseCancelled' in touch
+          assert '[view touchesCancelled:one withEvent:nil]' in touch
+          assert 'fromCoordinateSpace:UIScreen.mainScreen.coordinateSpace' in touch
+          assert 'CGRectContainsPoint(CGRectInset(win.bounds,8,8),local)' in touch
+          stop=overlay.split('- (void)stopAutoPlayWithReason:')[1].split('- (void)toggleAutoPlay')[0]
+          assert '_autoPlacing=NO' in stop
+          assert '[BLInProcessTouch forceCancelAllTouches]' in stop
+          assert '_autoTouchSlot=0' in stop
+          assert 'finger release failed' in overlay
+          assert 'touch watchdog forced finger release' in overlay
+          assert 'Last touch' in overlay
+          assert 'for(int step=0;step<=20;step++)' in drag
+          assert 'fx-pitchX*.5f<edge' in drag
+          print('PASS emergency cancel, checked finger-up, window-space mapping and offscreen path guard')
           PY
       - name: Verify bounded fresh-frame Automatic vision retry and detailed scanner reason
         run: |
@@ -263,5 +286,5 @@ jobs:
           test -s dist/BlockBlastAI.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v34-AUTO-VISION-RETRY-IPHONE
+          name: BlockBlastAI-v34-FINGER-RELEASE-SAFE-IPHONE
           path: dist/BlockBlastAI.dylib
