@@ -1,5 +1,5 @@
 # Research seed epoch exclusions. One epoch ID is reserved across training and holdout roles.
-# Derived from accessible research logs/Actions through iteration 27; may be incomplete
+# Derived from accessible research logs/Actions through iteration 35; may be incomplete
 # relative to external/local runs. Absence does NOT prove a seed was never used.
 # 1307/1308 and 1817 are conservatively reserved due to prior proposals.
 17
