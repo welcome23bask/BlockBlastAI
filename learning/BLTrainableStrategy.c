@@ -124,7 +124,10 @@
 // every missing line cell must be filled by ONE legal placement.
 #define BL_RESEARCH_EXACT_REPAIR 0
 // Iteration 54: evaluate actual next-one-piece clears by how much 3x3 mobility they restore.
-#define BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY 1
+#define BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY 0
+// Iteration 55: future legal small-piece clear must recover the weakest hard-shape access,
+// not merely 3x3 square mobility; bounded public-geometry afterstate test only.
+#define BL_RESEARCH_POST_CLEAR_HARD_RESCUE 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -449,6 +452,39 @@ static int BLResearchPostClearSquareRecovery(uint64_t board) {
     if(best>8)best=8;
     if(distinct>4)distinct=4;
     return best*90+distinct*35;
+}
+// New hypothesis: rank completed trays by the strongest exact small-piece clear
+// that restores accessibility for the *worst* of square, 5-horizontal and
+// 5-vertical. Avoids rewarding 3x3-only gains while heavy bars remain trapped.
+// Future shapes are public templates, not sampled hidden next-tray RNG.
+static int BLResearchPostClearHardRescue(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    const uint64_t small[5]={UINT64_C(1),UINT64_C(3),UINT64_C(0x101),UINT64_C(7),UINT64_C(0x10101)};
+    const int w[5]={1,2,1,3,1},h[5]={1,1,2,1,3};
+    const uint64_t hard[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
+    const int hw[3]={3,5,1},hh[3]={3,1,5};
+    int before[3];
+    for(int i=0;i<3;i++)before[i]=fit(board,hard[i],hw[i],hh[i]);
+    int best=0,robust=0;
+    for(int k=0;k<5;k++)for(int r=0;r<=8-h[k];r++)
+      for(int c=0;c<=8-w[k];c++){
+        uint64_t mask=small[k]<<(8*r+c);
+        if(board&mask)continue;
+        int lines=0;
+        uint64_t next=clear_full(board|mask,&lines);
+        if(!lines)continue;
+        int minGain=100,restored=0;
+        for(int i=0;i<3;i++){
+          int after=fit(next,hard[i],hw[i],hh[i]);
+          int gain=after-before[i];
+          if(gain<minGain)minGain=gain;
+          if(before[i]==0&&after>0)restored++;
+        }
+        int value=(minGain>0?(minGain>5?5:minGain)*110:0)+restored*95;
+        if(value>best)best=value;
+        if(minGain>0)robust++;
+      }
+    return best+(robust>3?3:robust)*35;
 }
 static int survival_value(uint64_t board) {
     int q=future_quality(board);
@@ -884,6 +920,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_EXACT_REPAIR
         utility+=BLResearchExactRepair(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
+        utility+=BLResearchPostClearHardRescue(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
         utility+=BLResearchPostClearSquareRecovery(ctx->topAll[i].board);
 #endif
@@ -962,6 +1001,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_EXACT_REPAIR
         utility+=BLResearchExactRepair(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
+        utility+=BLResearchPostClearHardRescue(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_POST_CLEAR_SQUARE_RECOVERY
         utility+=BLResearchPostClearSquareRecovery(ctx->topCombo[i].board);
