@@ -15,6 +15,9 @@
 #ifndef BL_RESEARCH_PAIR_LOOKAHEAD
 #define BL_RESEARCH_PAIR_LOOKAHEAD 1
 #endif
+#ifndef BL_RESEARCH_NEXT_TRAY_ROLLOUT
+#define BL_RESEARCH_NEXT_TRAY_ROLLOUT 1
+#endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -221,6 +224,54 @@ int BLResearchPairCoverage(uint64_t board) {
                            UINT64_C(0x20702),3,3);
     return n;
 }
+// Conservative second-tray stress probes. These fixed synthetic trays
+// approximate easy, heavy and shifted-heavy challenges; they are NOT the
+// actual game's unknown upcoming pieces. Each probe checks all three pieces
+// with exact 8x8 placements and simultaneous line clearing. Exhaustion of
+// the 192-node search budget returns UNKNOWN, never a false impossibility.
+typedef struct {uint64_t mask;int w,h;} BLFutureShape;
+static const BLFutureShape futureStressTrays[3][3]={
+    {{UINT64_C(0x70707),3,3},{UINT64_C(0x1f),5,1},
+     {UINT64_C(0x303),2,2}},
+    {{UINT64_C(0x70707),3,3},{UINT64_C(0x70707),3,3},
+     {UINT64_C(0x707),3,2}},
+    {{UINT64_C(0x40603),3,3},{UINT64_C(0x20303),3,3},
+     {UINT64_C(0x20702),3,3}}
+};
+static int future_tray_dfs(uint64_t board,int used,int sample,int *budget){
+    if(used==7)return 1;
+    if(*budget<=0)return -1;
+    --*budget;
+    int unknown=0;
+    for(int p=0;p<3;++p){
+        if(used&(1<<p))continue;
+        const BLFutureShape *shape=&futureStressTrays[sample][p];
+        for(int row=0;row<=8-shape->h;++row)
+            for(int col=0;col<=8-shape->w;++col) {
+                uint64_t mask=shape->mask<<(row*8+col);
+                if(board&mask)continue;
+                int lines=0;
+                uint64_t next=clear_full(board|mask,&lines);
+                int result=future_tray_dfs(next,used|(1<<p),sample,budget);
+                if(result==1)return 1;
+                if(result<0)unknown=1;
+            }
+    }
+    return unknown?-1:0;
+}
+// Bonus only for proven feasible future stress trays; a fully searched
+// impossibility gets a modest penalty. Truncated/unknown probes add zero.
+// This estimates resilience, NOT the game's future RNG or actual score.
+int BLResearchSampledFutureBonus(uint64_t board){
+    int bonus=0;
+    for(int sample=0;sample<3;++sample){
+        int nodes=192;
+        int result=future_tray_dfs(board,0,sample,&nodes);
+        if(result==1)bonus+=700;
+        else if(result==0)bonus-=250;
+    }
+    return bonus;
+}
 #if BL_RESEARCH_PAIR_LOOKAHEAD
 static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
                               int score[BL_FUTURE_TOP],int *count,
@@ -252,6 +303,9 @@ static void rerank_afterstates(BLSearch *ctx) {
     for(int i=0;i<ctx->topAllN;++i) {
         int utility=ctx->topAllQ[i]+550*
             BLResearchPairCoverage(ctx->topAll[i].board);
+#if BL_RESEARCH_NEXT_TRAY_ROLLOUT
+        utility+=BLResearchSampledFutureBonus(ctx->topAll[i].board);
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartPath=ctx->topAll[i];
@@ -263,6 +317,9 @@ static void rerank_afterstates(BLSearch *ctx) {
     for(int i=0;i<ctx->topComboN;++i) {
         int utility=ctx->topComboQ[i]+550*
             BLResearchPairCoverage(ctx->topCombo[i].board);
+#if BL_RESEARCH_NEXT_TRAY_ROLLOUT
+        utility+=BLResearchSampledFutureBonus(ctx->topCombo[i].board);
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartComboPath=ctx->topCombo[i];
