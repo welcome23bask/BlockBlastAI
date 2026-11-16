@@ -23,7 +23,8 @@ for e in "$a" "$b"; do
     echo "Previously used/planned epoch: $e" >&2; exit 2;;
   esac
 done
-# Seed namespaces are cross-role: never reuse a previously planned holdout as training.\n# A source checkpoint may deliberately remain unchanged after failed gates.
+# Seed namespaces are cross-role: never reuse a previously planned holdout as training.
+# A source checkpoint may deliberately remain unchanged after failed gates.
 # Never mistake a repeated checkpoint epoch for a fresh training seed.
 train_epoch="${TENX_TRAIN_SEED_EPOCH:-}"
 if [[ ! "$train_epoch" =~ ^[0-9]+$ ]] ||
