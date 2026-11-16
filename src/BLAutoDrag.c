@@ -72,8 +72,21 @@ int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
     float x0=tx[p]+px*tp[p],y0=ty[p]+py*tp[p];
     float x1=fx+(move->col+px)*pitchX;
     float y1=fy+(move->row+py)*pitchY;
-    if(x0<8||x0>w-8||y0<ly+pitchY*.8f||y0>h-8 ||
-       x1<8||x1>w-8||y1<8||y1>h-8)return 0;
+    // All touchscreen coordinates are UIKit points, not screenshot pixel
+    // coordinates. Keep the whole drag away from system-gesture edges.
+    // A previous iPhone run carried a tile offscreen; fail closed rather
+    // than risk another uncalibrated border or orientation mismatch.
+    const float edge=fmaxf(22.f,fminf(pitchX,pitchY)*.45f);
+    if(x0<edge||x0>w-edge||y0<ly+pitchY*.8f||y0>h-edge ||
+       x1<edge||x1>w-edge||y1<edge||y1>h-edge ||
+       y0<y1+pitchY*1.5f)return 0;
+    // The entire interpolation must remain in the safe visible viewport.
+    for(int step=0;step<=20;step++){
+        float fraction=step/20.f;
+        float x=x0+(x1-x0)*fraction,y=y0+(y1-y0)*fraction;
+        if(!isfinite(x)||!isfinite(y)||
+           x<edge||x>w-edge||y<edge||y>h-edge)return 0;
+    }
     // Screen geometry and tray slot must agree. Do not dispatch a touch
     // starting on a different slot or system control.
     float slotMiddle=w*((float)p+.5f)/3.f;
