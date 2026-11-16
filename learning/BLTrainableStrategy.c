@@ -89,7 +89,13 @@
 // rewards the weaker of horizontal/vertical five-bar capacities, only if
 // BOTH orientations still have legal landings. No future RNG is consulted.
 #ifndef BL_RESEARCH_ORTHOGONAL_ESCAPE
-#define BL_RESEARCH_ORTHOGONAL_ESCAPE 1
+#define BL_RESEARCH_ORTHOGONAL_ESCAPE 0
+#endif
+// Iteration 46: reward *diversity of heavy-shape immediate clear routes* on
+// crowded complete afterstates, rather than horizontal/vertical bar capacity.
+// Only exact legal hypothetical one-piece placements; no next-tray RNG.
+#ifndef BL_RESEARCH_HARD_CLEAR_DIVERSITY
+#define BL_RESEARCH_HARD_CLEAR_DIVERSITY 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -460,6 +466,31 @@ int BLResearchFutureClearAccess(uint64_t board) {
     }
     return score;
 }
+// Count distinct difficult shape templates with an immediately legal
+// line-clearing placement, not multiple redundant placements of one shape.
+static int BLResearchHardClearDiversity(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    static const struct {uint64_t mask;int w,h;} hard[]={
+        {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
+        {UINT64_C(0x705),3,2},{UINT64_C(0x701),3,2},
+        {UINT64_C(0x704),3,2},{UINT64_C(0x20303),3,3},
+        {UINT64_C(0x20702),3,3}
+    };
+    int distinct=0;
+    for(unsigned i=0;i<sizeof(hard)/sizeof(hard[0]);++i) {
+        int found=0;
+        for(int r=0;r<=8-hard[i].h && !found;++r)
+            for(int c=0;c<=8-hard[i].w;++c) {
+                uint64_t placed=hard[i].mask<<(8*r+c);
+                if(placed&board)continue;
+                int lines=0;
+                (void)clear_full(board|placed,&lines);
+                if(lines>0){found=1;break;}
+            }
+        distinct+=found;
+    }
+    return distinct*125;
+}
 // A fixed suite of hard PIECE PAIRS, not samples from the game's hidden RNG.
 // Includes two 3x3 squares, square/bar, square/irregular, crossing bars,
 // and two irregular shapes. Used only for bounded afterstate reranking.
@@ -603,6 +634,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_ORTHOGONAL_ESCAPE
         utility+=BLResearchOrthogonalEscape(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_HARD_CLEAR_DIVERSITY
+        utility+=BLResearchHardClearDiversity(ctx->topAll[i].board);
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartPath=ctx->topAll[i];
@@ -657,6 +691,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_ORTHOGONAL_ESCAPE
         utility+=BLResearchOrthogonalEscape(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_HARD_CLEAR_DIVERSITY
+        utility+=BLResearchHardClearDiversity(ctx->topCombo[i].board);
 #endif
         if(utility>best) {
             best=utility;
