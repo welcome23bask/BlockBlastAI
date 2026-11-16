@@ -1,4 +1,4 @@
-name: v3.4 Automatic Vision Occupied-Cell Guard iPhone
+name: v3.4 Automatic Direct-Touch Compatibility iPhone
 on:
   push:
     branches: [feature/v3.4-100-shape-survival-safety]
@@ -125,6 +125,26 @@ jobs:
           assert 'if(smartMode)' in ui and 'BLFindThreeMoveClearTimed' in ui
           print('PASS future-100 gated within Smart Survival; current combo-clear override retained')
           PY
+      - name: Route around missing UIEvent add-touch without bypassing any other safety check
+        run: |
+          cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_touch_route.c \
+            src/BLTouchRoute.c -o /tmp/test-touch-route
+          /tmp/test-touch-route
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('src/BLInProcessTouch.m').read_text()
+          overlay=Path('src/BlockBlastOverlay.m').read_text()
+          assert 'BLRuntimeTouchRoute' in src
+          assert 'BLDispatchDirectGameView' in src
+          assert 'touch.window!=game||view.window!=game' in src
+          assert '[view touchesBegan:one withEvent:nil]' in src
+          assert '[view touchesMoved:one withEvent:nil]' in src
+          assert '[view touchesEnded:one withEvent:nil]' in src
+          assert 'BLTouchRouteDirectGameView' in src
+          assert 'BLIsExpectedTransition' in overlay
+          assert 'BLAutoTargetIsProvenEmpty' in overlay
+          print('PASS experimental direct touch guarded by actual-game window, prior vision and post-move verification')
+          PY
       - name: Test independent contrast scanner and one-placement auto-drag gate
         run: |
           cc -O2 -std=c11 -Wall -Wextra -Werror tests/test_v34_contrast_themes.c \
@@ -218,11 +238,11 @@ jobs:
             src/BLTrainingCollector.m src/BLTrainingZIP.c \
             src/BLNoClearReview.c src/BLTrainedVision.c \
             src/BLFuture100.c src/BLVisionContrast.c \
-            src/BLAutoDrag.c src/BLInProcessTouch.m \
+            src/BLAutoDrag.c src/BLInProcessTouch.m src/BLTouchRoute.c \
             -o dist/BlockBlastAI.dylib
           file dist/BlockBlastAI.dylib
           test -s dist/BlockBlastAI.dylib
       - uses: actions/upload-artifact@v4
         with:
-          name: BlockBlastAI-v34-VERIFIED-THEME-AUTO-SAFE-IPHONE
+          name: BlockBlastAI-v34-DIRECT-TOUCH-FALLBACK-IPHONE
           path: dist/BlockBlastAI.dylib
