@@ -341,6 +341,89 @@ done:
     ctx->truncated=anyTruncated;
 }
 #endif // BL_RESEARCH_FAIR_ROOT
+// Last-chance combo rescue. The usual bounded depth-first search sometimes
+// never visits a full-tray sequence beginning with a clearing move. When the
+// observed combo has two misses, enumerate legal immediate clears separately
+// and demand an exactly legal completion for every remaining visible piece.
+// Sample at most 12 complete routes per clearing root and 30000 nodes total.
+// This uses NO knowledge of future trays. It is research-only and all survival
+// and combo gates remain in force.
+static void urgent_finish(const BLSearch *ctx,const BLPath *path,
+                          BLPath *best,int *bestQuality,
+                          int *rootCompletions,uint32_t *nodes) {
+    if(*nodes>=30000 || *rootCompletions>=12)return;
+    ++*nodes;
+    if(path->depth==ctx->total) {
+        int q=survival_value(path->board);
+        if(q>*bestQuality){*best=*path;*bestQuality=q;}
+        ++*rootCompletions;
+        return;
+    }
+    for(int p=0;p<3;++p) {
+        if(ctx->pieces[p].count<=0 || (path->used&(1<<p)))continue;
+        for(int j=0;j<ctx->counts[p];++j) {
+            const BLPlace *pos=&ctx->placements[p][j];
+            if(path->board&pos->mask)continue;
+            int lines=0;
+            BLPath next=*path;
+            next.board=clear_full(path->board|pos->mask,&lines);
+            next.moves[path->depth]=(BLMove){
+                .pieceIndex=p,.row=pos->row,.col=pos->col,
+                .linesCleared=lines,.before=path->board,.after=next.board
+            };
+            next.used|=1<<p;
+            ++next.depth;
+            next.lines+=lines;
+            if(lines>0) {
+                if(!next.firstClear)next.firstClear=next.depth;
+                next.seenClear=1;
+                next.streak=next.streak<63?next.streak+1:63;
+                next.misses=0;
+            } else if(next.streak>0) {
+                ++next.misses;
+                if(next.misses>=3) {
+                    next.broken=1;
+                    next.misses=0;
+                    next.streak=0;
+                }
+            }
+            urgent_finish(ctx,&next,best,bestQuality,rootCompletions,nodes);
+            if(*nodes>=30000 || *rootCompletions>=12)return;
+        }
+    }
+}
+static int find_urgent_complete_clear(const BLSearch *ctx,
+                                      const BLPath *start,BLPath *result) {
+    int bestQ=INT_MIN;
+    uint32_t nodes=0;
+    for(int p=0;p<3;++p) {
+        if(ctx->pieces[p].count<=0)continue;
+        for(int j=0;j<ctx->counts[p];++j) {
+            const BLPlace *pos=&ctx->placements[p][j];
+            if(start->board&pos->mask)continue;
+            int cleared=0;
+            uint64_t after=clear_full(start->board|pos->mask,&cleared);
+            if(!cleared)continue; // An urgent save MUST clear on move one.
+            BLPath root=*start;
+            root.board=after;
+            root.used|=1<<p;
+            root.moves[0]=(BLMove){
+                .pieceIndex=p,.row=pos->row,.col=pos->col,
+                .linesCleared=cleared,.before=start->board,.after=after
+            };
+            root.depth=1;
+            root.lines=cleared;
+            root.firstClear=1;
+            root.seenClear=1;
+            root.streak=root.streak<63?root.streak+1:63;
+            root.misses=0;
+            int completions=0;
+            urgent_finish(ctx,&root,result,&bestQ,&completions,&nodes);
+            if(nodes>=30000) return bestQ!=INT_MIN;
+        }
+    }
+    return bestQ!=INT_MIN;
+}
 static void pack(BLSolution *to,const BLPath *from,int approximate) {
     memset(to,0,sizeof(*to));
     to->movesFound=from->depth;
@@ -450,6 +533,20 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
             out.smartComboPreserved=0;
             out.smartFutureQuality=survival_value(
                 fallback.movesFound?fallback.moves[fallback.movesFound-1].after:board);
+        }
+    }
+    // A bounded 180k-node search can miss an available last-chance clear
+    // even when a valid all-three-piece route exists. Run the independent
+    // exact-legal rescue only in that failure case; never replace an already
+    // immediate-clearing plan. Keep the baseline binary fully unchanged.
+    if(combo.known && combo.streak>0 && combo.misses==2 &&
+       (!out.smartSurvival.movesFound ||
+        out.smartSurvival.moves[0].linesCleared==0)) {
+        BLPath rescue={0};
+        if(find_urgent_complete_clear(&ctx,&start,&rescue)) {
+            pack(&out.smartSurvival,&rescue,1);
+            out.smartComboPreserved=1;
+            out.smartFutureQuality=survival_value(rescue.board);
         }
     }
     return out;
