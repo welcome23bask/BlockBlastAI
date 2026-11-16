@@ -113,6 +113,7 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
     uint64_t _autoDefinitelyEmpty; // independent tile-center color evidence
     BOOL _autoVisionVerified;       // never drag if skin classification ambiguous
     BLVisionRecovery _autoVisionRecovery; // distinct failed scans, never stale plans
+    NSString *_autoLastTouchCoordinates; // visible debugging for real iPhone
 }
 
 - (UIButton *)roundedButton:(NSString *)title frame:(CGRect)frame action:(SEL)selector {
@@ -677,14 +678,23 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
 // AUTO PLAY is separate from AUTO SCAN. It never submits a second
 // synthetic gesture without a stable post-move game-state verification.
 - (void)stopAutoPlayWithReason:(NSString *)reason {
+    // SAFETY CRITICAL: cancellation must run even if the last Ended event
+    // was not received by the game, the drag was interrupted, the panel
+    // opened, or an asynchronous callback failed mid-path.
     _autoPlayEnabled=NO;
+    _autoPlacing=NO; // invalidates all queued move callbacks
     _autoAwaiting=NO;
+    [BLInProcessTouch forceCancelAllTouches];
+    _autoTouchSlot=0;
     [_autoPlayButton setTitle:@"🤖 AUTOMATIC PLAY: OFF (tap to enable)"
                     forState:UIControlStateNormal];
     _autoPlayButton.backgroundColor=BLColor(80,65,98);
     if(reason) {
-        _autoPlayStatus.text=reason;
-        _status.text=reason;
+        NSString *message=_autoLastTouchCoordinates.length
+            ?[NSString stringWithFormat:@"%@ Last touch %@. Emergency cancellation sent.",
+                reason,_autoLastTouchCoordinates]:reason;
+        _autoPlayStatus.text=message;
+        _status.text=message;
     }
 }
 - (void)toggleAutoPlay {
@@ -701,6 +711,11 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
           @"Automatic needs AUTO SCAN: ON. Enable scanning first."];
         return;
     }
+    // Clear any stray synthetic touch from a previous failed drag
+    // before creating a new touch stream.
+    [BLInProcessTouch forceCancelAllTouches];
+    _autoTouchSlot=0;
+    _autoLastTouchCoordinates=nil;
     _autoPlayEnabled=YES;
     _autoAwaiting=NO;
     BLVisionRecoveryReset(&_autoVisionRecovery);
@@ -757,6 +772,10 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
            @"Automatic stopped: exact tray touch coordinates were not verified."];
         return;
     }
+    _autoLastTouchCoordinates=[NSString stringWithFormat:
+        @"(%.0f,%.0f) → (%.0f,%.0f), display %.0fx%.0f",
+        plan.fromX,plan.fromY,plan.toX,plan.toY,
+        self.view.bounds.size.width,self.view.bounds.size.height];
     _autoPlacing=YES;
     _autoPendingSignature=_solvedAutoHash;
     _autoPendingMove=move;
@@ -776,6 +795,15 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         return;
     }
     _autoTouchSlot=finger;
+    // Emergency watchdog: even if a queued animation step never returns,
+    // cancel the same synthetic finger after the intended 0.4s gesture.
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
+                   (int64_t)(1.1*NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{
+        if(self->_autoPlacing || self->_autoTouchSlot>0)
+            [self stopAutoPlayWithReason:
+                 @"Automatic stopped: touch watchdog forced finger release."];
+    });
     const int steps=14;
     for(int i=1;i<=steps;i++){
         int step=i;
@@ -794,8 +822,13 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
                 return;
             }
             if(step==steps){
-                [BLInProcessTouch touchAt:destination phase:UITouchPhaseEnded
-                                   slot:self->_autoTouchSlot];
+                NSInteger released=[BLInProcessTouch touchAt:destination
+                        phase:UITouchPhaseEnded slot:self->_autoTouchSlot];
+                if(released<=0) {
+                    [self stopAutoPlayWithReason:
+                         @"Automatic stopped: finger release failed."];
+                    return;
+                }
                 self->_autoTouchSlot=0;
                 self->_autoPlacing=NO;
                 if(self->_autoPlayEnabled) {
@@ -824,7 +857,12 @@ typedef struct { BLPiece values[3]; } BLTraySnapshot;
         return;
     }
     if(_autoRetryAfter>0 && CFAbsoluteTimeGetCurrent()<_autoRetryAfter) return;
-    if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) return;
+    if([UIApplication sharedApplication].applicationState!=UIApplicationStateActive) {
+        if(_autoPlayEnabled || _autoPlacing || _autoTouchSlot>0)
+            [self stopAutoPlayWithReason:
+                 @"Automatic stopped: app left foreground; finger cancelled."];
+        return;
+    }
     // 1. Capture was restarted since the last frame we trusted: forget everything.
     unsigned long restarts=BLCaptureRestartCount();
     if(restarts!=_lastRestartCount) {
