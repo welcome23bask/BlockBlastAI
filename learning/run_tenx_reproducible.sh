@@ -38,6 +38,13 @@ for used in 1716 1901 1902 1903 1904 1905 1906 1907 1908 1818 1819 1820 1821 182
     echo "Training seed epoch previously used/planned: $used" >&2; exit 2
   fi
 done
+# Optional zero-compile validation used by CI before spending Actions minutes.
+# This validates only the known-reserved seed ledger; it is NOT proof that
+# unrecorded historical runs never used the same seeds.
+if [[ "${TENX_PREFLIGHT_ONLY:-0}" == "1" ]]; then
+  printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (known-ledger only)\n' "$train_epoch" "$a" "$b"
+  exit 0
+fi
 rev="$(git rev-parse HEAD)"
 work="$(mktemp -d)"
 evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/blockblast-tenx-evidence.XXXXXX")"
