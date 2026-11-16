@@ -25,14 +25,22 @@
 // normal survival, but heavy survival remained only ~1.12x on holdout.
 // Retain the old hypothesis for isolated A/B, default OFF for iteration 37.
 #ifndef BL_RESEARCH_MIN_HARD_COVERAGE
-#define BL_RESEARCH_MIN_HARD_COVERAGE 0
+#define BL_RESEARCH_MIN_HARD_COVERAGE 1
 #endif
 // Iteration 37: reward the bottom-three hard-piece landing counts DURING
 // every explored current-tray afterstate, before the top-four finalist filter.
 // Unlike single-shape minimax, this trades off several hard shapes and can
 // select a less immediately pretty board that preserves multiple exits.
 #ifndef BL_RESEARCH_BOTTOM3_HARD_COVERAGE
-#define BL_RESEARCH_BOTTOM3_HARD_COVERAGE 1
+#define BL_RESEARCH_BOTTOM3_HARD_COVERAGE 0
+#endif
+// Iteration 38: protect proactive combo rescue with a hard-future-pair
+// Pareto condition. Only override a large immediate-utility shortfall if
+// a fully legal combo-saving tray route does NOT lose pair feasibility.
+// This rejects the iteration-37 bottom-three aggregate which worsened
+// shifted-heavy combo breaks on holdout 1957. Research-only, not iPhone.
+#ifndef BL_RESEARCH_PROACTIVE_PARETO
+#define BL_RESEARCH_PROACTIVE_PARETO 1
 #endif
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -752,9 +760,22 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
                        ctx.initial.misses==2;
             int urgentComplete=urgent &&
                 ctx.smartComboPath.depth==ctx.total;
-            if(urgentComplete ||
-               (sameSafety &&
-                !dangerously_worse(ctx.smartComboPath.board,ctx.smartPath.board))) {
+            int noCriticalShapeLoss=
+                !dangerously_worse(ctx.smartComboPath.board,ctx.smartPath.board);
+#if BL_RESEARCH_PROACTIVE_PARETO
+            // Pareto-style combo feasibility: with one miss already spent,
+            // accept a proven combo-preserving 3-piece route even outside
+            // the usual score gap, but only if hard future shape PAIRS
+            // remain at least as feasible as the generic best route.
+            // If not, retain the ordinary survival/quality tradeoff.
+            int proactivePareto=proactive && noCriticalShapeLoss &&
+                BLResearchPairCoverage(ctx.smartComboPath.board)>=
+                BLResearchPairCoverage(ctx.smartPath.board);
+#else
+            int proactivePareto=0;
+#endif
+            if(urgentComplete || proactivePareto ||
+               (sameSafety && noCriticalShapeLoss)) {
                 chosen=ctx.smartComboPath;
                 chosenQ=ctx.smartComboQuality;
             } else {
