@@ -88,8 +88,12 @@ def selftest(shapes):
         assert abs(empty[name]["zero_fit_piece_probability"]) < 1e-12
         assert abs(full[name]["zero_fit_piece_probability"] - 1) < 1e-12
         assert abs(full[name]["any_of_three_zero_fit_proxy"] - 1) < 1e-12
-    a = audit(0x000000000103070f, shapes)
-    b = audit(0x00000000f103070f, shapes)
+    # Occupying three more complete rows must not make any fixed piece more
+    # placeable. The second board is visibly more restricted (non-vacuous).
+    a = audit(0x000000000000ffff, shapes)
+    b = audit(0x000000ffffffffff, shapes)
+    assert any(b[name]["zero_fit_piece_probability"] >
+               a[name]["zero_fit_piece_probability"] for name in a)
     for name in a:
         assert b[name]["zero_fit_piece_probability"] >= (
             a[name]["zero_fit_piece_probability"] - 1e-12
