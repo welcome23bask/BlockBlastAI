@@ -7,6 +7,7 @@
 #include <string.h>
 
 void BLSetTrainWeights(const int weights[4]);
+int BLResearchPairCoverage(uint64_t board);
 BLTwoStrategies BLV17FindTwoStrategies(uint64_t board,const BLPiece pieces[3],
                                       BLComboContext combo,uint32_t budget);
 static uint64_t place_checked(uint64_t b,uint64_t mask,int *cleared) {
@@ -57,6 +58,12 @@ int main(void) {
     assert(place_checked(fullCross,UINT64_C(1),&lines)==0&&lines==2);
     assert(place_checked(fullCross|(UINT64_C(1)<<63),
                          UINT64_C(1),&lines)==(UINT64_C(1)<<63)&&lines==2);
+    // The cheap future-tray stress proxy must require two nonoverlapping
+    // legal large-piece landings, not merely two independently fitting
+    // shapes that collide in the same small patch.
+    assert(BLResearchPairCoverage(0)==6);
+    assert(BLResearchPairCoverage(UINT64_MAX)==0);
+    assert(BLResearchPairCoverage(~UINT64_C(0x70707))==0);
     BLPiece ones[3]={0};
     for(int i=0;i<3;i++){ones[i].count=1;ones[i].x[0]=0;ones[i].y[0]=0;}
     BLComboContext combo={0};
