@@ -18,4 +18,17 @@ int BLAutoBuildDrag(uint64_t board,const BLPiece tray[3],
 // independent per-cell RGB evidence from the SAME confirmed frame.
 int BLAutoTargetIsProvenEmpty(const BLPiece tray[3],const BLMove *move,
                              uint64_t certainlyEmptyMask);
+
+// Eased motion to the exact same destination as the yellow-highlighted
+// selected anchor square. At fraction >=1, coordinates are IDENTICAL to
+// target (no extrapolation or momentum beyond the highlight).
+void BLAutoDragPoint(const BLDragPlan *plan,float fraction,
+                     float *x,float *y);
+// Verifies the computed drag drop is the precise board-center position
+// of the selected, occupied tray anchor tile shown in the yellow guide.
+int BLAutoDragEndsOnHighlight(const BLDragPlan *plan,
+                              const BLMove *move,
+                              const BLPiece tray[3],
+                              float firstX,float firstY,
+                              float lastX,float lastY);
 #endif
