@@ -406,10 +406,11 @@ static int BLResearchIndependentSquareZones(uint64_t board) {
 // This is a deterministic afterstate geometry probe, not a hidden next tray.
 // Bounded deterministic accessibility reserve; no hidden next-piece RNG.
 static int BLResearchCrowdedHardFloor(uint64_t board) {
-    // Iteration 72 hypothesis: the irregular-family static landing floor
-    // missed shifted-heavy lower-tail survival (holdout 915 p10 17 vs 19).
-    // Measure actual one-piece line-clear rescue diversity instead of raw fits.
-    // Exact legal placements and clears; no hidden next tray or RNG.
+    // Iteration 75: the immediate irregular clear-count proxy still left
+    // shifted-heavy survival at 1.17x on independent holdout 712.
+    // Hypothesis: a clear is valuable only if its exact afterstate restores
+    // a usable hard-piece landing, rather than just removing a row/column.
+    // Public hypothetical geometry only; no hidden future RNG.
     if(64-bits(board)>=32)return 0;
     static const struct {uint64_t mask;int w,h;} irregular[7]={
         {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
@@ -417,23 +418,35 @@ static int BLResearchCrowdedHardFloor(uint64_t board) {
         {UINT64_C(0x704),3,2},{UINT64_C(0x20303),3,3},
         {UINT64_C(0x20702),3,3}
     };
-    int rescue_types=0, rescue_placements=0;
+    const int initial_square=fit(board,UINT64_C(0x70707),3,3);
+    const int initial_hbar=fit(board,UINT64_C(0x1f),5,1);
+    const int initial_vbar=fit(board,UINT64_C(0x0101010101),1,5);
+    int rescued_types=0, robust_types=0;
     for(int i=0;i<7;++i){
-        int clears=0;
+        int best=0;
         for(int r=0;r<=8-irregular[i].h;++r)
             for(int c=0;c<=8-irregular[i].w;++c){
                 uint64_t m=irregular[i].mask<<(8*r+c);
                 if(board&m)continue;
                 int lines=0;
-                (void)clear_full(board|m,&lines);
-                if(lines>0)++clears;
+                uint64_t after=clear_full(board|m,&lines);
+                if(!lines)continue;
+                int sq=fit(after,UINT64_C(0x70707),3,3);
+                int hb=fit(after,UINT64_C(0x1f),5,1);
+                int vb=fit(after,UINT64_C(0x0101010101),1,5);
+                int recovered=(sq>initial_square)+(hb>initial_hbar)+
+                              (vb>initial_vbar);
+                int available=(sq>0)+(hb>0)+(vb>0);
+                int value=3*recovered+available;
+                if(value>best)best=value;
             }
-        if(clears>0)++rescue_types;
-        rescue_placements+=clears>3?3:clears;
+        if(best>0)++rescued_types;
+        if(best>=5)++robust_types;
     }
-    // Saturation prevents an abundant single irregular type dominating.
-    return 120*rescue_types+35*rescue_placements-
-           (rescue_types==0?400:0);
+    // Saturate per shape; reward multiple independent shape types whose
+    // clears restore usable square/bar capacity. Never reward illegal moves.
+    return 105*rescued_types+145*robust_types-
+           (rescued_types==0?400:0);
 }
 static int BLResearchCrossFamilyDisjoint(uint64_t board) {
     if(64-bits(board)>=40)return 0;
