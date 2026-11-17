@@ -406,25 +406,32 @@ static int BLResearchIndependentSquareZones(uint64_t board) {
 // This is a deterministic afterstate geometry probe, not a hidden next tray.
 // Bounded deterministic accessibility reserve; no hidden next-piece RNG.
 static int BLResearchCrowdedHardFloor(uint64_t board) {
-    int free=64-bits(board);
-    if(free>=32)return 0;
-    int square=fit(board,UINT64_C(0x70707),3,3);
-    int horizontal=fit(board,UINT64_C(0x1f),5,1);
-    int vertical=fit(board,UINT64_C(0x0101010101),1,5);
-    // Iteration 69: two-family lower-tail reserve, not the rejected
-    // single weakest-family floor. A lone impossible shape should not
-    // erase useful escape routes for the other two; conversely one
-    // abundant orientation cannot hide a second fragile family.
-    // Counts are exact legal current-board landings, no future RNG.
-    int a=square,b=horizontal,c=vertical,t;
-    if(a>b){t=a;a=b;b=t;}
-    if(b>c){t=b;b=c;c=t;}
-    if(a>b){t=a;a=b;b=t;}
-    // Penalize the sum of deficits of the two least accessible families.
-    // Capped at three so dense overlapping landings cannot dominate.
-    int deficitA=a>=3?0:3-a;
-    int deficitB=b>=3?0:3-b;
-    return 180*(a>=3)+120*(b>=3)-350*deficitA-220*deficitB;
+    // Iteration 70: the two-family square/bar reserve did not resolve
+    // shifted-heavy survival (1.0585x on holdout 874). On crowded boards,
+    // measure the lower tail of the SEVEN irregular shifted-heavy shapes
+    // rather than reweighting the three rectangular families again.
+    // The already existing survival_value() scores total hard-shape coverage;
+    // this distinct feature detects when its aggregate hides two nearly
+    // unplaceable irregular pieces. All geometry is observable and legal;
+    // no scenario label, future tray or hidden RNG is consulted.
+    if(64-bits(board)>=32)return 0;
+    static const struct {uint64_t mask;int w,h;} irregular[7]={
+        {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
+        {UINT64_C(0x705),3,2},{UINT64_C(0x701),3,2},
+        {UINT64_C(0x704),3,2},{UINT64_C(0x20303),3,3},
+        {UINT64_C(0x20702),3,3}
+    };
+    int worst=64,second=64;
+    for(int i=0;i<7;++i){
+        int n=fit(board,irregular[i].mask,irregular[i].w,irregular[i].h);
+        if(n<worst){second=worst;worst=n;}
+        else if(n<second)second=n;
+    }
+    // Saturate the reward; preserve a strong penalty for double-zero
+    // irregular-family access, which the prior square/bar proxy missed.
+    int low=worst>3?3:worst;
+    int next=second>3?3:second;
+    return 170*low+110*next-(worst==0&&second==0?420:0);
 }
 static int BLResearchCrossFamilyDisjoint(uint64_t board) {
     if(64-bits(board)>=40)return 0;
