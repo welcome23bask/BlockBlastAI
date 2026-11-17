@@ -140,8 +140,8 @@
 // Iteration 61: reward independent 3x3 landing zones instead of counting
 // overlapping placements as separate escape routes. Research-only.
 #define BL_RESEARCH_INDEPENDENT_SQUARE_ZONES 0
-// Iteration 63: measure independent square+bar continuation across BOTH bar
-// orientations, not multiple 3x3 zones. Only public afterstate geometry.
+// Iteration 65: exact three-hard-piece continuation across all six orders,
+// rewarding real line clears rather than static square/bar co-location.
 #define BL_RESEARCH_CROSS_FAMILY_DISJOINT 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
@@ -394,27 +394,43 @@ static int BLResearchIndependentSquareZones(uint64_t board) {
 // useful as a robust escape if a 5-bar can coexist without occupying its cells.
 // Use the weaker bar orientation to avoid a one-axis false sense of safety.
 // No future RNG, no scenario label, and no modification to legal tray search.
+// Iteration 65: the prior square+bar pair reward missed lower-tail heavy
+// failures (holdout 753 heavy p10 17 vs 18). Require an exact three-piece
+// sequential escape with BOTH bar orientations and a square, including real
+// row/column clears after each legal placement. Test each of the six orders.
+// This is a deterministic afterstate geometry probe, not a hidden next tray.
 static int BLResearchCrossFamilyDisjoint(uint64_t board) {
     if(64-bits(board)>=40)return 0;
-    const uint64_t bars[2]={UINT64_C(0x1f),UINT64_C(0x0101010101)};
-    const int widths[2]={5,1},heights[2]={1,5};
-    int count[2]={0,0};
-    for(int r=0;r<6;++r)for(int c=0;c<6;++c){
-        uint64_t sq=UINT64_C(0x70707)<<(8*r+c);
-        if(board&sq)continue;
-        for(int k=0;k<2;++k){
-            int available=0;
-            for(int br=0;br<=8-heights[k]&&!available;++br)
-                for(int bc=0;bc<=8-widths[k];++bc){
-                    uint64_t m=bars[k]<<(8*br+bc);
-                    if(!(m&(board|sq))){available=1;break;}
+    const uint64_t masks[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
+    const int w[3]={3,5,1},h[3]={3,1,5};
+    int supported=0,clearing=0;
+    for(int a=0;a<3;++a)for(int b=0;b<3;++b) {
+        if(a==b)continue;
+        int c=3-a-b,found=0,foundClear=0;
+        for(int ar=0;ar<=8-h[a]&&!foundClear;++ar)
+          for(int ac=0;ac<=8-w[a]&&!foundClear;++ac){
+            uint64_t am=masks[a]<<(8*ar+ac);
+            if(board&am)continue;
+            int linesA=0;
+            uint64_t afterA=clear_full(board|am,&linesA);
+            for(int br=0;br<=8-h[b]&&!foundClear;++br)
+              for(int bc=0;bc<=8-w[b]&&!foundClear;++bc){
+                uint64_t bm=masks[b]<<(8*br+bc);
+                if(afterA&bm)continue;
+                int linesB=0;
+                uint64_t afterB=clear_full(afterA|bm,&linesB);
+                if(fit(afterB,masks[c],w[c],h[c])>0){
+                    found=1;
+                    if(linesA||linesB)foundClear=1;
                 }
-            count[k]+=available;
-        }
+              }
+          }
+        supported+=found;
+        clearing+=foundClear;
     }
-    int worst=count[0]<count[1]?count[0]:count[1];
-    if(worst>4)worst=4;
-    return worst?250*worst:-500;
+    // A clear-producing continuation earns a premium because mere coexisting
+    // empty footprints can still leave a brittle board after two moves.
+    return 110*supported+100*clearing-(supported==0?500:0);
 }
 // Research-only: exact occupancy of rows/columns that are one or two cells
 // from clearing. A potential clear must have its missing cells in a legal
