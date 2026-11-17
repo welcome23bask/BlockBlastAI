@@ -143,7 +143,7 @@
 // Iteration 65: exact three-hard-piece continuation across all six orders,
 // rewarding real line clears rather than static square/bar co-location.
 #define BL_RESEARCH_CROSS_FAMILY_DISJOINT 0
-// Iteration 67: protect the weakest of three hard-piece landing families
+// Iteration 69: protect the two weakest of three hard-piece landing families
 // only on crowded full-tray boards. Unlike exact sequential three-piece
 // continuation, this bounded single-step lower-tail reserve neither
 // presumes all three next pieces nor rewards one abundant orientation.
@@ -411,14 +411,20 @@ static int BLResearchCrowdedHardFloor(uint64_t board) {
     int square=fit(board,UINT64_C(0x70707),3,3);
     int horizontal=fit(board,UINT64_C(0x1f),5,1);
     int vertical=fit(board,UINT64_C(0x0101010101),1,5);
-    int weakest=square;
-    if(horizontal<weakest)weakest=horizontal;
-    if(vertical<weakest)weakest=vertical;
-    // Strongest priority is retaining at least one legal landing in EACH
-    // family, without overrewarding dozens of equivalent placements.
-    if(weakest==0)return -1700;
-    if(weakest==1)return -500;
-    return weakest>=3?450:150;
+    // Iteration 69: two-family lower-tail reserve, not the rejected
+    // single weakest-family floor. A lone impossible shape should not
+    // erase useful escape routes for the other two; conversely one
+    // abundant orientation cannot hide a second fragile family.
+    // Counts are exact legal current-board landings, no future RNG.
+    int a=square,b=horizontal,c=vertical,t;
+    if(a>b){t=a;a=b;b=t;}
+    if(b>c){t=b;b=c;c=t;}
+    if(a>b){t=a;a=b;b=t;}
+    // Penalize the sum of deficits of the two least accessible families.
+    // Capped at three so dense overlapping landings cannot dominate.
+    int deficitA=a>=3?0:3-a;
+    int deficitB=b>=3?0:3-b;
+    return 180*(a>=3)+120*(b>=3)-350*deficitA-220*deficitB;
 }
 static int BLResearchCrossFamilyDisjoint(uint64_t board) {
     if(64-bits(board)>=40)return 0;
