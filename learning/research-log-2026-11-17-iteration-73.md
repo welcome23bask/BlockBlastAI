@@ -1,0 +1,11 @@
+# Iteration 73 — preflight/overlap safety and bounded next experiment (2026-11-17)
+
+Scope: feature/v2.2-10x-research-gate only. Fetched exact workflow .github/workflows/v22-tenx.yml, runner learning/run_tenx_reproducible.sh, cross-role ledger learning/tenx_used_epochs.txt, iteration 72 research log, and learned-hazard protocol. Current workflow still points at reserved 665/915/1165 and MUST NOT be retriggered unchanged. The exact runner rejects reused epochs before compilation and audits raw PRNG starts. Ledger includes those three IDs; external/local historical seed usage is incomplete.
+
+Rechecked run 44086853982 through Actions jobs and artifacts: bounded-research completed with failure at training/holdout gate; seed preflight and artifact upload succeeded. Artifact 14330630589 remains available. Iteration 72's exact one-piece irregular-shape clear-rescue source hypothesis (5ff9dbb6) is still uncompiled/untested.
+
+Safety block: GitHub connector exposes individual run jobs/artifacts but not an authoritative repository-wide active/queued workflow run listing. Attempts to read public GitHub Actions API through web and direct HTTPS failed (inaccessible URL / DNS resolution). Therefore cannot verify the user's explicit no-overlap prerequisite and cannot safely modify the workflow to trigger another run. No new seed epoch was selected/reserved, no workflow triggered, no training or simulations completed, no checkpoint promotion, and no 10x claim.
+
+Next bounded run: (1) obtain repository-wide active/queued Actions listing, (2) inspect freshest source/ledger/history and audit three fresh distinct train/holdout epochs 17..2000 including raw-start aliases, (3) update ONLY workflow YAML with new epochs, (4) confirm preflight success before compilation, (5) test existing irregular-piece clear-rescue candidate against unchanged v1.7 in two independent paired normal/heavy/shifted-heavy 30-game holdouts, (6) preserve all metrics/artifacts and reject unless all strict gates pass twice. If shifted-heavy p10 remains weak, the next *distinct* targeted hypothesis is the documented training-only calibrated death-hazard/value function, not another static shape-count retune. Never infer a synthetic score is actual game score.
+
+Main, live v3.4 iPhone Automatic Play, deployment, v1.7 baseline and validated checkpoints untouched.
