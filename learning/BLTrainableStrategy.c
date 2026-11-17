@@ -142,7 +142,12 @@
 #define BL_RESEARCH_INDEPENDENT_SQUARE_ZONES 0
 // Iteration 65: exact three-hard-piece continuation across all six orders,
 // rewarding real line clears rather than static square/bar co-location.
-#define BL_RESEARCH_CROSS_FAMILY_DISJOINT 1
+#define BL_RESEARCH_CROSS_FAMILY_DISJOINT 0
+// Iteration 67: protect the weakest of three hard-piece landing families
+// only on crowded full-tray boards. Unlike exact sequential three-piece
+// continuation, this bounded single-step lower-tail reserve neither
+// presumes all three next pieces nor rewards one abundant orientation.
+#define BL_RESEARCH_CROWDED_HARD_FLOOR 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -399,6 +404,22 @@ static int BLResearchIndependentSquareZones(uint64_t board) {
 // sequential escape with BOTH bar orientations and a square, including real
 // row/column clears after each legal placement. Test each of the six orders.
 // This is a deterministic afterstate geometry probe, not a hidden next tray.
+// Bounded deterministic accessibility reserve; no hidden next-piece RNG.
+static int BLResearchCrowdedHardFloor(uint64_t board) {
+    int free=64-bits(board);
+    if(free>=32)return 0;
+    int square=fit(board,UINT64_C(0x70707),3,3);
+    int horizontal=fit(board,UINT64_C(0x1f),5,1);
+    int vertical=fit(board,UINT64_C(0x0101010101),1,5);
+    int weakest=square;
+    if(horizontal<weakest)weakest=horizontal;
+    if(vertical<weakest)weakest=vertical;
+    // Strongest priority is retaining at least one legal landing in EACH
+    // family, without overrewarding dozens of equivalent placements.
+    if(weakest==0)return -1700;
+    if(weakest==1)return -500;
+    return weakest>=3?450:150;
+}
 static int BLResearchCrossFamilyDisjoint(uint64_t board) {
     if(64-bits(board)>=40)return 0;
     const uint64_t masks[3]={UINT64_C(0x70707),UINT64_C(0x1f),UINT64_C(0x0101010101)};
@@ -1080,6 +1101,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_INDEPENDENT_SQUARE_ZONES
         utility+=BLResearchIndependentSquareZones(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_CROWDED_HARD_FLOOR
+        utility+=BLResearchCrowdedHardFloor(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_CROSS_FAMILY_DISJOINT
         utility+=BLResearchCrossFamilyDisjoint(ctx->topAll[i].board);
 #endif
@@ -1173,6 +1197,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_INDEPENDENT_SQUARE_ZONES
         utility+=BLResearchIndependentSquareZones(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_CROWDED_HARD_FLOOR
+        utility+=BLResearchCrowdedHardFloor(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_CROSS_FAMILY_DISJOINT
         utility+=BLResearchCrossFamilyDisjoint(ctx->topCombo[i].board);
