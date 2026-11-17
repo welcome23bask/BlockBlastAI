@@ -139,7 +139,10 @@
 #define BL_RESEARCH_HARD_LANDING_BOTTLENECK 0
 // Iteration 61: reward independent 3x3 landing zones instead of counting
 // overlapping placements as separate escape routes. Research-only.
-#define BL_RESEARCH_INDEPENDENT_SQUARE_ZONES 1
+#define BL_RESEARCH_INDEPENDENT_SQUARE_ZONES 0
+// Iteration 63: measure independent square+bar continuation across BOTH bar
+// orientations, not multiple 3x3 zones. Only public afterstate geometry.
+#define BL_RESEARCH_CROSS_FAMILY_DISJOINT 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -386,6 +389,32 @@ static int BLResearchIndependentSquareZones(uint64_t board) {
     // A single available zone is fragile, two independent zones provide
     // distinct space for consecutive bulky pieces.
     return best>=2?550*(best-1):best==1?-250:-650;
+}
+// Independent square-and-bar placements: a bulky square landing is only
+// useful as a robust escape if a 5-bar can coexist without occupying its cells.
+// Use the weaker bar orientation to avoid a one-axis false sense of safety.
+// No future RNG, no scenario label, and no modification to legal tray search.
+static int BLResearchCrossFamilyDisjoint(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    const uint64_t bars[2]={UINT64_C(0x1f),UINT64_C(0x0101010101)};
+    const int widths[2]={5,1},heights[2]={1,5};
+    int count[2]={0,0};
+    for(int r=0;r<6;++r)for(int c=0;c<6;++c){
+        uint64_t sq=UINT64_C(0x70707)<<(8*r+c);
+        if(board&sq)continue;
+        for(int k=0;k<2;++k){
+            int available=0;
+            for(int br=0;br<=8-heights[k]&&!available;++br)
+                for(int bc=0;bc<=8-widths[k];++bc){
+                    uint64_t m=bars[k]<<(8*br+bc);
+                    if(!(m&(board|sq))){available=1;break;}
+                }
+            count[k]+=available;
+        }
+    }
+    int worst=count[0]<count[1]?count[0]:count[1];
+    if(worst>4)worst=4;
+    return worst?250*worst:-500;
 }
 // Research-only: exact occupancy of rows/columns that are one or two cells
 // from clearing. A potential clear must have its missing cells in a legal
@@ -1035,6 +1064,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_INDEPENDENT_SQUARE_ZONES
         utility+=BLResearchIndependentSquareZones(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_CROSS_FAMILY_DISJOINT
+        utility+=BLResearchCrossFamilyDisjoint(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_HARD_LANDING_BOTTLENECK
         utility+=BLResearchHardLandingBottleneck(ctx->topAll[i].board);
 #endif
@@ -1125,6 +1157,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_INDEPENDENT_SQUARE_ZONES
         utility+=BLResearchIndependentSquareZones(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_CROSS_FAMILY_DISJOINT
+        utility+=BLResearchCrossFamilyDisjoint(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_LANDING_BOTTLENECK
         utility+=BLResearchHardLandingBottleneck(ctx->topCombo[i].board);
