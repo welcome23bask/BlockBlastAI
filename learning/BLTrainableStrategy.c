@@ -1092,10 +1092,21 @@ static int BLResearchCrowdedPairFailure(uint64_t board) {
                                                   UINT64_C(0x70707),3,3);
     const int irregularPair=pair_fits_now(board,UINT64_C(0x20303),3,3,
                                                 UINT64_C(0x20702),3,3);
-    int feasible=squareBar+irregularSquare+irregularPair;
-    // A failure penalty rather than an unconditional reward avoids
-    // overvaluing easy boards or a single abundant hard-piece family.
-    return feasible==0?-850:0;
+    // Iteration 79: the zero-only floor left heavy/shifted-heavy mean
+    // survival at 1.17-1.43x. A single feasible pair is also a brittle
+    // bottleneck: check the orthogonal bar and a distinct shifted irregular
+    // pairing, and require at least two *families* of sequential escape.
+    // Exact public geometry only; no hidden future-tray RNG.
+    const int squareVertical=pair_fits_now(board,UINT64_C(0x70707),3,3,
+                                                 UINT64_C(0x0101010101),1,5);
+    const int shiftedPair=pair_fits_now(board,UINT64_C(0x507),3,2,
+                                             UINT64_C(0x705),3,2);
+    const int familyBar=(squareBar||squareVertical);
+    const int familyIrregular=(irregularSquare||irregularPair||shiftedPair);
+    const int feasible=familyBar+familyIrregular;
+    // Do not reward easy boards; distinguish no escape from a single
+    // fragile family while avoiding counting correlated landings as distinct.
+    return feasible==0?-1050:(feasible==1?-420:0);
 }
 #endif
 static void rerank_afterstates(BLSearch *ctx) {
