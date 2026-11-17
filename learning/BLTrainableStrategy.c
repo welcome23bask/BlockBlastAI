@@ -136,7 +136,10 @@
 #define BL_RESEARCH_HARD_CLEAR_TAIL 0
 // Iteration 58: penalize shared critical landing cells across all hard families.
 // A single contested empty pocket is a brittle common-mode failure point.
-#define BL_RESEARCH_HARD_LANDING_BOTTLENECK 1
+#define BL_RESEARCH_HARD_LANDING_BOTTLENECK 0
+// Iteration 61: reward independent 3x3 landing zones instead of counting
+// overlapping placements as separate escape routes. Research-only.
+#define BL_RESEARCH_INDEPENDENT_SQUARE_ZONES 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -362,6 +365,27 @@ static int BLResearchFreeCellMobility(uint64_t board) {
     uint64_t shared=(covered[0]&covered[1])|(covered[0]&covered[2])|(covered[1]&covered[2]);
     int unreachable=bits((~board)&(~any));
     return 28*bits(any)+16*bits(shared)-45*unreachable;
+}
+// Count disjoint 3x3 landing zones, not raw overlapping 3x3 fits.
+// At most four zones on an 8x8 board. Deterministic and RNG-blind.
+static int BLResearchIndependentSquareZones(uint64_t board) {
+    if(64-bits(board)>=40)return 0;
+    uint64_t placements[36];int n=0;
+    for(int r=0;r<6;++r)for(int c=0;c<6;++c){
+        uint64_t m=UINT64_C(0x70707)<<(8*r+c);
+        if(!(board&m))placements[n++]=m;
+    }
+    int best=0;
+    for(int i=0;i<n;++i){
+        int count=1;uint64_t used=placements[i];
+        for(int j=0;j<n;++j){
+            if(!(used&placements[j])){used|=placements[j];++count;}
+        }
+        if(count>best)best=count;
+    }
+    // A single available zone is fragile, two independent zones provide
+    // distinct space for consecutive bulky pieces.
+    return best>=2?550*(best-1):best==1?-250:-650;
 }
 // Research-only: exact occupancy of rows/columns that are one or two cells
 // from clearing. A potential clear must have its missing cells in a legal
@@ -1008,6 +1032,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_INDEPENDENT_SQUARE_ZONES
+        utility+=BLResearchIndependentSquareZones(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_HARD_LANDING_BOTTLENECK
         utility+=BLResearchHardLandingBottleneck(ctx->topAll[i].board);
 #endif
@@ -1095,6 +1122,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_POST_CLEAR_HARD_RESCUE
         utility+=BLResearchPostClearHardRescue(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_INDEPENDENT_SQUARE_ZONES
+        utility+=BLResearchIndependentSquareZones(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_LANDING_BOTTLENECK
         utility+=BLResearchHardLandingBottleneck(ctx->topCombo[i].board);
