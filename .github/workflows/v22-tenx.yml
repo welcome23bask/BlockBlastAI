@@ -32,17 +32,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1106 bash learning/run_tenx_reproducible.sh 1107 1108
+          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=401 bash learning/run_tenx_reproducible.sh 601 801
       - name: Compile exact source and run one bounded training epoch with two synthetic holdouts
         id: research
         shell: bash
         run: |
           set -o pipefail
           # Epochs are provisional: the full historical seed ledger must still be audited.
-          # Iteration 57: minimum hard-family immediate line-clear feasibility; cross-fit OFF.
+          # Iteration 60: test iteration-58 hard-landing-bottleneck hypothesis, distinct from iteration-57 hard-clear-floor.
           # Five initial paired training games/generator, up to 4 finalists on 8 disjoint training games, two 30-game/generator holdouts.
-          # The runner rejects failing verdicts. Never promote a candidate from this job.
-          TENX_TRAIN_SEED_EPOCH=1106 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1107 1108 2>&1 | tee /tmp/tenx-research-console.txt
+          # The runner preflights ledger and raw RNG starts before compiling; rejects failing verdicts. Never promote a candidate from this job.
+          TENX_TRAIN_SEED_EPOCH=401 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 601 801 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -54,7 +54,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional training seed 1106 and holdouts 1107,1108; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 401 and holdouts 601,801; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
