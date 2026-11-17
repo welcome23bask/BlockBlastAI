@@ -148,6 +148,13 @@
 // continuation, this bounded single-step lower-tail reserve neither
 // presumes all three next pieces nor rewards one abundant orientation.
 #define BL_RESEARCH_CROWDED_HARD_FLOOR 1
+// Iteration 77: conditional two-piece hard-pair failure floor. The prior
+// exact one-piece rescue improved no strict 10x gates; on crowded completed
+// trays, penalize a board when NONE of three distinct hard-piece pair
+// families has an exact legal two-piece continuation. Unlike static landing
+// counts, this uses legal sequential placements and intervening line clears.
+// The tested shapes are fixed public geometry, not future RNG observations.
+#define BL_RESEARCH_CROWDED_PAIR_FAILURE 1
 #define BL_FUTURE_TOP 4
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
@@ -1076,6 +1083,21 @@ static int risk_pool_might_improve(const int score[BL_FUTURE_TOP],
     return baseQ+2700>worst;
 }
 #endif
+#if BL_RESEARCH_CROWDED_PAIR_FAILURE
+static int BLResearchCrowdedPairFailure(uint64_t board) {
+    if(64-bits(board)>=30)return 0;
+    const int squareBar=pair_fits_now(board,UINT64_C(0x70707),3,3,
+                                           UINT64_C(0x1f),5,1);
+    const int irregularSquare=pair_fits_now(board,UINT64_C(0x40603),3,3,
+                                                  UINT64_C(0x70707),3,3);
+    const int irregularPair=pair_fits_now(board,UINT64_C(0x20303),3,3,
+                                                UINT64_C(0x20702),3,3);
+    int feasible=squareBar+irregularSquare+irregularPair;
+    // A failure penalty rather than an unconditional reward avoids
+    // overvaluing easy boards or a single abundant hard-piece family.
+    return feasible==0?-850:0;
+}
+#endif
 static void rerank_afterstates(BLSearch *ctx) {
     int best=INT_MIN;
     for(int i=0;i<ctx->topAllN;++i) {
@@ -1131,6 +1153,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_CROWDED_HARD_FLOOR
         utility+=BLResearchCrowdedHardFloor(ctx->topAll[i].board);
+#endif
+#if BL_RESEARCH_CROWDED_PAIR_FAILURE
+        utility+=BLResearchCrowdedPairFailure(ctx->topAll[i].board);
 #endif
 #if BL_RESEARCH_CROSS_FAMILY_DISJOINT
         utility+=BLResearchCrossFamilyDisjoint(ctx->topAll[i].board);
@@ -1228,6 +1253,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_CROWDED_HARD_FLOOR
         utility+=BLResearchCrowdedHardFloor(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_CROWDED_PAIR_FAILURE
+        utility+=BLResearchCrowdedPairFailure(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_CROSS_FAMILY_DISJOINT
         utility+=BLResearchCrossFamilyDisjoint(ctx->topCombo[i].board);
