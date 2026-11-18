@@ -63,7 +63,23 @@ def main():
             o.unlink(missing_ok=True)
             failed=execute(d,o)
             assert failed.returncode != 0, "Malformed dataset was accepted: "+str(kwargs)
-        print("PASS: bounded trainer smoke, split/epoch coverage, duplicate and censor rejection")
+        # Fail closed on physically impossible 8x8 afterstates.
+        for field, value in (("occupied", "65"), ("largest_free", "65"),
+                             ("hard_zero", "2"), ("pockets", "-1"),
+                             ("occupied", "10.5")):
+            dataset(d)
+            with d.open(newline="", encoding="utf-8") as source:
+                reader = csv.DictReader(source)
+                rows = list(reader)
+            rows[0][field] = value
+            with d.open("w", newline="", encoding="utf-8") as dest:
+                writer = csv.DictWriter(dest, fieldnames=FIELDS)
+                writer.writeheader()
+                writer.writerows(rows)
+            o.unlink(missing_ok=True)
+            failed = execute(d, o)
+            assert failed.returncode != 0, "Impossible afterstate accepted: " + field + "=" + value
+        print("PASS: bounded trainer smoke, split/epoch coverage, duplicate, censor and geometry rejection")
         print("Synthetic fixture only; no gameplay training or 10x evidence")
 
 if __name__ == "__main__":
