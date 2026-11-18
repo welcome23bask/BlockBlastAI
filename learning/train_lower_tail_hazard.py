@@ -131,8 +131,36 @@ def main():
     validation = metrics(rows,w,"validation")
     # A weakly calibrated hazard model must not silently become a policy.
     # This is a diagnostic gate only; the existing gameplay gates remain unchanged.
-    safe = all(v["brier"] <= v["constant_prevalence_brier"]
-               for v in validation.values())
+    # Do not let a strong validation epoch conceal a catastrophic weak epoch.
+    # Use unrounded scores for the acceptance decision; rounded diagnostics
+    # can otherwise turn a small regression into an apparent tie.
+    epoch_validation = {}
+    for scenario in ("normal", "heavy", "shifted-heavy"):
+        epoch_validation[scenario] = {}
+        for epoch in sorted(valid):
+            subset = [r for r in rows if r[2] == "validation" and
+                      r[1] == scenario and r[0] == epoch]
+            if not subset:
+                raise ValueError(f"Missing validation generator {scenario} epoch {epoch}")
+            train_subset = [r for r in rows if r[2] == "train" and r[1] == scenario]
+            train_counts = {}
+            for r in train_subset:
+                train_counts[r[5]] = train_counts.get(r[5], 0) + 1
+            prior = sum(r[3] / train_counts[r[5]] for r in train_subset) / len(train_counts)
+            counts = {}
+            for r in subset:
+                counts[r[5]] = counts.get(r[5], 0) + 1
+            model_brier = sum((sigmoid(sum(a*b for a,b in zip(w,r[4]))) - r[3])**2 /
+                              (len(counts) * counts[r[5]]) for r in subset)
+            constant_brier = sum((prior-r[3])**2 /
+                                 (len(counts) * counts[r[5]]) for r in subset)
+            epoch_validation[scenario][str(epoch)] = {
+                "brier": round(model_brier, 9),
+                "constant_prevalence_brier": round(constant_brier, 9),
+                "passes_unrounded": model_brier <= constant_brier,
+            }
+    safe = all(v["passes_unrounded"] for scenario in epoch_validation.values()
+               for v in scenario.values())
     result = {"status":("research_only_validation_diagnostic_pass" if safe
                          else "research_only_validation_diagnostic_fail"),
               "feature_names":["intercept"]+list(FEATURES),
@@ -141,6 +169,7 @@ def main():
               "train_epochs":sorted(train), "validation_epochs":sorted(valid),
               "train":metrics(rows,w,"train"),
               "validation":validation,
+              "per_epoch_validation":epoch_validation,
               "all_generator_brier_not_worse_than_constant":safe,
               "limitations":"No game policy integration, no holdout tests, no 10x claim"}
     a.output.write_text(json.dumps(result, indent=2)+"
