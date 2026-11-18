@@ -2,10 +2,10 @@
 """Research-only, bounded, deterministic lower-tail hazard calibration.
 
 This is an OFFLINE training component, not wired into the gameplay policy.
-Input CSV columns: epoch,scenario,game,split,dead_within_3,censored,
+Input CSV columns: epoch,scenario,game,tray,finalist,split,dead_within_3,censored,
 occupied,square_fits,hbar_fits,vbar_fits,hard_zero,
 largest_free,pockets,combo_streak,future_clear.
-Rows MUST originate from completed legal tray afterstates, with labels
+Each (epoch,scenario,game,tray,finalist) identifies ONE legal afterstate.\nRows MUST originate from completed legal tray afterstates, with labels
 obtained using continuation simulations, not from withheld test epochs.
 Splits are train/validation, with disjoint epoch IDs. No hidden RNG features.
 """
@@ -25,7 +25,7 @@ def load(path):
     seen = set()
     with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
-            key = (int(r["epoch"]), r["scenario"], int(r["game"]))
+            key = (int(r["epoch"]), r["scenario"], int(r["game"]),\n                   int(r["tray"]), int(r["finalist"]))\n            if key[3] < 0 or key[4] < 0:\n                raise ValueError("Negative tray/finalist index")
             if key in seen:
                 raise ValueError("Duplicate episode key: " + str(key))
             seen.add(key)
@@ -65,11 +65,11 @@ def fit(rows, epochs=300, rate=0.25, regularization=0.05):
     # scenario. The generator identity is NEVER an inference feature.
     counts = {s: sum(r[1] == s for r in data)
               for s in ("normal", "heavy", "shifted-heavy")}
-    for _ in range(epochs):
+    # Equalize independent source episodes, not the number of legal finalists\n    # exported from a board. Otherwise boards with many candidates dominate.\n    episode_counts = {}\n    for row in data:\n        episode_counts[row[5]] = episode_counts.get(row[5], 0) + 1\n    generator_episodes = {scenario: len({r[5] for r in data if r[1] == scenario})\n                          for scenario in counts}\n    for _ in range(epochs):
         grad = [0.] * len(w)
         for _, scenario, _, y, x in data:
             error = sigmoid(sum(a*b for a, b in zip(w, x))) - y
-            weight = 1. / (3. * counts[scenario])
+            weight = 1. / (3. * generator_episodes[scenario] * episode_counts[episode])
             for j in range(len(w)):
                 grad[j] += weight * error * x[j]
         for j in range(len(w)):
