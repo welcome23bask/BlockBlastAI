@@ -97,20 +97,28 @@ def metrics(rows, w, split):
             raise ValueError("Missing " + split + " generator " + scenario)
         predictions = [sigmoid(sum(a*b for a,b in zip(w,r[4])))
                        for r in selected]
-        brier = sum((p-r[3])**2 for p,r in zip(predictions, selected))/len(selected)
+        # Score independent source episodes equally, regardless of finalist count.
+        episode_counts = {}
+        for r in selected:
+            episode_counts[r[5]] = episode_counts.get(r[5], 0) + 1
+        weights = [1. / (len(episode_counts) * episode_counts[r[5]]) for r in selected]
+        brier = sum(weight*(p-r[3])**2 for weight,p,r in zip(weights,predictions,selected))
         positives = sum(r[3] for r in selected)
-        prevalence = positives / len(selected)
+        prevalence = sum(weight*r[3] for weight,r in zip(weights,selected))
         # Reference prevalence is fitted on TRAIN ONLY. Computing it from
         # validation labels leaks the holdout outcomes into the comparator.
         reference = [r for r in rows if r[2] == "train" and r[1] == scenario]
-        train_prevalence = sum(r[3] for r in reference) / len(reference)
-        constant_brier = sum((train_prevalence-r[3])**2 for r in selected)/len(selected)
+        reference_counts = {}
+        for r in reference:
+            reference_counts[r[5]] = reference_counts.get(r[5], 0) + 1
+        train_prevalence = sum(r[3] / reference_counts[r[5]] for r in reference) / len(reference_counts)
+        constant_brier = sum(weight*(train_prevalence-r[3])**2 for weight,r in zip(weights,selected))
         out[scenario] = {"n":len(selected), "deaths":positives,
                          "brier":round(brier, 6),
                          "constant_prevalence_brier":round(constant_brier, 6),
                          "training_reference_prevalence":round(train_prevalence, 6),
-                         "calibration_gap":round(abs(sum(predictions)/len(predictions)-prevalence), 6),
-                         "mean_predicted_hazard":round(sum(predictions)/len(predictions),6)}
+                         "calibration_gap":round(abs(sum(weight*p for weight,p in zip(weights,predictions))-prevalence), 6),
+                         "mean_predicted_hazard":round(sum(weight*p for weight,p in zip(weights,predictions)),6)}
     return out
 
 def main():
