@@ -39,7 +39,7 @@ def load(path):
             if not all(math.isfinite(v) for v in x):
                 raise ValueError("Nonfinite feature")
             rows.append((int(r["epoch"]), r["scenario"], r["split"],
-                         int(r["dead_within_3"]), x))
+                         int(r["dead_within_3"]), x, key[:3]))
     if not rows:
         raise ValueError("Empty dataset")
     train = {r[0] for r in rows if r[2] == "train"}
@@ -67,7 +67,7 @@ def fit(rows, epochs=300, rate=0.25, regularization=0.05):
               for s in ("normal", "heavy", "shifted-heavy")}
     # Equalize independent source episodes, not the number of legal finalists\n    # exported from a board. Otherwise boards with many candidates dominate.\n    episode_counts = {}\n    for row in data:\n        episode_counts[row[5]] = episode_counts.get(row[5], 0) + 1\n    generator_episodes = {scenario: len({r[5] for r in data if r[1] == scenario})\n                          for scenario in counts}\n    for _ in range(epochs):
         grad = [0.] * len(w)
-        for _, scenario, _, y, x in data:
+        for _, scenario, _, y, x, episode in data:
             error = sigmoid(sum(a*b for a, b in zip(w, x))) - y
             weight = 1. / (3. * generator_episodes[scenario] * episode_counts[episode])
             for j in range(len(w)):
