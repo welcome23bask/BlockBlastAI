@@ -49,6 +49,10 @@ def load(path):
     if not {"normal", "heavy", "shifted-heavy"}.issubset(
             {r[1] for r in rows if r[2] == "train"}):
         raise ValueError("Missing training generator")
+    if any(r[1] not in ("normal", "heavy", "shifted-heavy") for r in rows):
+        raise ValueError("Unknown generator")
+    if any(not 17 <= r[0] <= 2000 for r in rows):
+        raise ValueError("Epoch outside research range")
     return rows, train, valid
 
 def sigmoid(z):
@@ -85,10 +89,15 @@ def metrics(rows, w, split):
         brier = sum((p-r[3])**2 for p,r in zip(predictions, selected))/len(selected)
         positives = sum(r[3] for r in selected)
         prevalence = positives / len(selected)
-        constant_brier = sum((prevalence-r[3])**2 for r in selected)/len(selected)
+        # Reference prevalence is fitted on TRAIN ONLY. Computing it from
+        # validation labels leaks the holdout outcomes into the comparator.
+        reference = [r for r in rows if r[2] == "train" and r[1] == scenario]
+        train_prevalence = sum(r[3] for r in reference) / len(reference)
+        constant_brier = sum((train_prevalence-r[3])**2 for r in selected)/len(selected)
         out[scenario] = {"n":len(selected), "deaths":positives,
                          "brier":round(brier, 6),
                          "constant_prevalence_brier":round(constant_brier, 6),
+                         "training_reference_prevalence":round(train_prevalence, 6),
                          "calibration_gap":round(abs(sum(predictions)/len(predictions)-prevalence), 6),
                          "mean_predicted_hazard":round(sum(predictions)/len(predictions),6)}
     return out
