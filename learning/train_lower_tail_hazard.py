@@ -39,9 +39,21 @@ def load(path):
                 raise ValueError("Censored continuation labels cannot be treated as known")
             if int(r["dead_within_3"]) not in (0, 1):
                 raise ValueError("Death label must be binary")
-            x = [1.] + [float(r[k]) / s for k, s in zip(FEATURES, SCALES)]
-            if not all(math.isfinite(v) for v in x):
+            raw = {k: float(r[k]) for k in FEATURES}
+            if not all(math.isfinite(v) for v in raw.values()):
                 raise ValueError("Nonfinite feature")
+            # Physical 8x8 afterstate contract: impossible feature vectors
+            # must fail closed rather than contaminate a calibrated hazard.
+            if any(v < 0 for v in raw.values()):
+                raise ValueError("Negative afterstate feature")
+            if (raw["occupied"] > 64 or raw["largest_free"] > 64 or
+                    raw["occupied"] + raw["largest_free"] > 64):
+                raise ValueError("Impossible 8x8 occupancy/free-region geometry")
+            if raw["hard_zero"] not in (0., 1.):
+                raise ValueError("hard_zero must be binary")
+            if any(raw[k] != int(raw[k]) for k in FEATURES):
+                raise ValueError("Afterstate count features must be integers")
+            x = [1.] + [raw[k] / s for k, s in zip(FEATURES, SCALES)]
             rows.append((int(r["epoch"]), r["scenario"], r["split"],
                          int(r["dead_within_3"]), x, key[:3]))
     if not rows:
