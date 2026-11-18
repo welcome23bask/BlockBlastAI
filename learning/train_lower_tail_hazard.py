@@ -22,8 +22,13 @@ SCALES = (64., 36., 32., 32., 7., 64., 20., 10., 32.)
 
 def load(path):
     rows = []
+    seen = set()
     with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
+            key = (int(r["epoch"]), r["scenario"], int(r["game"]))
+            if key in seen:
+                raise ValueError("Duplicate episode key: " + str(key))
+            seen.add(key)
             if r["split"] not in ("train", "validation"):
                 raise ValueError("Only train/validation splits are permitted")
             if int(r["censored"]) != 0:
@@ -79,8 +84,12 @@ def metrics(rows, w, split):
                        for r in selected]
         brier = sum((p-r[3])**2 for p,r in zip(predictions, selected))/len(selected)
         positives = sum(r[3] for r in selected)
+        prevalence = positives / len(selected)
+        constant_brier = sum((prevalence-r[3])**2 for r in selected)/len(selected)
         out[scenario] = {"n":len(selected), "deaths":positives,
                          "brier":round(brier, 6),
+                         "constant_prevalence_brier":round(constant_brier, 6),
+                         "calibration_gap":round(abs(sum(predictions)/len(predictions)-prevalence), 6),
                          "mean_predicted_hazard":round(sum(predictions)/len(predictions),6)}
     return out
 
@@ -91,13 +100,20 @@ def main():
     a = p.parse_args()
     rows, train, valid = load(a.dataset)
     w = fit(rows)
-    result = {"status":"research_only_not_policy_integrated",
+    validation = metrics(rows,w,"validation")
+    # A weakly calibrated hazard model must not silently become a policy.
+    # This is a diagnostic gate only; the existing gameplay gates remain unchanged.
+    safe = all(v["brier"] <= v["constant_prevalence_brier"]
+               for v in validation.values())
+    result = {"status":("research_only_validation_diagnostic_pass" if safe
+                         else "research_only_validation_diagnostic_fail"),
               "feature_names":["intercept"]+list(FEATURES),
               "feature_scales":list(SCALES),
               "weights":[round(v, 9) for v in w],
               "train_epochs":sorted(train), "validation_epochs":sorted(valid),
               "train":metrics(rows,w,"train"),
-              "validation":metrics(rows,w,"validation"),
+              "validation":validation,
+              "all_generator_brier_not_worse_than_constant":safe,
               "limitations":"No game policy integration, no holdout tests, no 10x claim"}
     a.output.write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
     print(json.dumps(result, sort_keys=True))
