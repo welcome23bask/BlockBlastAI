@@ -1143,10 +1143,16 @@ static int BLResearchCrowdedPairFailure(uint64_t board) {
                 if(board&m)continue;
                 int lines=0;
                 uint64_t after=clear_full(board|m,&lines);
-                if(lines && (fit(after,UINT64_C(0x507),3,2)>0 ||
-                             fit(after,UINT64_C(0x705),3,2)>0 ||
-                             fit(after,UINT64_C(0x20303),3,3)>0))
-                    hasShiftedRescue=1;
+                // Iteration 88: a rescue that restores only ONE shifted family
+                // can still leave a brittle lower-tail board. Require two
+                // distinct families after the same exactly legal clear.
+                // No future tray or RNG access; this is research-only.
+                if(lines) {
+                    int restored=(fit(after,UINT64_C(0x507),3,2)>0)
+                                +(fit(after,UINT64_C(0x705),3,2)>0)
+                                +(fit(after,UINT64_C(0x20303),3,3)>0);
+                    if(restored>=2)hasShiftedRescue=1;
+                }
             }
     }
     return (feasible==0?-1050:(feasible==1?-420:0))
