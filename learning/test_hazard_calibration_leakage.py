@@ -13,7 +13,7 @@ from train_lower_tail_hazard import load, fit, metrics, FEATURES
 
 with tempfile.TemporaryDirectory() as tmp:
     path = Path(tmp) / "episodes.csv"
-    fields = ["epoch", "scenario", "game", "split", "dead_within_3",
+    fields = ["epoch", "scenario", "game", "tray", "finalist", "split", "dead_within_3",
               "censored", *FEATURES]
     with path.open("w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fields)
@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory() as tmp:
                                          ("validation", 431, (1, 1, 1, 0))):
                 for game, label in enumerate(labels):
                     writer.writerow(dict(epoch=epoch, scenario=scenario,
-                                         game=game, split=split,
+                                         game=game, tray=0, finalist=0, split=split,
                                          dead_within_3=label, censored=0,
                                          **{feature: 0 for feature in FEATURES}))
     rows, train, valid = load(path)
@@ -34,4 +34,23 @@ with tempfile.TemporaryDirectory() as tmp:
         # 3 positives, 1 negative evaluated against training-only p=0.25:
         # (3*(.75**2)+(.25**2))/4 == .4375.
         assert value["constant_prevalence_brier"] == 0.4375
-    print("PASS: held-out labels never set reference prevalence")
+    with path.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writerow(dict(epoch=430, scenario="normal", game=0,
+                             tray=0, finalist=1, split="train",
+                             dead_within_3=0, censored=0,
+                             **{feature: 0 for feature in FEATURES}))
+    expanded, _, _ = load(path)
+    assert len(expanded) == len(rows) + 1
+    with path.open("a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writerow(dict(epoch=430, scenario="normal", game=0,
+                             tray=0, finalist=1, split="train",
+                             dead_within_3=0, censored=0,
+                             **{feature: 0 for feature in FEATURES}))
+    try:
+        load(path)
+        raise AssertionError("duplicate legal afterstate was accepted")
+    except ValueError as exc:
+        assert "Duplicate episode key" in str(exc)
+    print("PASS: held-out reference leakage and legal-afterstate uniqueness")
