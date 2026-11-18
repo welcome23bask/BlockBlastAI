@@ -1,0 +1,9 @@
+# BlockBlastAI iteration 93 — 2026-11-18 (isolated research only)
+
+Fetched exact research workflow .github/workflows/v22-tenx.yml, runner learning/run_tenx_reproducible.sh, cross-role ledger learning/tenx_used_epochs.txt, iteration 92 log, simulator source and hazard model. Workflow still references already-reserved 200/201/202; no replay or seed reservation. No new Actions workflow launched.
+
+Identified a dataset-design blocker: original trainer keyed rows by (epoch,scenario,game), so exporting more than one legal tray afterstate per episode would be rejected. A naive relaxation would let episodes with many legal finalists dominate calibration and inflate effective sample size. Commit ec0d50b16c3e30e4bcef7d1f4767455b4e594183 requires explicit nonnegative tray/finalist identifiers, checks uniqueness at the afterstate level, and weights training gradients by independent episode, balancing generators rather than finalist counts. Commit 22bf4147604d8e5d15b52a73ce52ca78a4fbac12 updates the regression fixture to cover multiple finalists in one episode and reject duplicate afterstate IDs.
+
+These are research-only data/training improvements, NOT tested gameplay gains. The fixture has not yet been executed; no simulator-generated labeled afterstate dataset, trained policy integration, or new paired holdouts exist. Do not assert 10x, calibration success, or passing tests. Next: implement exact legal-afterstate exporter and bounded 3-tray continuation labels; run the fixture and actual model training, then integrate inference among legal finalists and test against unchanged v1.7 on fresh audited train/holdout epochs after verifying no overlapping Actions. Synthetic estimated score is not actual game score. External/local seed history remains incomplete.
+
+Safety: research branch only; unchanged baseline, checkpoint, main, deployments, live v3.4 iPhone Automatic Play.
