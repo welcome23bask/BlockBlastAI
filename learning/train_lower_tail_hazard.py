@@ -5,7 +5,8 @@ This is an OFFLINE training component, not wired into the gameplay policy.
 Input CSV columns: epoch,scenario,game,tray,finalist,split,dead_within_3,censored,
 occupied,square_fits,hbar_fits,vbar_fits,hard_zero,
 largest_free,pockets,combo_streak,future_clear.
-Each (epoch,scenario,game,tray,finalist) identifies ONE legal afterstate.\nRows MUST originate from completed legal tray afterstates, with labels
+Each (epoch,scenario,game,tray,finalist) identifies ONE legal afterstate.
+Rows MUST originate from completed legal tray afterstates, with labels
 obtained using continuation simulations, not from withheld test epochs.
 Splits are train/validation, with disjoint epoch IDs. No hidden RNG features.
 """
@@ -25,7 +26,10 @@ def load(path):
     seen = set()
     with open(path, newline="", encoding="utf-8") as f:
         for r in csv.DictReader(f):
-            key = (int(r["epoch"]), r["scenario"], int(r["game"]),\n                   int(r["tray"]), int(r["finalist"]))\n            if key[3] < 0 or key[4] < 0:\n                raise ValueError("Negative tray/finalist index")
+            key = (int(r["epoch"]), r["scenario"], int(r["game"]),
+                   int(r["tray"]), int(r["finalist"]))
+            if key[3] < 0 or key[4] < 0:
+                raise ValueError("Negative tray/finalist index")
             if key in seen:
                 raise ValueError("Duplicate episode key: " + str(key))
             seen.add(key)
@@ -65,7 +69,14 @@ def fit(rows, epochs=300, rate=0.25, regularization=0.05):
     # scenario. The generator identity is NEVER an inference feature.
     counts = {s: sum(r[1] == s for r in data)
               for s in ("normal", "heavy", "shifted-heavy")}
-    # Equalize independent source episodes, not the number of legal finalists\n    # exported from a board. Otherwise boards with many candidates dominate.\n    episode_counts = {}\n    for row in data:\n        episode_counts[row[5]] = episode_counts.get(row[5], 0) + 1\n    generator_episodes = {scenario: len({r[5] for r in data if r[1] == scenario})\n                          for scenario in counts}\n    for _ in range(epochs):
+    # Equalize independent source episodes, not the number of legal finalists
+    # exported from a board. Otherwise boards with many candidates dominate.
+    episode_counts = {}
+    for row in data:
+        episode_counts[row[5]] = episode_counts.get(row[5], 0) + 1
+    generator_episodes = {scenario: len({r[5] for r in data if r[1] == scenario})
+                          for scenario in counts}
+    for _ in range(epochs):
         grad = [0.] * len(w)
         for _, scenario, _, y, x, episode in data:
             error = sigmoid(sum(a*b for a, b in zip(w, x))) - y
@@ -124,7 +135,8 @@ def main():
               "validation":validation,
               "all_generator_brier_not_worse_than_constant":safe,
               "limitations":"No game policy integration, no holdout tests, no 10x claim"}
-    a.output.write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
+    a.output.write_text(json.dumps(result, indent=2)+"
+", encoding="utf-8")
     print(json.dumps(result, sort_keys=True))
 
 if __name__ == "__main__":
