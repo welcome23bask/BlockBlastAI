@@ -1116,14 +1116,17 @@ static int BLResearchCrowdedPairFailure(uint64_t board) {
     const int shiftedC=fit(board,UINT64_C(0x20303),3,3);
     const int shiftedTypes=(shiftedA>0)+(shiftedB>0)+(shiftedC>0);
     const int shiftedFragile=shiftedTypes<2;
-    // Iteration 83: the unconditional shifted-type penalty failed to protect
-    // shifted-heavy mean survival on holdout 252 (0.9532x). Distinguish a
-    // genuinely trapped afterstate from one that still has an exact legal
-    // two-piece escape: apply the fragile-shifted penalty only when no
-    // independent escape family survives. This is a bounded research-only
-    // interaction hypothesis, not a hidden future-tray prediction.
+    // Iteration 84 hypothesis (UNTESTED): the no-pair floor already punishes
+    // boards with no two-piece escape; stacking another 650 penalty when ONE
+    // shifted piece can still land may discard recoverable afterstates.
+    // Apply the extra lower-tail penalty only to a genuine shifted-family
+    // zero-fit dead end, not to the broader one-type bottleneck. This changes
+    // the activation logic, not the coefficients, and uses only public
+    // current-board geometry. Test on fresh independent paired seeds.
+    const int shiftedDeadEnd=(shiftedA==0 && shiftedB==0 && shiftedC==0);
+    (void)shiftedFragile; // retained for explicit future A/B diagnostics
     return (feasible==0?-1050:(feasible==1?-420:0))
-           -((shiftedFragile && feasible==0)?650:0);
+           -((shiftedDeadEnd && feasible==0)?650:0);
 }
 #endif
 static void rerank_afterstates(BLSearch *ctx) {
