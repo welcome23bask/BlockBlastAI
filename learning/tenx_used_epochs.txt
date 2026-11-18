@@ -210,3 +210,8 @@
 250
 251
 252
+
+# Iteration 83: reserved AFTER immutable workflow snapshot 540aa1f0; training 300 holdouts 301/302; 342 unique raw starts, no collisions with 165 documented epochs; external/local history incomplete
+300
+301
+302
