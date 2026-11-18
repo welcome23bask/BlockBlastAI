@@ -1125,8 +1125,32 @@ static int BLResearchCrowdedPairFailure(uint64_t board) {
     // current-board geometry. Test on fresh independent paired seeds.
     const int shiftedDeadEnd=(shiftedA==0 && shiftedB==0 && shiftedC==0);
     (void)shiftedFragile; // retained for explicit future A/B diagnostics
+    // Iteration 86: the 350/351/352 paired holdouts exposed shifted-heavy
+    // lower-tail regression (p10 18 vs 19 on 352) despite no illegal moves.
+    // Distinguish a genuinely stranded zero-fit board from one with an exact
+    // one-piece line clear available to reopen shifted-family space. The
+    // previous unconditional dead-end penalty can discard a recoverable
+    // position. Only public hypothetical geometry is used; no future RNG.
+    int hasShiftedRescue=0;
+    if(shiftedDeadEnd && feasible==0) {
+        const uint64_t rescueMasks[4]={UINT64_C(1),UINT64_C(3),
+                                       UINT64_C(0x101),UINT64_C(0x303)};
+        const int rescueW[4]={1,2,1,2},rescueH[4]={1,1,2,2};
+        for(int k=0;k<4 && !hasShiftedRescue;++k)
+          for(int r=0;r<=8-rescueH[k] && !hasShiftedRescue;++r)
+            for(int c=0;c<=8-rescueW[k] && !hasShiftedRescue;++c) {
+                uint64_t m=rescueMasks[k]<<(8*r+c);
+                if(board&m)continue;
+                int lines=0;
+                uint64_t after=clear_full(board|m,&lines);
+                if(lines && (fit(after,UINT64_C(0x507),3,2)>0 ||
+                             fit(after,UINT64_C(0x705),3,2)>0 ||
+                             fit(after,UINT64_C(0x20303),3,3)>0))
+                    hasShiftedRescue=1;
+            }
+    }
     return (feasible==0?-1050:(feasible==1?-420:0))
-           -((shiftedDeadEnd && feasible==0)?650:0);
+           -((shiftedDeadEnd && feasible==0 && !hasShiftedRescue)?650:0);
 }
 #endif
 static void rerank_afterstates(BLSearch *ctx) {
