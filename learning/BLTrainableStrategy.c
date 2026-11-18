@@ -1106,7 +1106,18 @@ static int BLResearchCrowdedPairFailure(uint64_t board) {
     const int feasible=familyBar+familyIrregular;
     // Do not reward easy boards; distinguish no escape from a single
     // fragile family while avoiding counting correlated landings as distinct.
-    return feasible==0?-1050:(feasible==1?-420:0);
+    // Iteration 81: shifted-heavy p10 regressed on holdout 782 despite
+    // pair-family diversity. An available two-piece route may rely on a
+    // single narrow shifted-shape landing. Require redundancy of distinct
+    // EXACT legal shifted-shape starts before trusting that escape family.
+    // This is deterministic public geometry, not next-tray prediction.
+    const int shiftedA=fit(board,UINT64_C(0x507),3,2);
+    const int shiftedB=fit(board,UINT64_C(0x705),3,2);
+    const int shiftedC=fit(board,UINT64_C(0x20303),3,3);
+    const int shiftedTypes=(shiftedA>0)+(shiftedB>0)+(shiftedC>0);
+    const int shiftedFragile=shiftedTypes<2;
+    return (feasible==0?-1050:(feasible==1?-420:0))
+           -(shiftedFragile?650:0);
 }
 #endif
 static void rerank_afterstates(BLSearch *ctx) {
