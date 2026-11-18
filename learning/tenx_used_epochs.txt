@@ -205,3 +205,8 @@
 780
 782
 786
+
+# Iteration 82: reserved AFTER workflow snapshot a822ab4f / run 44222545576; 342 raw starts collision-free against 162 documented epochs; external/local history incomplete
+250
+251
+252
