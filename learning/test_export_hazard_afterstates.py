@@ -51,6 +51,24 @@ class ExportContract(unittest.TestCase):
             with self.subTest(r=r), self.assertRaises(ValueError):
                 convert([json.dumps(r)])
 
+    def test_reject_cross_split_leakage(self):
+        for same_epoch in (True, False):
+            a = copy.deepcopy(BASE)
+            b = copy.deepcopy(BASE)
+            b["finalist"] = 1
+            b["split"] = "validation"
+            if not same_epoch:
+                b["game"] = 1
+            with self.subTest(same_epoch=same_epoch), self.assertRaises(ValueError):
+                convert([json.dumps(a), json.dumps(b)])
+
+    def test_reject_incomplete_feature_map(self):
+        for bad in (None, [], {"occupied": 20}, {**BASE["features"], "hidden_rng": 123}):
+            r = copy.deepcopy(BASE)
+            r["features"] = bad
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                convert([json.dumps(r)])
+
     def test_duplicate_finalist(self):
         with self.assertRaises(ValueError):
             convert([json.dumps(BASE), json.dumps(BASE)])
