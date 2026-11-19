@@ -188,8 +188,7 @@ def main():
               "per_epoch_validation":epoch_validation,
               "all_generator_brier_not_worse_than_constant":safe,
               "limitations":"No game policy integration, no holdout tests, no 10x claim"}
-    a.output.write_text(json.dumps(result, indent=2)+"
-", encoding="utf-8")
+    a.output.write_text(json.dumps(result, indent=2)+"\\n", encoding="utf-8")
     print(json.dumps(result, sort_keys=True))
 
 if __name__ == "__main__":
