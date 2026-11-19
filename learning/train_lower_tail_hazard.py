@@ -19,7 +19,7 @@ from pathlib import Path
 FEATURES = ("occupied", "square_fits", "hbar_fits", "vbar_fits",
             "hard_zero", "largest_free", "pockets", "combo_streak",
             "future_clear")
-SCALES = (64., 36., 32., 32., 7., 64., 20., 10., 32.)
+SCALES = (64., 36., 32., 32., 11., 64., 20., 10., 32.)
 
 def load(path):
     rows = []
@@ -53,8 +53,8 @@ def load(path):
                     (raw["occupied"] < 64 and raw["largest_free"] == 0) or
                     (raw["occupied"] == 0 and raw["largest_free"] != 64)):
                 raise ValueError("Impossible empty/full board connectivity")
-            if raw["hard_zero"] not in (0., 1.):
-                raise ValueError("hard_zero must be binary")
+            if raw["hard_zero"] > 11:
+                raise ValueError("hard_zero must count 0..11 blocked hard shapes")
             if any(raw[k] != int(raw[k]) for k in FEATURES):
                 raise ValueError("Afterstate count features must be integers")
             x = [1.] + [raw[k] / s for k, s in zip(FEATURES, SCALES)]
