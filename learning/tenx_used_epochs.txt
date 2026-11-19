@@ -265,3 +265,10 @@
 1332
 1333
 1334
+
+# CI 44448961526, source 55510fa6: 883 genuine v1.7 continuation records train epoch 1280/validation 1281; model calibration failed normal (Brier .093841 > train-only constant .066753). Strategy training epoch 1282, fresh failed holdouts 1283/1284, evidence 14494209765. No promotion.
+1280
+1281
+1282
+1283
+1284
