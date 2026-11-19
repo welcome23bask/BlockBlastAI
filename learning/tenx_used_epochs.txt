@@ -342,3 +342,10 @@
 30
 31
 32
+
+# Critical-occupancy admission workflow snapshot 1ebcf839 / Actions 44636771960 verified in progress before reservation; hazard 1680/1681, policy 1682, paired holdouts 1683/1684. Conservative reservation; external history incomplete.
+1680
+1681
+1682
+1683
+1684
