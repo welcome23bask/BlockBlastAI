@@ -49,6 +49,10 @@ def load(path):
             if (raw["occupied"] > 64 or raw["largest_free"] > 64 or
                     raw["occupied"] + raw["largest_free"] > 64):
                 raise ValueError("Impossible 8x8 occupancy/free-region geometry")
+            if ((raw["occupied"] == 64 and raw["largest_free"] != 0) or
+                    (raw["occupied"] < 64 and raw["largest_free"] == 0) or
+                    (raw["occupied"] == 0 and raw["largest_free"] != 64)):
+                raise ValueError("Impossible empty/full board connectivity")
             if raw["hard_zero"] not in (0., 1.):
                 raise ValueError("hard_zero must be binary")
             if any(raw[k] != int(raw[k]) for k in FEATURES):
