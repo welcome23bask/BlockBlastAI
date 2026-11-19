@@ -1172,6 +1172,10 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
             +550*
             BLResearchPairCoverage(ctx->topAll[i].board)
+            + ((bits(ctx->topAll[i].board)>36 &&
+                (fit(ctx->topAll[i].board,UINT64_C(0x70707),3,3)==0 ||
+                 fit(ctx->topAll[i].board,UINT64_C(0x1f),5,1)==0 ||
+                 fit(ctx->topAll[i].board,UINT64_C(0x0101010101),1,5)==0)) ? -700 : 0)
 #if BL_RESEARCH_SHAPE_MIXTURE
             + BLResearchShapeMixtureValue(ctx->topAll[i].board)
 #endif
@@ -1272,6 +1276,10 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
             +550*
             BLResearchPairCoverage(ctx->topCombo[i].board)
+            + ((bits(ctx->topCombo[i].board)>36 &&
+                (fit(ctx->topCombo[i].board,UINT64_C(0x70707),3,3)==0 ||
+                 fit(ctx->topCombo[i].board,UINT64_C(0x1f),5,1)==0 ||
+                 fit(ctx->topCombo[i].board,UINT64_C(0x0101010101),1,5)==0)) ? -700 : 0)
 #if BL_RESEARCH_SHAPE_MIXTURE
             + BLResearchShapeMixtureValue(ctx->topCombo[i].board)
 #endif
