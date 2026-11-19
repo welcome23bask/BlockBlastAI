@@ -107,17 +107,17 @@ static int trace_label(State after,int scenario,int completed[3]){
     return 0;
 }
 static int trace_emit(FILE *out,const State *g,int epoch,int scenario,
-                      int game,int tray,const char *split) {
+                      int game,int tray,int finalist,const char *split) {
     int largest=0,pockets=0,completed[3]={0,0,0};
     trace_regions(g->b,&largest,&pockets);
     if(trace_label(*g,scenario,completed)<0)return -1;
     static const char *names[]={"normal","heavy","shifted-heavy"};
     fprintf(out,"{\"epoch\":%d,\"scenario\":\"%s\",\"game\":%d,\"tray\":%d,"
-        "\"finalist\":0,\"split\":\"%s\",\"legal\":true,\"features\":{"
+        "\"finalist\":%d,\"split\":\"%s\",\"legal\":true,\"features\":{"
         "\"occupied\":%d,\"square_fits\":%d,\"hbar_fits\":%d,"
         "\"vbar_fits\":%d,\"hard_zero\":%d,\"largest_free\":%d,"
         "\"pockets\":%d,\"combo_streak\":%d,\"future_clear\":%d},"
-        "\"continuation\":[",epoch,names[scenario],game,tray,split,
+        "\"continuation\":[",epoch,names[scenario],game,tray,finalist,split,
         pop(g->b),countfit(g->b,0),countfit(g->b,1),countfit(g->b,2),
         trace_hard_zero(g->b),largest,pockets,g->streak,trace_future_clear(g->b));
     for(int i=0;i<3;i++){
@@ -128,22 +128,81 @@ static int trace_emit(FILE *out,const State *g,int epoch,int scenario,
     fputs("]}\n",out);
     return 0;
 }
+// Replay ONLY a complete three-piece solution certified by the solver.
+// Verify every move and the resulting combo state against the simulator.
+static int trace_replay(const State *before,const BLSolution *plan,State *after) {
+    if(plan->movesFound!=3)return 0;
+    *after=*before;
+    for(int i=0;i<3;i++){
+        BLMove m=plan->moves[i];
+        if(m.pieceIndex<0||m.pieceIndex>2||after->p[m.pieceIndex]<0||
+           m.row<0||m.row>7||m.col<0||m.col>7||m.before!=after->b)return -1;
+        Shape *shape=&shapes[after->p[m.pieceIndex]];
+        U64 mask=shape->placed[m.row*8+m.col];
+        int cleared=0;U64 next=place(after->b,mask,&cleared);
+        if(!mask||(mask&after->b)||next!=m.after||
+           cleared!=m.linesCleared)return -1;
+        after->b=next;after->p[m.pieceIndex]=-1;
+        if(cleared){after->known=1;
+            after->streak=after->streak<63?after->streak+1:63;
+            after->misses=0;
+        }else if(after->known&&++after->misses>=3){
+            after->streak=0;after->misses=0;
+        }
+    }
+    return after->p[0]==-1&&after->p[1]==-1&&after->p[2]==-1?1:-1;
+}
+static int trace_same_after(const State *a,const State *b) {
+    return a->b==b->b && a->known==b->known &&
+           a->misses==b->misses && a->streak==b->streak;
+}
 static int trace_batch(FILE *out,int epoch,const char *split,int games) {
     for(int scenario=0;scenario<3;scenario++)for(int game=0;game<games;game++){
         seed_rng(trace_seed(epoch,scenario,game));State g={0};
-        // Include endgame states in the easier normal generator, whose games
-        // often survive 30+ trays. The prior 12-tray cap yielded ZERO normal
-        // deaths and made the strict per-generator calibration gate
-        // mathematically unreachable against a zero-risk constant baseline.
-        // Keep a bounded 80-tray budget and sample every other late tray,
-        // preventing small endgame windows from being entirely skipped.
-        // Rollouts clone RNG and state and never alter the source trajectory.
-        for(int tray=0;tray<80;tray++){
-            int result=trace_one_tray(&g,scenario);
-            if(result<0)return -1;
-            if(result==0)break;
-            if((tray<4 || tray%2==1) &&
-               trace_emit(out,&g,epoch,scenario,game,tray,split)<0)return -1;
+        // Prove counterfactual legal completed-tray finalists from the same
+        // observable three-piece tray. Run the actual reference policy on its
+        // original trajectory; alternative labels use identical future RNG
+        // starts, restored after each continuation. This is NOT online play.
+        for(int tray=0;tray<80;tray++) {
+            trace_new_tray(&g,scenario);
+            State before=g;
+            const int sample=(tray<4 || tray%2==1);
+            BLTwoStrategies strategies={0};
+            if(sample){
+                BLPiece three[3];trace_convert(before.p,three);
+                BLComboContext combo={.known=before.known,
+                    .streak=before.streak,.misses=before.misses};
+                strategies=BLV17FindTwoStrategies(before.b,three,combo,180000);
+            }
+            int status=1;
+            for(int move=0;move<3;move++) {
+                status=trace_play(&g);
+                if(status!=1)break;
+            }
+            if(status<0)return -1;
+            if(status==0)break;
+            if(!sample)continue;
+            // The dynamically receding v1.7 reference path is finalist 0.
+            // Alternative finalists are exact legal paths supplied by v1.7's
+            // independent MaxLines/KeepCombo/SmartSurvival objectives.
+            if(trace_emit(out,&g,epoch,scenario,game,tray,0,split)<0)return -1;
+            const BLSolution *alternatives[3]={
+                &strategies.maxLines,&strategies.keepCombo,
+                &strategies.smartSurvival};
+            State accepted[3];int acceptedN=0;
+            for(int j=0;j<3;j++){
+                State alt={0};
+                int replay=trace_replay(&before,alternatives[j],&alt);
+                if(replay<0)return -1;
+                if(replay==0||trace_same_after(&alt,&g))continue;
+                int duplicate=0;
+                for(int k=0;k<acceptedN;k++)
+                    if(trace_same_after(&alt,&accepted[k]))duplicate=1;
+                if(duplicate)continue;
+                accepted[acceptedN++]=alt;
+                if(trace_emit(out,&alt,epoch,scenario,game,tray,
+                              acceptedN,split)<0)return -1;
+            }
         }
     }
     return 0;
