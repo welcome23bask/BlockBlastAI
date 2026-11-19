@@ -25,7 +25,7 @@ with tempfile.TemporaryDirectory() as tmp:
                     writer.writerow(dict(epoch=epoch, scenario=scenario,
                                          game=game, tray=0, finalist=0, split=split,
                                          dead_within_3=label, censored=0,
-                                         **{feature: 0 for feature in FEATURES}))
+                                         **{feature: (64 if feature == "largest_free" else 0) for feature in FEATURES}))
     rows, train, valid = load(path)
     assert train == {430} and valid == {431}
     result = metrics(rows, fit(rows, epochs=2), "validation")
