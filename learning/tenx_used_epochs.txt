@@ -230,3 +230,10 @@
 200
 201
 202
+
+# CI attempt 44446949281, workflow source 7bd40168: 1422/1423/1424 preflight passed; hazard 1420/1421 planned; failed before any simulator run because trainer had SyntaxError. Conservatively reserved, no rerun.
+1420
+1421
+1422
+1423
+1424
