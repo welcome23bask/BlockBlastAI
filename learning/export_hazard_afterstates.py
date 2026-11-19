@@ -7,7 +7,6 @@ This bridge does not run the simulator or establish trace provenance.
 import argparse
 import csv
 import json
-import math
 from pathlib import Path
 
 FEATURES = ('occupied','square_fits','hbar_fits','vbar_fits','hard_zero',
