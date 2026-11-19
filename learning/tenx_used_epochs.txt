@@ -279,3 +279,10 @@
 1133
 1134
 1135
+
+# CI run 44457710083 / source abe81432: hazard train/validation 18/19 passed, policy training 20 and paired holdouts 21/22 completed with failed strict gate. Conservatively reserved after execution; no promotion.
+18
+19
+20
+21
+22
