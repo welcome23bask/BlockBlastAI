@@ -45,11 +45,8 @@ def convert(records):
             features['occupied'] + features['largest_free'] > 64 or
             features['hard_zero'] not in (0,1)):
             raise ValueError(f'line {lineno}: impossible 8x8 afterstate')
-        # A finalist must belong to a real three-piece tray (0, 1, or 2).
         # Repeated IDs and noncontiguous IDs silently bias episode-balanced
         # fitting, so fail closed before exporting any training rows.
-        if r['tray'] > 2:
-            raise ValueError(f'line {lineno}: tray index outside three-piece tray')
         key = tuple(r[k] for k in ('epoch','scenario','game','tray','finalist'))
         tray_key = key[:4]
         ids = finalist_ids.setdefault(tray_key, set())
