@@ -69,6 +69,22 @@ class ExportContract(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 convert([json.dumps(r)])
 
+    def test_empty_and_full_board_connectivity(self):
+        for occupied, largest, allowed in (
+            (0, 64, True), (0, 0, False), (0, 63, False),
+            (64, 0, True), (64, 1, False),
+            (20, 0, False), (20, 44, True),
+        ):
+            r = copy.deepcopy(BASE)
+            r["features"]["occupied"] = occupied
+            r["features"]["largest_free"] = largest
+            with self.subTest(occupied=occupied, largest=largest):
+                if allowed:
+                    self.assertEqual(len(convert([json.dumps(r)])), 1)
+                else:
+                    with self.assertRaises(ValueError):
+                        convert([json.dumps(r)])
+
     def test_duplicate_finalist(self):
         with self.assertRaises(ValueError):
             convert([json.dumps(BASE), json.dumps(BASE)])
