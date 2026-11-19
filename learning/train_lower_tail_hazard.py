@@ -78,7 +78,9 @@ def load(path):
 def sigmoid(z):
     return 1. / (1. + math.exp(-max(-35., min(35., z))))
 
-def fit(rows, epochs=300, rate=0.25, regularization=0.05):
+# Research-only hypothesis: weaker L2 shrinkage may resolve heavy-board hazard underfitting;
+# require independent per-generator Brier diagnostics before any policy integration.
+def fit(rows, epochs=300, rate=0.25, regularization=0.02):
     data = [r for r in rows if r[2] == "train"]
     w = [0.] * (len(FEATURES) + 1)
     # Equalize generator contributions rather than fitting the easiest
