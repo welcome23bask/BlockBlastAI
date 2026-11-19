@@ -258,3 +258,10 @@
 1392
 1393
 1394
+
+# CI run 44448323111, workflow 701b5606: genuine hazard train/validation 1330/1331 with 175 simulator-derived records (normal deaths now observed), policy train 1332, failed fresh paired holdouts 1333/1334. Artifact 14494846227. No checkpoint promotion.
+1330
+1331
+1332
+1333
+1334
