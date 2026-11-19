@@ -182,6 +182,7 @@ static int trace_batch(FILE *out,int epoch,const char *split,int games) {
             if(status<0)return -1;
             if(status==0)break;
             if(!sample)continue;
+            const uint32_t source_rng=rng;
             // The dynamically receding v1.7 reference path is finalist 0.
             // Alternative finalists are exact legal paths supplied by v1.7's
             // independent MaxLines/KeepCombo/SmartSurvival objectives.
@@ -203,6 +204,9 @@ static int trace_batch(FILE *out,int epoch,const char *split,int games) {
                 if(trace_emit(out,&alt,epoch,scenario,game,tray,
                               acceptedN,split)<0)return -1;
             }
+            // Strong paired-control invariant: labels cannot alter source
+            // trajectory or the random stream for the next real source tray.
+            if(rng!=source_rng)return -1;
         }
     }
     return 0;
