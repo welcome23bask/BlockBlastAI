@@ -286,3 +286,10 @@
 20
 21
 22
+
+# CI run 44472824155 / source 321af8e3: hazard epochs 25/26, policy train 27, paired holdouts 28/29; seed preflight, training and two strict failed holdouts completed. Artifact 14505033164. No promotion; external/local history incomplete.
+25
+26
+27
+28
+29
