@@ -65,7 +65,7 @@ def main():
             assert failed.returncode != 0, "Malformed dataset was accepted: "+str(kwargs)
         # Fail closed on physically impossible 8x8 afterstates.
         for field, value in (("occupied", "65"), ("largest_free", "65"),
-                             ("hard_zero", "2"), ("pockets", "-1"),
+                             ("hard_zero", "12"), ("pockets", "-1"),
                              ("occupied", "10.5")):
             dataset(d)
             with d.open(newline="", encoding="utf-8") as source:
