@@ -16,6 +16,8 @@ FIELDS = ('epoch','scenario','game','tray','finalist','split','dead_within_3',
 
 def convert(records):
     seen = set()
+    episode_splits = {}
+    epoch_splits = {}
     output = []
     for lineno, record in enumerate(records, 1):
         r = json.loads(record)
@@ -31,6 +33,8 @@ def convert(records):
             raise ValueError(f'line {lineno}: invalid generator')
         if r['split'] not in ('train','validation'):
             raise ValueError(f'line {lineno}: invalid split')
+        if type(r['features']) is not dict or set(r['features']) != set(FEATURES):
+            raise ValueError(f'line {lineno}: incomplete or hidden feature')
         for field in FEATURES:
             value = r['features'][field]
             if type(value) is not int or value < 0:
@@ -44,6 +48,15 @@ def convert(records):
         if key in seen:
             raise ValueError(f'line {lineno}: duplicate finalist')
         seen.add(key)
+        # A source episode or epoch cannot be in both fitting and validation.
+        # Reject leakage at the exporter boundary, before CSV training.
+        episode = key[:3]
+        previous = episode_splits.setdefault(episode, r['split'])
+        if previous != r['split']:
+            raise ValueError(f'line {lineno}: episode split leakage')
+        previous_epoch = epoch_splits.setdefault(r['epoch'], r['split'])
+        if previous_epoch != r['split']:
+            raise ValueError(f'line {lineno}: epoch split leakage')
         if r['legal'] is not True:
             raise ValueError(f'line {lineno}: illegal or unverified afterstate')
         if set(r['features']) != set(FEATURES):
