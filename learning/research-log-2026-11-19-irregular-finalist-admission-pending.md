@@ -1,0 +1,12 @@
+# 2026-11-19 iteration: crowded irregular-finalist admission (research only)
+
+Branch feature/v2.2-10x-research-gate. Source commit 1c2bde37ab5833e1b35d4bf04184a10f0ef58eec. No baseline, checkpoint, main, iPhone, or deployment changes.
+
+## Evidence audited
+Actions run 44616613382, job 135886899778, source b6fecd26: seed preflight PASS, simulator hazard learning and regressions PASS, compiled and ran strategy training and both 30-game/generator paired holdouts. Stage two rejected all four training candidates. Training incumbent shifted-heavy mean survival 0.6351x, estimated score 0.5125x, p10 0.6667x. Holdout 318 mean survival normal 2.1790x, heavy 1.1716x, shifted-heavy 1.3768x; estimated score 2.6113x/1.3450x/1.7603x; p10 1.7660x/1.0952x/1.4545x. Holdout 319 mean survival normal 1.3974x, heavy 1.3010x, shifted-heavy 1.2609x; estimated score 1.6323x/1.6064x/1.4700x; p10 1.3750x/1.0476x/1.2143x. Zero illegal moves and censored games, combo-break rates improved, no worse avoidable combo misses. BOTH strict 10x verdicts failed. Evidence artifact 14575976076, https://github.com/welcome23bask/BlockBlastAI/actions/runs/44616613382/artifacts/14575976076. Synthetic score is not real game score.
+
+## Distinct next hypothesis, untested
+Crowded exact-only deduplication retains distinct boards, but top-eight admission remains dominated by immediate quality and may exclude irregular hard-shape escapes. Add a bounded finalist admission bonus (NOT final afterstate score) for exactly legal 3x3 irregular placements of shapes 0x40603 and 0x20303, capped at 3 fits per family, only when fewer than 32 cells are free. This changes only learning/BLTrainableStrategy.c. Preserve eight-finalist cap, fixed search budget, unchanged v1.7, no future RNG, and all strict gates. The weights are a hypothesis, not validated.
+
+## Execution blocked, no repeat
+Exact .github/workflows/v22-tenx.yml still points to used 317/318/319 (hazard 315/316), and cross-role ledger reserves all five. Do not rerun unchanged. GitHub connector can fetch known run/job/logs but lacks repository-wide active-run listing. Direct GitHub API DNS failed in this environment. Without verifying absence of overlap, do not edit workflow to trigger a run. Future recurrence must audit fresh epochs, check active runs, then update workflow to fresh seed set and run preflight before training; reserve IDs after snapshot verification. External/local seed history remains incomplete. No new simulation or 10x success is claimed.
