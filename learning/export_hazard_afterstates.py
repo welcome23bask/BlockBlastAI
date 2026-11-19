@@ -7,6 +7,7 @@ This bridge does not run the simulator or establish trace provenance.
 import argparse
 import csv
 import json
+import math
 from pathlib import Path
 
 FEATURES = ('occupied','square_fits','hbar_fits','vbar_fits','hard_zero',
@@ -22,6 +23,24 @@ def convert(records):
         if set(r) != {'epoch','scenario','game','tray','finalist','split',
                       'legal','features','continuation'}:
             raise ValueError(f'line {lineno}: unexpected/missing trace fields')
+        for field in ('epoch','game','tray','finalist'):
+            if type(r[field]) is not int or r[field] < 0:
+                raise ValueError(f'line {lineno}: invalid {field}')
+        if not 17 <= r['epoch'] <= 2000:
+            raise ValueError(f'line {lineno}: epoch outside 17..2000')
+        if r['scenario'] not in ('normal','heavy','shifted-heavy'):
+            raise ValueError(f'line {lineno}: invalid generator')
+        if r['split'] not in ('train','validation'):
+            raise ValueError(f'line {lineno}: invalid split')
+        for field in FEATURES:
+            value = r['features'][field]
+            if type(value) is not int or value < 0:
+                raise ValueError(f'line {lineno}: invalid afterstate feature {field}')
+        features = r['features']
+        if (features['occupied'] > 64 or features['largest_free'] > 64 or
+            features['occupied'] + features['largest_free'] > 64 or
+            features['hard_zero'] not in (0,1)):
+            raise ValueError(f'line {lineno}: impossible 8x8 afterstate')
         key = tuple(r[k] for k in ('epoch','scenario','game','tray','finalist'))
         if key in seen:
             raise ValueError(f'line {lineno}: duplicate finalist')
