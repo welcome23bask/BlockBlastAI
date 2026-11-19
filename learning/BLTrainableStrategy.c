@@ -422,7 +422,11 @@ static int BLResearchCrowdedHardFloor(uint64_t board) {
     // Hypothesis: a clear is valuable only if its exact afterstate restores
     // a usable hard-piece landing, rather than just removing a row/column.
     // Public hypothetical geometry only; no hidden future RNG.
-    if(64-bits(board)>=32)return 0;
+    // New lower-tail hypothesis: defer this costly speculative rescue penalty
+    // until fewer than 28 cells are free. At 28..31 free cells, preserve
+    // actual current-tray geometry ranking instead of penalizing boards
+    // for hypothetical irregular next pieces. No hidden RNG or illegal moves.
+    if(64-bits(board)>=28)return 0;
     static const struct {uint64_t mask;int w,h;} irregular[7]={
         {UINT64_C(0x40603),3,3},{UINT64_C(0x507),3,2},
         {UINT64_C(0x705),3,2},{UINT64_C(0x701),3,2},
