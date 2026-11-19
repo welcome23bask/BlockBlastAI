@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=27 bash learning/run_tenx_reproducible.sh 28 29
+          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=462 bash learning/run_tenx_reproducible.sh 466 467
       - name: Research-only Python regressions and simulator-derived hazard learning
         shell: bash
         run: |
@@ -42,12 +42,12 @@ jobs:
           python3 learning/test_hazard_calibration_leakage.py
           python3 learning/test_hazard_episode_balanced_metrics.py
           python3 learning/test_lower_tail_hazard_smoke.py
-          # New hypothesis: broaden genuine legal counterfactual hazard examples from 8 to 10 games per generator, testing lower-tail calibration stability.
+          # New hypothesis: reduce lower-tail hazard L2 shrinkage 0.05 to 0.02 to test heavy-board underfitting on fresh independent labels; keep 10 genuine simulator games per generator.
           # Train and validation are independent of downstream policy training
-          # (27) and BOTH official holdouts (28/29).
+          # (462) and BOTH official holdouts (466/467).
           # Use the unchanged v1.7 policy to label genuine synthetic continuations.
-          python3 learning/audit_raw_seed_aliases.py 25 26 27
-          python3 learning/audit_raw_seed_aliases.py 27 28 29
+          python3 learning/audit_raw_seed_aliases.py 460 461 462
+          python3 learning/audit_raw_seed_aliases.py 462 466 467
           tmp="$(mktemp -d)"
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              -DBLFindTwoStrategies=BLV17FindTwoStrategies \
@@ -71,8 +71,8 @@ jobs:
           assert len(rows)>0
           assert {x['split'] for x in rows}=={'train','validation'}
           assert {x['scenario'] for x in rows}=={'normal','heavy','shifted-heavy'}
-          assert model['train_epochs']==[25]
-          assert model['validation_epochs']==[26]
+          assert model['train_epochs']==[460]
+          assert model['validation_epochs']==[461]
           assert any(int(r['finalist'])>0 for r in rows), 'No alternative legal finalists were generated'
           assert len({(r['epoch'],r['scenario'],r['game'],r['tray'],r['finalist']) for r in rows})==len(rows)
           from collections import Counter
@@ -90,7 +90,7 @@ jobs:
           # Next bounded run: same strict unchanged-v1.7 paired protocol, entirely NEW audited seed epochs; prior metrics remain unpromoted.
           # Five initial paired training games/generator, up to 4 finalists on 8 disjoint training games, two 30-game/generator holdouts.
           # The runner preflights ledger and raw RNG starts before compiling; rejects failing verdicts. Never promote a candidate from this job.
-          TENX_TRAIN_SEED_EPOCH=27 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 28 29 2>&1 | tee /tmp/tenx-research-console.txt
+          TENX_TRAIN_SEED_EPOCH=462 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 466 467 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -103,7 +103,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional training seed 27 and holdouts 28,29; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 462 and holdouts 466,467; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
