@@ -16,6 +16,7 @@ FIELDS = ('epoch','scenario','game','tray','finalist','split','dead_within_3',
 
 def convert(records):
     seen = set()
+    finalist_ids = {}
     episode_splits = {}
     epoch_splits = {}
     output = []
@@ -44,7 +45,15 @@ def convert(records):
             features['occupied'] + features['largest_free'] > 64 or
             features['hard_zero'] not in (0,1)):
             raise ValueError(f'line {lineno}: impossible 8x8 afterstate')
+        # A finalist must belong to a real three-piece tray (0, 1, or 2).
+        # Repeated IDs and noncontiguous IDs silently bias episode-balanced
+        # fitting, so fail closed before exporting any training rows.
+        if r['tray'] > 2:
+            raise ValueError(f'line {lineno}: tray index outside three-piece tray')
         key = tuple(r[k] for k in ('epoch','scenario','game','tray','finalist'))
+        tray_key = key[:4]
+        ids = finalist_ids.setdefault(tray_key, set())
+        ids.add(r['finalist'])
         if key in seen:
             raise ValueError(f'line {lineno}: duplicate finalist')
         seen.add(key)
@@ -78,6 +87,9 @@ def convert(records):
             raise ValueError(f'line {lineno}: right-censored continuation')
         output.append({**{k:r[k] for k in ('epoch','scenario','game','tray','finalist','split')},
                        'dead_within_3':dead,'censored':0,**r['features']})
+    for tray_key, ids in finalist_ids.items():
+        if ids != set(range(len(ids))):
+            raise ValueError(f'noncontiguous finalist IDs in tray {tray_key}')
     if not output:
         raise ValueError('empty simulator trace')
     return output
