@@ -272,3 +272,10 @@
 1282
 1283
 1284
+
+# CI 44450411696 / workflow 4fb9b1d9: new legal counterfactual tray finalists, hazard train 1131 and validation 1132 yielded 485 rows, calibration diagnostic PASSED all three generators, no policy integration; strategy train 1133, strict holdouts 1134/1135 FAILED. Artifact 14494633785. No checkpoint promotion.
+1131
+1132
+1133
+1134
+1135
