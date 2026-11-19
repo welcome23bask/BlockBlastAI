@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=1133 bash learning/run_tenx_reproducible.sh 1134 1135
+          TENX_PREFLIGHT_ONLY=1 TENX_TRAIN_SEED_EPOCH=20 bash learning/run_tenx_reproducible.sh 21 22
       - name: Research-only Python regressions and simulator-derived hazard learning
         shell: bash
         run: |
@@ -42,10 +42,12 @@ jobs:
           python3 learning/test_hazard_calibration_leakage.py
           python3 learning/test_hazard_episode_balanced_metrics.py
           python3 learning/test_lower_tail_hazard_smoke.py
+          # New hypothesis: broaden genuine legal counterfactual hazard examples from 6 to 8 games per generator, testing lower-tail calibration stability.
           # Train and validation are independent of downstream policy training
-          # (1133) and BOTH official holdouts (1134/1135).
+          # (20) and BOTH official holdouts (21/22).
           # Use the unchanged v1.7 policy to label genuine synthetic continuations.
-          python3 learning/audit_raw_seed_aliases.py 1131 1132 1133
+          python3 learning/audit_raw_seed_aliases.py 18 19 20
+          python3 learning/audit_raw_seed_aliases.py 20 21 22
           tmp="$(mktemp -d)"
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              -DBLFindTwoStrategies=BLV17FindTwoStrategies \
@@ -55,7 +57,7 @@ jobs:
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              learning/hazard_trace_sim.c "$tmp/v17.o" "$tmp/solver.o" -lm \
              -o "$tmp/hazard_trace_sim"
-          "$tmp/hazard_trace_sim" 1131 1132 6 /tmp/tenx-hazard-traces.jsonl \
+          "$tmp/hazard_trace_sim" 18 19 8 /tmp/tenx-hazard-traces.jsonl \
              | tee /tmp/tenx-hazard-sim.log
           python3 learning/export_hazard_afterstates.py /tmp/tenx-hazard-traces.jsonl \
              --output /tmp/tenx-hazard-data.csv | tee /tmp/tenx-hazard-export.log
@@ -69,8 +71,8 @@ jobs:
           assert len(rows)>0
           assert {x['split'] for x in rows}=={'train','validation'}
           assert {x['scenario'] for x in rows}=={'normal','heavy','shifted-heavy'}
-          assert model['train_epochs']==[1131]
-          assert model['validation_epochs']==[1132]
+          assert model['train_epochs']==[18]
+          assert model['validation_epochs']==[19]
           assert any(int(r['finalist'])>0 for r in rows), 'No alternative legal finalists were generated'
           assert len({(r['epoch'],r['scenario'],r['game'],r['tray'],r['finalist']) for r in rows})==len(rows)
           from collections import Counter
@@ -88,7 +90,7 @@ jobs:
           # Next bounded run: same strict unchanged-v1.7 paired protocol, entirely NEW audited seed epochs; prior metrics remain unpromoted.
           # Five initial paired training games/generator, up to 4 finalists on 8 disjoint training games, two 30-game/generator holdouts.
           # The runner preflights ledger and raw RNG starts before compiling; rejects failing verdicts. Never promote a candidate from this job.
-          TENX_TRAIN_SEED_EPOCH=1133 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1134 1135 2>&1 | tee /tmp/tenx-research-console.txt
+          TENX_TRAIN_SEED_EPOCH=20 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 21 22 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -101,7 +103,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional training seed 1133 and holdouts 1134,1135; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 20 and holdouts 21,22; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
