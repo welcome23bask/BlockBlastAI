@@ -1065,7 +1065,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
     // selection) a bounded bonus for two different exact legal irregular
     // shape landing families. This uses only public board geometry and
     // never observes future trays or changes the v1.7 comparator.
-    if (64-bits(path->board)<32) {
+    if (64-bits(path->board)<24) {
         int irregularA=fit(path->board,UINT64_C(0x40603),3,3);
         int irregularB=fit(path->board,UINT64_C(0x20303),3,3);
         if(irregularA>3)irregularA=3;
