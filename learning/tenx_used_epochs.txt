@@ -293,3 +293,10 @@
 27
 28
 29
+
+# Actions 44513248215 (preflight + hazard stage failed) and 44513261386 (hazard learning + paired failed strict holdouts), source snapshots ee055e39 / 0808e219; conservative cross-role reservation, no checkpoint promotion. External history incomplete.
+460
+461
+462
+466
+467
