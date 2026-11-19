@@ -1,0 +1,12 @@
+# RESEARCH-ONLY MODEL DIAGNOSTIC, NOT A VALIDATED GAMEPLAY CHECKPOINT.
+# Produced by Actions 44450411696, source snapshot 4fb9b1d9.
+# Train epoch 1131; independent calibration epoch 1132 (all 3 Brier gates passed).
+# Data: 485 synthetic legal counterfactual tray afterstates; 36 independent source episodes.
+# IMPORTANT historical schema: hard_zero is all-or-nothing Boolean (scale 7),
+# NOT the corrected 0..11 blocked-shape count (scale 11). Inference must
+# transform blocked_count==11 to 1, otherwise 0, when reading this file.
+# First data line: intercept and nine logistic coefficients.
+-0.650246022 0.29915067 -0.573959992 -0.582228226 -0.49604283 0 -0.477496995 0.145584331 0.256819949 0.094309769
+# Second data line: nine feature scales in training export order.
+64 36 32 32 7 64 20 10 32
+# Diagnostic calibration PASS is not a performance endorsement; do not deploy.
