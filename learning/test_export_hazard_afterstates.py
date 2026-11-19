@@ -36,7 +36,7 @@ class ExportContract(unittest.TestCase):
             cases.append(r)
         for field, value in [
             ("occupied", 65), ("occupied", True), ("occupied", -1),
-            ("largest_free", 50), ("hard_zero", 2), ("square_fits", 1.2),
+            ("largest_free", 50), ("hard_zero", 12), ("square_fits", 1.2),
         ]:
             r = copy.deepcopy(BASE)
             r["features"][field] = value
@@ -68,6 +68,14 @@ class ExportContract(unittest.TestCase):
             r["features"] = bad
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 convert([json.dumps(r)])
+
+    def test_hard_shape_blocked_count(self):
+        r = copy.deepcopy(BASE)
+        r["features"]["hard_zero"] = 7
+        self.assertEqual(convert([json.dumps(r)])[0]["hard_zero"], 7)
+        r["features"]["hard_zero"] = 12
+        with self.assertRaises(ValueError):
+            convert([json.dumps(r)])
 
     def test_empty_and_full_board_connectivity(self):
         for occupied, largest, allowed in (
