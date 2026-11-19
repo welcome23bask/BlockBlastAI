@@ -1060,7 +1060,14 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
     // Do not fill all finalist slots with nearly identical boards that
     // cannot explore different hard-piece landing arrangements.
     for(int i=0;i<*count;++i) {
-        if(bits(pool[i].board^path->board)<=2) {
+        // Research-only shifted-heavy hypothesis: a one- or two-cell
+        // difference on a crowded board can open a distinct irregular
+        // landing or line-clear route. Preserve those legally reached
+        // afterstates for the late deterministic reranker; retain the
+        // established near-duplicate collapse on spacious boards.
+        // No future RNG, baseline, checkpoint, or iPhone source change.
+        const int crowded=(64-bits(path->board)<32);
+        if(bits(pool[i].board^path->board)<=(crowded?0:2)) {
             if(quality>score[i]){pool[i]=*path;score[i]=quality;}
             return;
         }
