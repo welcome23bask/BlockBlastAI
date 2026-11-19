@@ -131,14 +131,18 @@ static int trace_emit(FILE *out,const State *g,int epoch,int scenario,
 static int trace_batch(FILE *out,int epoch,const char *split,int games) {
     for(int scenario=0;scenario<3;scenario++)for(int game=0;game<games;game++){
         seed_rng(trace_seed(epoch,scenario,game));State g={0};
-        // Bounded late-state sampling exposes genuine near-death heavy boards;
-        // the old two-tray sample mostly contained easy, uninformative starts.
+        // Include endgame states in the easier normal generator, whose games
+        // often survive 30+ trays. The prior 12-tray cap yielded ZERO normal
+        // deaths and made the strict per-generator calibration gate
+        // mathematically unreachable against a zero-risk constant baseline.
+        // Keep a bounded 80-tray budget and sample every other late tray,
+        // preventing small endgame windows from being entirely skipped.
         // Rollouts clone RNG and state and never alter the source trajectory.
-        for(int tray=0;tray<12;tray++){
+        for(int tray=0;tray<80;tray++){
             int result=trace_one_tray(&g,scenario);
             if(result<0)return -1;
             if(result==0)break;
-            if((tray==0 || tray%2==1) &&
+            if((tray<4 || tray%2==1) &&
                trace_emit(out,&g,epoch,scenario,game,tray,split)<0)return -1;
         }
     }
