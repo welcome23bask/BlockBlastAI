@@ -321,3 +321,10 @@
 77
 78
 79
+
+# Eight-finalist research workflow d9ad9bdb / Actions 44572445973 verified in progress before reservation: hazard 900/901, policy 902, holdouts 903/904. Conservatively reserved after immutable executing snapshot; external/local history incomplete.
+900
+901
+902
+903
+904
