@@ -42,7 +42,7 @@ def convert(records):
         features = r['features']
         if (features['occupied'] > 64 or features['largest_free'] > 64 or
             features['occupied'] + features['largest_free'] > 64 or
-            features['hard_zero'] not in (0,1) or
+            features['hard_zero'] > 11 or
             (features['occupied'] == 64 and features['largest_free'] != 0) or
             (features['occupied'] < 64 and features['largest_free'] == 0) or
             (features['occupied'] == 0 and features['largest_free'] != 64)):
