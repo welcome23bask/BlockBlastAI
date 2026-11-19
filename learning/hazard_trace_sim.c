@@ -76,11 +76,15 @@ static void trace_regions(U64 b,int *largest,int *pockets) {
     }
     *pockets=components>0?components-1:0;
 }
+// Count the ACTUAL number of unplaceable hard-shape templates (0..11).
+// The earlier all-or-nothing boolean was almost always zero and concealed
+// critical heavy/shifted-heavy failure signals from offline learning.
 static int trace_hard_zero(U64 board){
     const int hard[]={4,8,10,11,21,22,23,24,25,26,27};
+    int blocked=0;
     for(unsigned k=0;k<sizeof(hard)/sizeof(hard[0]);k++)
-        if(options_on(board,hard[k])>0)return 0;
-    return 1;
+        if(options_on(board,hard[k])==0)blocked++;
+    return blocked;
 }
 static int trace_future_clear(U64 board){
     int n=0;
