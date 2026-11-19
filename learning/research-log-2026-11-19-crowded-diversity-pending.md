@@ -1,0 +1,14 @@
+# 2026-11-19 crowded-afterstate diversity hypothesis (research-only)
+
+Branch: feature/v2.2-10x-research-gate. Source commit 1e775df07a54b159167127b46ddf1c677c07edfd. No main, v3.4 iPhone, deployment, checkpoint, or v1.7 baseline change.
+
+## Evidence reviewed
+Actions run 44572445973, job 135730897804, source d9ad9bdb, passed seed preflight, compiled, trained and completed two paired synthetic 30-game-per-generator holdouts. Both strict 10x verdicts FAILED. Holdout 903: normal survival 2.2395x, heavy 1.2995x, shifted-heavy 1.2082x. Holdout 904: normal 1.7434x, heavy 1.4911x, shifted-heavy 1.0326x. Shifted-heavy synthetic estimated score 1.3596x / 1.1248x. Zero illegal moves, zero censored games; combo breaks improved, deadlines not worse. Stage-two rejected all four candidate weights, with shifted-heavy training survival 0.8404x and synthetic score 0.7653x. Artifact 14555616109 preserves failure metrics. Synthetic estimated score is NOT official Block Blast scoring.
+
+## Distinct bounded next hypothesis
+The eight-finalist expansion did not fix shifted-heavy. The record_afterstate() deduplicator merged legal boards differing by <=2 cells, potentially collapsing crucial shifted-irregular landing/clear alternatives on crowded boards. Change ONLY learning/BLTrainableStrategy.c: when a completed afterstate has fewer than 32 empty cells, deduplicate only exact board matches; retain <=2-bit near-duplicate collapse on spacious boards. Keep eight-finalist cap, unchanged search budget, fixed geometry, no hidden RNG, unchanged v1.7 and strict gates. This is an untested hypothesis, not a proven improvement.
+
+## Pending bounded validation
+Accessible ledger and historical run excerpts were inspected. Candidate hazard train/validation epochs 315/316, strategy train 317, independent holdouts 318/319 are distinct in 17..2000, absent from the current accessible cross-role ledger, and avoid 20/40-offset aliases against recorded IDs. Full source-verified raw-seed preflight and independent external/local history remain unverified; do not reserve or execute until those checks pass.
+
+GitHub connector supports fetching a known Actions run but does not expose repository-wide run listing; direct GitHub API DNS failed in the execution environment. Therefore absence of overlapping active Actions runs could not be established. Workflow .github/workflows/v22-tenx.yml remains at already-reserved epochs 900..904 and was deliberately NOT modified or triggered. Do not reuse those epochs. Next run: verify no active Actions, re-fetch exact workflow/runner/ledger, run raw-seed audit and preflight for 315..319, then trigger only after safely updating workflow; compare all three generators to unchanged v1.7 with two independent holdouts, preserve artifacts, and reserve executed IDs after verifying immutable workflow snapshot. No 10x claim or promotion.
