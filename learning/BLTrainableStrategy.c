@@ -155,11 +155,13 @@
 // counts, this uses legal sequential placements and intervening line clears.
 // The tested shapes are fixed public geometry, not future RNG observations.
 #define BL_RESEARCH_CROWDED_PAIR_FAILURE 1
-// Research ablation: retain six distinct exactly-legal completed-tray finalists
-// rather than four. Tests whether the previous narrow pool discarded robust
-// heavy-board exits before the unchanged future-geometry reranker saw them.
-// No hidden next-tray RNG, no baseline or live iPhone changes.
-#define BL_FUTURE_TOP 6
+// Research-only eight-finalist ablation after failed six-finalist holdouts 78/79:
+// retain two additional distinct exactly legal complete-tray afterstates.
+// Hypothesis: shifted-heavy early deaths arise from a narrow candidate pool
+// excluding rare irregular-shape escape routes before late reranking.
+// Fixed deterministic observable geometry only; no hidden future RNG.
+// No baseline, validated checkpoint, or live iPhone changes.
+#define BL_FUTURE_TOP 8
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
 static int blTrainWeights[4]={0};
