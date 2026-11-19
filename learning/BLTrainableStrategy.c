@@ -1059,6 +1059,19 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
                               const BLPath *path,int quality) {
     // Do not fill all finalist slots with nearly identical boards that
     // cannot explore different hard-piece landing arrangements.
+    // Research-only next hypothesis after failed 318/319: the exact-only
+    // deduplicator still admits eight high-quality boards with no irregular
+    // escape footprints. Give crowded finalist ADMISSION (not final move
+    // selection) a bounded bonus for two different exact legal irregular
+    // shape landing families. This uses only public board geometry and
+    // never observes future trays or changes the v1.7 comparator.
+    if (64-bits(path->board)<32) {
+        int irregularA=fit(path->board,UINT64_C(0x40603),3,3);
+        int irregularB=fit(path->board,UINT64_C(0x20303),3,3);
+        if(irregularA>3)irregularA=3;
+        if(irregularB>3)irregularB=3;
+        quality+=90*(irregularA+irregularB);
+    }
     for(int i=0;i<*count;++i) {
         // Research-only shifted-heavy hypothesis: a one- or two-cell
         // difference on a crowded board can open a distinct irregular
