@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory() as tmp:
         writer.writerow(dict(epoch=430, scenario="normal", game=0,
                              tray=0, finalist=1, split="train",
                              dead_within_3=0, censored=0,
-                             **{feature: 0 for feature in FEATURES}))
+                             **{feature: (64 if feature == "largest_free" else 0) for feature in FEATURES}))
     expanded, _, _ = load(path)
     assert len(expanded) == len(rows) + 1
     with path.open("a", newline="") as f:
@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory() as tmp:
         writer.writerow(dict(epoch=430, scenario="normal", game=0,
                              tray=0, finalist=1, split="train",
                              dead_within_3=0, censored=0,
-                             **{feature: 0 for feature in FEATURES}))
+                             **{feature: (64 if feature == "largest_free" else 0) for feature in FEATURES}))
     try:
         load(path)
         raise AssertionError("duplicate legal afterstate was accepted")
