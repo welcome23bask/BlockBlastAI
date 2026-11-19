@@ -57,7 +57,7 @@ jobs:
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              learning/hazard_trace_sim.c "$tmp/v17.o" "$tmp/solver.o" -lm \
              -o "$tmp/hazard_trace_sim"
-          "$tmp/hazard_trace_sim" 25 26 10 /tmp/tenx-hazard-traces.jsonl \
+          "$tmp/hazard_trace_sim" 460 461 10 /tmp/tenx-hazard-traces.jsonl \
              | tee /tmp/tenx-hazard-sim.log
           python3 learning/export_hazard_afterstates.py /tmp/tenx-hazard-traces.jsonl \
              --output /tmp/tenx-hazard-data.csv | tee /tmp/tenx-hazard-export.log
