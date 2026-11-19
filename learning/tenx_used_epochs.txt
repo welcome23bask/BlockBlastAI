@@ -328,3 +328,10 @@
 902
 903
 904
+
+# Crowded-afterstate exact-dedup research workflow snapshot b6fecd26 / Actions 44616613382 confirmed queued before reservation; hazard 315/316, policy 317, paired holdouts 318/319. Conservatively reserved; external/local history incomplete.
+315
+316
+317
+318
+319
