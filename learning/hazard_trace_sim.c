@@ -55,7 +55,7 @@ static int trace_one_tray(State *g,int scenario) {
     return 1;
 }
 static void trace_regions(U64 b,int *largest,int *pockets) {
-    U64 seen=0;int components=0,*unused=NULL;(void)unused;
+    U64 seen=0;int components=0;
     *largest=0;
     for(int start=0;start<64;start++){
         U64 first=UINT64_C(1)<<start;
@@ -131,13 +131,15 @@ static int trace_emit(FILE *out,const State *g,int epoch,int scenario,
 static int trace_batch(FILE *out,int epoch,const char *split,int games) {
     for(int scenario=0;scenario<3;scenario++)for(int game=0;game<games;game++){
         seed_rng(trace_seed(epoch,scenario,game));State g={0};
-        // Record at most two fully legal real-tray afterstates per episode;
-        // rollouts copy RNG and state, and do NOT change trajectory.
-        for(int tray=0;tray<2;tray++){
+        // Bounded late-state sampling exposes genuine near-death heavy boards;
+        // the old two-tray sample mostly contained easy, uninformative starts.
+        // Rollouts clone RNG and state and never alter the source trajectory.
+        for(int tray=0;tray<12;tray++){
             int result=trace_one_tray(&g,scenario);
             if(result<0)return -1;
             if(result==0)break;
-            if(trace_emit(out,&g,epoch,scenario,game,tray,split)<0)return -1;
+            if((tray==0 || tray%2==1) &&
+               trace_emit(out,&g,epoch,scenario,game,tray,split)<0)return -1;
         }
     }
     return 0;
