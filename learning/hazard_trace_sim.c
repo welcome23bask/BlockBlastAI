@@ -215,6 +215,7 @@ static int trace_batch(FILE *out,int epoch,const char *split,int games) {
     }
     return 0;
 }
+#ifndef BL_HAZARD_TRACE_LIBRARY
 int main(int argc,char **argv) {
     if(argc!=5){fprintf(stderr,"Usage: %s train_epoch validation_epoch games output.jsonl\n",argv[0]);return 2;}
     char *end=NULL;
@@ -232,3 +233,4 @@ int main(int argc,char **argv) {
     puts("HAZARD_TRACE_SIM=COMPLETE synthetic legal afterstates, v1.7 continuation labels; no hidden RNG at inference");
     return 0;
 }
+#endif // BL_HAZARD_TRACE_LIBRARY
