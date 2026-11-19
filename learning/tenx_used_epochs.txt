@@ -300,3 +300,10 @@
 462
 466
 467
+
+# Research six-finalist workflow snapshot cdea7c46, Actions 44533823199 observed in progress before reservation; hazard 610/611, policy 612, holdouts 613/614. Conservative cross-role reservation; external history incomplete.
+610
+611
+612
+613
+614
