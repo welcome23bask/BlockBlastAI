@@ -419,3 +419,10 @@
 677
 678
 679
+
+# Fresh shifted-heavy p10 disjoint-square rerank ablation, immutable workflow 3db58d0b / Actions 44832812849 in progress before reservation; hazard 110/111, policy 138, holdouts 139/145. Conservative cross-role reservation; external/local history incomplete. No promotion.
+110
+111
+138
+139
+145
