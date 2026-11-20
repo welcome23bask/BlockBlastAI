@@ -88,6 +88,10 @@ def selftest():
     assert raw_seed(1955, 1, 0) == raw_seed(1975, 0, 0)
     assert raw_seed(1955, 2, 100) == raw_seed(1995, 0, 100)
     assert raw_seed(1600, 0, 0) != raw_seed(1611, 1, 0)
+    # A five-role audit detects aliases missed by two disjoint triple audits.
+    five_roles = (400, 421, 440, 461, 480)
+    table = seed_table(five_roles)
+    assert any(len(roles) > 1 for roles in table.values())
     verify_source_formula()
     print("RAW_SEED_ALIAS_SELFTEST=PASS")
 
