@@ -64,7 +64,7 @@ def check(*epochs):
     used = set(reserved())
     if len(epochs) < 3:
         raise ValueError("At least three role epochs are required")
-    if (len(set(epochs)) != 3 or
+    if (len(set(epochs)) != len(epochs) or
         any(e < 17 or e > 2000 or e in used for e in epochs)):
         raise ValueError("Epochs must be distinct, unused and in 17..2000")
     past = seed_table(used)
