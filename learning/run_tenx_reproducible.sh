@@ -52,7 +52,18 @@ done
 # guarantee distinct legacy 32-bit RNG starts across scenario offsets 20/40.
 # Conservatively compare all three proposed role epochs and all reserved
 # historical epochs, without modifying the executing seed snapshot.
-python3 learning/audit_raw_seed_aliases.py "$train_epoch" "$a" "$b"
+# Include hazard train/validation in the same raw-start collision audit when supplied.
+# A three-role-only preflight cannot certify independence of the five-role run.
+hazard_train="${TENX_HAZARD_TRAIN_EPOCH:-}"
+hazard_validation="${TENX_HAZARD_VALIDATION_EPOCH:-}"
+if [[ -n "$hazard_train" || -n "$hazard_validation" ]]; then
+  if [[ ! "$hazard_train" =~ ^[0-9]+$ || ! "$hazard_validation" =~ ^[0-9]+$ ]]; then
+    echo "ERROR: both hazard epoch IDs must be numeric" >&2; exit 2
+  fi
+  python3 learning/audit_raw_seed_aliases.py "$hazard_train" "$hazard_validation" "$train_epoch" "$a" "$b"
+else
+  python3 learning/audit_raw_seed_aliases.py "$train_epoch" "$a" "$b"
+fi
 # Fail closed on the previously observed commented-out finalist-admission defect.
 # Run the actual compiler/preprocessor regression before either preflight success
 # or training. This consumes no simulator seeds and never edits production code.
