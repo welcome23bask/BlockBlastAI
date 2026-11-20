@@ -1081,8 +1081,10 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // After holdouts 1367/1475 failed shifted-heavy and normal p10,
         // require TWO exact square landings, not a single fragile square
         // escape, before an irregular finalist receives admission bonus.
+        // New hypothesis after failed 488/589: overlapping 3x3 fits are one fragile pocket.
+        // Require at least one pair of non-overlapping legal 3x3 placements.
         if(irregularA>=2 && irregularB>=2 &&
-           fit(path->board,UINT64_C(0x70707),3,3)>=2)
+           BLResearchDisjointSquarePair(path->board)>0)
             quality+=90*(irregularA<irregularB?irregularA:irregularB);
     }
     for(int i=0;i<*count;++i) {
