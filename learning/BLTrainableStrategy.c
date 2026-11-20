@@ -120,7 +120,7 @@
 // Fresh ablation: previous disjoint-square rerank lost shifted-heavy p10 on holdout 678.
 // Test whether disabling that late rerank while retaining crowded hard-pair
 // admission improves lower-tail survival; no hidden RNG or baseline changes.
-#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 0
+#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 1
 // Iteration 51: mobility coverage of free cells by diverse exact legal bulky footprints.
 #define BL_RESEARCH_FREE_CELL_MOBILITY 0
 // Iteration 52: reward accessible nearly-complete row/column repair lines, not bulky-footprint coverage.
@@ -166,7 +166,11 @@
 // excluding rare irregular-shape escape routes before late reranking.
 // Fixed deterministic observable geometry only; no hidden future RNG.
 // No baseline, validated checkpoint, or live iPhone changes.
-#define BL_FUTURE_TOP 8
+// New bounded survival hypothesis: widen the existing legal complete-tray
+// shortlist from 8 to 12 distinct afterstates. Crowded heavy-piece trays
+// often need a lower-immediate-score escape path to remain available through
+// final reranking. No new search nodes, hidden RNG, or baseline changes.
+#define BL_FUTURE_TOP 12
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
 static int blTrainWeights[4]={0};
