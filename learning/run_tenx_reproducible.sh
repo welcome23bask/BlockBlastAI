@@ -53,6 +53,10 @@ done
 # Conservatively compare all three proposed role epochs and all reserved
 # historical epochs, without modifying the executing seed snapshot.
 python3 learning/audit_raw_seed_aliases.py "$train_epoch" "$a" "$b"
+# Fail closed on the previously observed commented-out finalist-admission defect.
+# Run the actual compiler/preprocessor regression before either preflight success
+# or training. This consumes no simulator seeds and never edits production code.
+PYTHONDONTWRITEBYTECODE=1 python3 learning/test_irregular_admission_compilation_guard.py -v
 # No-compile validation before Actions minutes are spent on training.
 if [[ "${TENX_PREFLIGHT_ONLY:-0}" == "1" ]]; then
   printf 'SEED_PREFLIGHT=OK training=%s holdouts=%s,%s (documented-ledger + source-verified raw-start audit; undocumented history unverified)\n' "$train_epoch" "$a" "$b"
