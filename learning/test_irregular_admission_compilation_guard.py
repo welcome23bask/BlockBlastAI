@@ -68,5 +68,14 @@ class AdmissionCompilationGuard(unittest.TestCase):
             self.assertIn(f"if(64-bits(ctx->{pool}[i].board)<32)", active)
             self.assertIn(f"utility+=BLResearchDisjointSquarePair(ctx->{pool}[i].board);", active)
 
+    def test_balanced_shifted_rerank_is_active_for_both_objectives(self):
+        raw = SOURCE.read_text()
+        self.assertEqual(raw.count("#define BL_RESEARCH_BALANCED_SHIFTED_RERANK 1"), 1)
+        active = strip_c_comments(raw)
+        self.assertIn("static int BLResearchBalancedShiftedRerank(uint64_t board)", active)
+        self.assertIn("BLResearchDisjointSquarePair(board)==0", active)
+        for pool in ("topAll", "topCombo"):
+            self.assertIn(f"utility+=BLResearchBalancedShiftedRerank(ctx->{pool}[i].board);", active)
+
 if __name__ == "__main__":
     unittest.main()
