@@ -61,7 +61,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
 
     def test_disjoint_square_rerank_is_enabled_exactly_once(self):
         raw = SOURCE.read_text()
-        defines = re.findall(r"(?m)^\\s*#define\\s+BL_RESEARCH_DISJOINT_SQUARE_PAIR\\s+(\\d+)\\s*$", raw)
+        defines = re.findall(r"(?m)^\s*#define\s+BL_RESEARCH_DISJOINT_SQUARE_PAIR\s+(\d+)\s*$", raw)
         self.assertEqual(defines, ["1"], "Disjoint-square research flag must not be overridden")
         active = strip_c_comments(raw)
         for pool in ("topAll", "topCombo"):
