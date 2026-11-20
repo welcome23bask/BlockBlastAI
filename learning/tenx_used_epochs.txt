@@ -370,3 +370,10 @@
 123
 164
 205
+
+# Actions 44748981314, immutable workflow snapshot ea3a6a9c; hazard 1061/1163, policy train 1265, paired holdouts 1367/1475. Reserved AFTER run start; external/local history incomplete; no checkpoint promotion.
+1061
+1163
+1265
+1367
+1475
