@@ -1073,7 +1073,13 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // Research ablation: avoid paying for one isolated irregular landing
         // family, which can crowd out stronger heavy-board finalists.
         // Reward only simultaneous access to both independent families.
-        if(irregularA>=2 && irregularB>=2)
+        // Research-only next hypothesis after failed 1007/1008: the
+        // both-irregular admission bonus can displace square-capable
+        // finalists, worsening normal p10 (30 vs 46 on holdout 1007).
+        // Admit the bonus only while at least one exact 3x3-square
+        // landing remains. Current-board geometry only; no future RNG.
+        if(irregularA>=2 && irregularB>=2 &&
+           fit(path->board,UINT64_C(0x70707),3,3)>0)
             quality+=90*(irregularA<irregularB?irregularA:irregularB);
     }
     for(int i=0;i<*count;++i) {
