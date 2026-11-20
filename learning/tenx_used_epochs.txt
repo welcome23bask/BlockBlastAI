@@ -384,3 +384,10 @@
 387
 488
 589
+
+# CI 44802511224 workflow snapshot 2f975523: provisional five-role 85/86/87/88/89, no documented raw-start collisions vs 287 reserved epochs; workflow hazard audit step accidentally retains 84/286 and will fail before simulation. Conservatively reserved; external history incomplete.
+85
+86
+87
+88
+89
