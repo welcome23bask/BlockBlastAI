@@ -4,6 +4,8 @@ Research-only; no simulator seed consumption or production changes.
 """
 import pathlib
 import re
+import shutil
+import subprocess
 import unittest
 
 SOURCE = pathlib.Path(__file__).with_name("BLTrainableStrategy.c")
@@ -12,6 +14,17 @@ def strip_c_comments(source):
     return re.sub(r"/\*.*?\*/|//[^\n]*", "", source, flags=re.S)
 
 class AdmissionCompilationGuard(unittest.TestCase):
+    def test_research_source_compiles_with_warnings_as_errors(self):
+        compiler = shutil.which('cc')
+        if not compiler:
+            self.skipTest('C compiler unavailable; source compilation not verified')
+        root = SOURCE.parent.parent
+        result = subprocess.run(
+            [compiler, '-std=c11', '-O2', '-Wall', '-Wextra', '-Werror',
+             '-fsyntax-only', '-Isrc', str(SOURCE)],
+            cwd=root, capture_output=True, text=True, timeout=30)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_both_family_condition_is_executable(self):
         raw = SOURCE.read_text()
         executable = strip_c_comments(raw)
