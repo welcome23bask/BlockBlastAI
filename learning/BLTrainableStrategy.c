@@ -157,6 +157,11 @@
 // counts, this uses legal sequential placements and intervening line clears.
 // The tested shapes are fixed public geometry, not future RNG observations.
 #define BL_RESEARCH_CROWDED_PAIR_FAILURE 1
+// Fresh lower-tail hypothesis after holdout 599 shifted-heavy p10 1.0526x:
+// when two independent 3x3 pockets survive, reward simultaneous access to
+// BOTH shifted irregular 3x3 shape families (not just generic square space).
+// No hidden future pieces, no baseline or live iPhone modifications.
+#define BL_RESEARCH_BALANCED_SHIFTED_RERANK 1
 // Research-only eight-finalist ablation after failed six-finalist holdouts 78/79:
 // retain two additional distinct exactly legal complete-tray afterstates.
 // Hypothesis: shifted-heavy early deaths arise from a narrow candidate pool
@@ -368,6 +373,19 @@ static int BLResearchDisjointSquarePair(uint64_t board) {
     for(int i=0;i<n;i++)for(int j=i+1;j<n;j++)
         if(!(slots[i]&slots[j])){if(++pairs>=6)return 720;}
     return pairs*120;
+}
+// Research-only lower-tail rerank: a 3x3 square can remain placeable even
+// while shifted large irregular families have no legal exit. Admit additional
+// reward only if TWO non-overlapping square pockets already remain, so normal
+// lower-tail square safety cannot be traded for a tempting isolated L-shape.
+static int BLResearchBalancedShiftedRerank(uint64_t board) {
+    int empty=64-bits(board);
+    if(empty<18 || empty>=32 || BLResearchDisjointSquarePair(board)==0)return 0;
+    int a=fit(board,UINT64_C(0x40603),3,3);
+    int b=fit(board,UINT64_C(0x20303),3,3);
+    int both=a<b?a:b;
+    if(both>3)both=3;
+    return 140*both;
 }
 // Count how many distinct empty cells remain reachable by legal 3x3,
 // horizontal 5-bar and vertical 5-bar placements. Unlike counts of landing
@@ -1287,6 +1305,9 @@ static void rerank_afterstates(BLSearch *ctx) {
         if(64-bits(ctx->topAll[i].board)<32)
             utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
 #endif
+#if BL_RESEARCH_BALANCED_SHIFTED_RERANK
+        utility+=BLResearchBalancedShiftedRerank(ctx->topAll[i].board);
+#endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topAll[i].board);
 #endif
@@ -1393,6 +1414,9 @@ static void rerank_afterstates(BLSearch *ctx) {
         // already have many independent 3x3 landings and need no extra bonus.
         if(64-bits(ctx->topCombo[i].board)<32)
             utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
+#endif
+#if BL_RESEARCH_BALANCED_SHIFTED_RERANK
+        utility+=BLResearchBalancedShiftedRerank(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topCombo[i].board);
