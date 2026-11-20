@@ -433,3 +433,10 @@
 737
 738
 739
+
+# Actions 44836107763, immutable workflow b491613c, 12-legal-finalist research candidate dde34a5d / corrected test 8ebee65c; hazard 767/768, policy train 769, independent paired holdouts 770/771. Reserved AFTER workflow snapshot; 570 distinct raw starts vs 322 documented epochs; external/local history incomplete, no checkpoint promotion.
+767
+768
+769
+770
+771
