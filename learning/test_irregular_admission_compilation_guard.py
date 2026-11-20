@@ -70,8 +70,8 @@ class AdmissionCompilationGuard(unittest.TestCase):
 
     def test_twelve_distinct_legal_finalists_are_configured(self):
         raw = SOURCE.read_text()
-        defines = re.findall(r'(?m)^\s*#define\s+BL_FUTURE_TOP\s+(\d+)\s*, raw)
-        self.assertEqual(defines, ['12'])
+        defines = [line.strip() for line in raw.splitlines() if line.startswith("#define BL_FUTURE_TOP ")]
+        self.assertEqual(defines, ["#define BL_FUTURE_TOP 12"])
         active = strip_c_comments(raw)
         self.assertIn('if(*count<BL_FUTURE_TOP)', active)
         self.assertIn('for(int i=1;i<BL_FUTURE_TOP;++i)', active)
