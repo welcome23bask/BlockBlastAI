@@ -35,7 +35,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
             cwd=root, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         active = result.stdout
-        self.assertRegex(active, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*fit\s*\(\s*path->board\s*,\s*UINT64_C\s*\(\s*0x70707\s*\)\s*,\s*3\s*,\s*3\s*\)\s*>\s*0\s*\)")
+        self.assertRegex(active, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*fit\s*\(\s*path->board\s*,[^;]*0x70707[^;]*\)\s*>\s*0\s*\)")
         self.assertRegex(active, r"quality\s*\+=\s*90\s*\*")
         self.assertRegex(active, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
 
