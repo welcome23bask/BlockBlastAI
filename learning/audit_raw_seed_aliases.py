@@ -58,10 +58,12 @@ def seed_table(epochs):
     return table
 
 
-def check(train, holdout1, holdout2):
+def check(*epochs):
+    """Audit all role epochs together, including hazard train/validation."""
     verify_source_formula()
     used = set(reserved())
-    epochs = (train, holdout1, holdout2)
+    if len(epochs) < 3:
+        raise ValueError("At least three role epochs are required")
     if (len(set(epochs)) != 3 or
         any(e < 17 or e > 2000 or e in used for e in epochs)):
         raise ValueError("Epochs must be distinct, unused and in 17..2000")
@@ -92,20 +94,18 @@ def selftest():
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("train", type=int, nargs="?")
-    parser.add_argument("holdout1", type=int, nargs="?")
-    parser.add_argument("holdout2", type=int, nargs="?")
+    parser.add_argument("epochs", type=int, nargs="*", help="All role epochs, including hazard train/validation")
     parser.add_argument("--selftest", action="store_true")
     args = parser.parse_args()
     if args.selftest:
         selftest()
         return
-    if None in (args.train, args.holdout1, args.holdout2):
-        parser.error("Specify train holdout1 holdout2, or --selftest")
-    n = check(args.train, args.holdout1, args.holdout2)
+    if len(args.epochs) < 3:
+        parser.error("Specify at least three role epochs, or --selftest")
+    n = check(*args.epochs)
     print(
-        f"RAW_SEED_ALIAS_AUDIT=PASS epochs={args.train},{args.holdout1},"
-        f"{args.holdout2} distinct_observed_rng_starts={n} "
+        f"RAW_SEED_ALIAS_AUDIT=PASS epochs={','.join(map(str, args.epochs))} "
+        f"distinct_observed_rng_starts={n} "
         "conservative_history=all_reserved_epochs_and_generator_roles"
     )
     print(
