@@ -35,9 +35,9 @@ class AdmissionCompilationGuard(unittest.TestCase):
             cwd=root, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         active = result.stdout
-        self.assertRegex(active, r"if\\s*\\(\\s*irregularA\\s*>=\\s*2\\s*&&\\s*irregularB\\s*>=\\s*2\\s*\\)")
-        self.assertRegex(active, r"quality\\s*\\+=\\s*90\\s*\\*")
-        self.assertRegex(active, r"64\\s*-\\s*bits\\s*\\(\\s*path->board\\s*\\)\\s*<\\s*24")
+        self.assertRegex(active, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*\)")
+        self.assertRegex(active, r"quality\s*\+=\s*90\s*\*")
+        self.assertRegex(active, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
 
     def test_negative_control_catches_commented_out_bonus(self):
         # Reproduce the historical failure mode without changing repository source.
@@ -46,7 +46,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertIn(needle, raw)
         sabotaged = raw.replace(needle, "// " + needle, 1)
         executable = strip_c_comments(sabotaged)
-        self.assertNotRegex(executable, r"if\\s*\\(\\s*irregularA\\s*>=\\s*2\\s*&&\\s*irregularB\\s*>=\\s*2\\s*\\)")
+        self.assertNotRegex(executable, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*\)")
 
     def test_both_family_condition_is_executable(self):
         raw = SOURCE.read_text()
