@@ -356,3 +356,10 @@
 1252
 1253
 1254
+
+# Corrected both-family admission + five-role seed audit, immutable workflow snapshot 80418b67 / Actions 44716120823 verified in progress before reservation. Hazard 1004/1005, policy 1006, holdouts 1007/1008; external/local history incomplete.
+1004
+1005
+1006
+1007
+1008
