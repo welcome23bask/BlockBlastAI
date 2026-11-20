@@ -1,0 +1,13 @@
+# 2026-11-20: disjoint-square admission hypothesis after failed 488/589
+
+Research branch only: feature/v2.2-10x-research-gate.
+
+Fetched exact .github/workflows/v22-tenx.yml, learning/run_tenx_reproducible.sh, learning/tenx_used_epochs.txt, and Actions 44775995794 job 136425837192 logs and artifact metadata. Run completed with failed strict gates; artifact https://github.com/welcome23bask/BlockBlastAI/actions/runs/44775995794/artifacts/14650352390 . Source snapshot d73e6415. Five-role seed audit, admission compilation regression, hazard model diagnostic (1062 genuine synthetic continuation records), bounded policy training, and both 30-game-per-generator paired holdouts completed. All five epochs 84/286/387/488/589 remain reserved; do not replay.
+
+Holdout 488: normal mean survival 1.9354x, estimated score 2.2629x, p10 1.6000x; heavy 1.2367x, score 1.3388x, p10 1.4737x; shifted-heavy 1.1947x, score 1.3468x, p10 1.0000x.
+Holdout 589: normal mean survival 2.2888x, estimated score 2.6560x, p10 2.0000x; heavy 1.2413x, score 1.4820x, p10 1.1500x; shifted-heavy 1.3292x, score 1.7441x, p10 1.2143x.
+All six had zero illegal moves and zero capped games, no worse combo-break rates or avoidable deadlines. All six failed strict 10x mean/score/p10 gates. Worst mean survival shifted-heavy 488 (1.1947x); heavy remains close to baseline. Synthetic estimated scores are NOT actual game scores. Isolated training chose 120 120 -30 120 but did NOT promote to validated checkpoint; original remains 16 120 120 30 60.
+
+Targeted genuinely different research-only hypothesis: two legal 3x3 placements can overlap the same pocket, offering false redundancy. Use the already-present exact disjoint square-pair geometry helper to require TWO non-overlapping legal 3x3 footprints for crowded irregular-finalist admission, rather than counting two overlapping fits. Deterministic current-board geometry, no hidden RNG, unchanged v1.7 baseline and strict gates. Source commit 83d58072; regression guard commit c959a9dd. No evidence of performance improvement yet: this change is untested in CI.
+
+Do not run with workflow's currently reserved 84/286/387/488/589. Before a new run, establish repository-wide Actions non-overlap, audit five fresh distinct epochs against ledger and accessible history (including raw-start alias audit), pass preflight before training, then run paired normal/heavy/shifted-heavy holdouts with independent replication. GitHub connector here exposes run-specific jobs/logs but not a repository-wide active-run listing, so non-overlap cannot be certified in this turn. Historical external/local seed use remains unverified. Do not deploy, merge, touch main or live v3.4 iPhone/Automatic Play, or promote validated checkpoint.
