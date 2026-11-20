@@ -412,3 +412,10 @@
 597
 598
 599
+
+# Actions 44827375236, immutable workflow f138039f; new balanced shifted-irregular square-safe rerank cdd4a101, guard 835d48e1; hazard 675/676, policy 677, independent holdouts 678/679. Reserved AFTER queued workflow snapshot; 570 distinct starts vs 307 documented epochs, external/local history incomplete. Never promote failed candidate.
+675
+676
+677
+678
+679
