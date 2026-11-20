@@ -171,10 +171,6 @@
 // often need a lower-immediate-score escape path to remain available through
 // final reranking. No new search nodes, hidden RNG, or baseline changes.
 #define BL_FUTURE_TOP 12
-// Bounded lower-tail hypothesis: retain one near-quality finalist with a genuinely
-// new heavy-piece family feasibility signature, instead of twelve redundant
-// boards that strand the same shapes. Current-board geometry only; no RNG.
-#define BL_RESEARCH_FAMILY_SIGNATURE_COVERAGE 1
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
 static int blTrainWeights[4]={0};
@@ -1067,20 +1063,6 @@ int BLResearchSampledFutureBonus(uint64_t board){
     return bonus;
 }
 #if BL_RESEARCH_PAIR_LOOKAHEAD
-#if BL_RESEARCH_FAMILY_SIGNATURE_COVERAGE
-static unsigned BLResearchHardFamilySignature(uint64_t board) {
-    // Record six exact legal landing abilities. A binary family signature
-    // distinguishes new escape *types*, not merely high-quality duplicates.
-    return ((unsigned)(fit(board,UINT64_C(0x70707),3,3)>0)<<0) |
-           ((unsigned)(fit(board,UINT64_C(0x1f),5,1)>0)<<1) |
-           ((unsigned)(fit(board,UINT64_C(0x0101010101),1,5)>0)<<2) |
-           ((unsigned)(fit(board,UINT64_C(0x40603),3,3)>0)<<3) |
-           ((unsigned)(fit(board,UINT64_C(0x20303),3,3)>0)<<4) |
-           ((unsigned)((fit(board,UINT64_C(0x507),3,2)>0) ||
-                       (fit(board,UINT64_C(0x705),3,2)>0) ||
-                       (fit(board,UINT64_C(0x20702),3,3)>0))<<5);
-}
-#endif
 static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
                               int score[BL_FUTURE_TOP],int *count,
                               const BLPath *path,int quality) {
@@ -1136,32 +1118,6 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
     int worst=0;
     for(int i=1;i<BL_FUTURE_TOP;++i)
         if(score[i]<score[worst])worst=i;
-#if BL_RESEARCH_FAMILY_SIGNATURE_COVERAGE
-    // Only intervene after legal full-tray search when board space is scarce
-    // and the new option remains within 240 base utility of a retained option.
-    // If several finalists strand the same hard families, replace the weakest
-    // duplicate rather than discarding a distinct hard-piece escape pattern.
-    if(64-bits(path->board)<28 && quality+240>=score[worst]) {
-        unsigned newSig=BLResearchHardFamilySignature(path->board);
-        unsigned sig[BL_FUTURE_TOP];int already=0,duplicate=-1;
-        for(int i=0;i<*count;++i) {
-            sig[i]=BLResearchHardFamilySignature(pool[i].board);
-            already|=(sig[i]==newSig);
-        }
-        if(!already) {
-            for(int i=0;i<*count;++i)
-                for(int j=0;j<i;++j)if(sig[i]==sig[j]) {
-                    if(duplicate<0 || score[i]<score[duplicate])duplicate=i;
-                    if(score[j]<score[duplicate])duplicate=j;
-                }
-            int replace=duplicate>=0?duplicate:worst;
-            if(quality+240>=score[replace]) {
-                pool[replace]=*path;score[replace]=quality;
-                return;
-            }
-        }
-    }
-#endif
     if(quality>score[worst]) {
         pool[worst]=*path;
         score[worst]=quality;
