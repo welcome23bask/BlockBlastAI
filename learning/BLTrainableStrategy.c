@@ -84,6 +84,13 @@
 #ifndef BL_RESEARCH_CONNECTED_FREE_REGION
 #define BL_RESEARCH_CONNECTED_FREE_REGION 0
 #endif
+// Research-only trial: preserve genuinely separate 3x3 landing pockets
+// during the late full-tray selection, not only finalist admission.
+// Exact legal current-board geometry; no next-tray samples or hidden RNG.
+// Evaluated against unchanged v1.7 using fresh independent paired holdouts.
+#ifndef BL_RESEARCH_DISJOINT_SQUARE_PAIR
+#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 1
+#endif
 // Iteration 45: reward robust *two-orientation escape corridors* on crowded
 // completed trays. This is not the rejected global hard-piece minimum: it
 // rewards the weaker of horizontal/vertical five-bar capacities, only if
@@ -1280,7 +1287,10 @@ static void rerank_afterstates(BLSearch *ctx) {
         utility+=BLResearchPostClearSquareRecovery(ctx->topAll[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
-        utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
+        // Restrict robustness preference to congested boards; spacious boards
+        // already have many independent 3x3 landings and need no extra bonus.
+        if(64-bits(ctx->topAll[i].board)<32)
+            utility+=BLResearchDisjointSquarePair(ctx->topAll[i].board);
 #endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topAll[i].board);
@@ -1384,7 +1394,10 @@ static void rerank_afterstates(BLSearch *ctx) {
         utility+=BLResearchPostClearSquareRecovery(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_DISJOINT_SQUARE_PAIR
-        utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
+        // Restrict robustness preference to congested boards; spacious boards
+        // already have many independent 3x3 landings and need no extra bonus.
+        if(64-bits(ctx->topCombo[i].board)<32)
+            utility+=BLResearchDisjointSquarePair(ctx->topCombo[i].board);
 #endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topCombo[i].board);
