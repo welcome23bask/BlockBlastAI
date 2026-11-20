@@ -68,5 +68,13 @@ class AdmissionCompilationGuard(unittest.TestCase):
             self.assertIn(f"if(64-bits(ctx->{pool}[i].board)<32)", active)
             self.assertIn(f"utility+=BLResearchDisjointSquarePair(ctx->{pool}[i].board);", active)
 
+    def test_twelve_distinct_legal_finalists_are_configured(self):
+        raw = SOURCE.read_text()
+        defines = re.findall(r'(?m)^\s*#define\s+BL_FUTURE_TOP\s+(\d+)\s*, raw)
+        self.assertEqual(defines, ['12'])
+        active = strip_c_comments(raw)
+        self.assertIn('if(*count<BL_FUTURE_TOP)', active)
+        self.assertIn('for(int i=1;i<BL_FUTURE_TOP;++i)', active)
+
 if __name__ == "__main__":
     unittest.main()
