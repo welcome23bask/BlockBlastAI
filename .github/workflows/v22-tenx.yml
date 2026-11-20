@@ -33,7 +33,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 learning/check_tenx_workflow_epoch_consistency.py
-          TENX_PREFLIGHT_ONLY=1 TENX_HAZARD_TRAIN_EPOCH=110 TENX_HAZARD_VALIDATION_EPOCH=111 TENX_TRAIN_SEED_EPOCH=138 bash learning/run_tenx_reproducible.sh 139 145
+          TENX_PREFLIGHT_ONLY=1 TENX_HAZARD_TRAIN_EPOCH=735 TENX_HAZARD_VALIDATION_EPOCH=736 TENX_TRAIN_SEED_EPOCH=737 bash learning/run_tenx_reproducible.sh 738 739
       - name: Research-only Python regressions and simulator-derived hazard learning
         shell: bash
         run: |
@@ -43,12 +43,12 @@ jobs:
           python3 learning/test_hazard_calibration_leakage.py
           python3 learning/test_hazard_episode_balanced_metrics.py
           python3 learning/test_lower_tail_hazard_smoke.py
-          # New targeted p10 ablation: disable disjoint-square late rerank after shifted-heavy p10 fell below unchanged v1.7 in prior holdout; unchanged-v1.7 comparator.
+          # New targeted 2x-v1.7 survival trial: preserve 12 diverse completed legal three-piece afterstates, disjoint-square crowded rerank, unchanged baseline.
           # Train and validation are independent of downstream policy training
-          # (138) and BOTH official holdouts (139/145).
+          # (737) and BOTH official holdouts (738/739).
           # Use the unchanged v1.7 policy to label genuine synthetic continuations.
           python3 learning/audit_raw_seed_aliases.py --selftest
-          python3 learning/audit_raw_seed_aliases.py 110 111 138 139 145
+          python3 learning/audit_raw_seed_aliases.py 735 736 737 738 739
           tmp="$(mktemp -d)"
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              -DBLFindTwoStrategies=BLV17FindTwoStrategies \
@@ -58,7 +58,7 @@ jobs:
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              learning/hazard_trace_sim.c "$tmp/v17.o" "$tmp/solver.o" -lm \
              -o "$tmp/hazard_trace_sim"
-          "$tmp/hazard_trace_sim" 110 111 10 /tmp/tenx-hazard-traces.jsonl \
+          "$tmp/hazard_trace_sim" 735 736 10 /tmp/tenx-hazard-traces.jsonl \
              | tee /tmp/tenx-hazard-sim.log
           python3 learning/export_hazard_afterstates.py /tmp/tenx-hazard-traces.jsonl \
              --output /tmp/tenx-hazard-data.csv | tee /tmp/tenx-hazard-export.log
@@ -72,8 +72,8 @@ jobs:
           assert len(rows)>0
           assert {x['split'] for x in rows}=={'train','validation'}
           assert {x['scenario'] for x in rows}=={'normal','heavy','shifted-heavy'}
-          assert model['train_epochs']==[110]
-          assert model['validation_epochs']==[111]
+          assert model['train_epochs']==[735]
+          assert model['validation_epochs']==[736]
           assert any(int(r['finalist'])>0 for r in rows), 'No alternative legal finalists were generated'
           assert len({(r['epoch'],r['scenario'],r['game'],r['tray'],r['finalist']) for r in rows})==len(rows)
           from collections import Counter
@@ -89,9 +89,9 @@ jobs:
           set -o pipefail
           # Epochs audited against accessible ledger and Actions; external history incomplete.
           # Next bounded run: crowded irregular admission gated by exact legal 3x3-square landing, same unchanged-v1.7 strict paired gates and fresh audited seed epochs; no checkpoint promotion.
-          # Five initial paired training games/generator, up to 4 weight candidates on 8 disjoint training games; eight legal afterstate finalists with crowded irregular hard-shape admission, disjoint-square late rerank OFF, two 30-game/generator holdouts; isolate shifted-heavy p10 regression.
+          # Five initial paired training games/generator, up to 4 weight candidates on 8 disjoint training games; twelve distinct legally reached complete-tray finalists, crowded disjoint-square late rerank ON, two 30-game/generator paired holdouts. Strict 10x gates unchanged.
           # The runner preflights ledger and raw RNG starts before compiling; rejects failing verdicts. Never promote a candidate from this job.
-          TENX_HAZARD_TRAIN_EPOCH=110 TENX_HAZARD_VALIDATION_EPOCH=111 TENX_TRAIN_SEED_EPOCH=138 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 139 145 2>&1 | tee /tmp/tenx-research-console.txt
+          TENX_HAZARD_TRAIN_EPOCH=735 TENX_HAZARD_VALIDATION_EPOCH=736 TENX_TRAIN_SEED_EPOCH=737 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 738 739 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -104,7 +104,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional training seed 138 and holdouts 139,145; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 737 and holdouts 738,739; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
