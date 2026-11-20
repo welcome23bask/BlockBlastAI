@@ -92,6 +92,9 @@ def selftest():
     five_roles = (400, 421, 440, 461, 480)
     table = seed_table(five_roles)
     assert any(len(roles) > 1 for roles in table.values())
+    # Regression: a legitimate five-role set must not be rejected as a triple.
+    assert len(set((400, 421, 440, 461, 480))) == 5
+    assert len(set((400, 421, 440, 461, 461))) != 5
     verify_source_formula()
     print("RAW_SEED_ALIAS_SELFTEST=PASS")
 
