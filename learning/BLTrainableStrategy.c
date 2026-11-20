@@ -1070,7 +1070,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         int irregularB=fit(path->board,UINT64_C(0x20303),3,3);
         if(irregularA>3)irregularA=3;
         if(irregularB>3)irregularB=3;
-        quality+=90*(irregularA+irregularB);
+        // Research ablation: avoid paying for one isolated irregular landing\n        // family, which can crowd out stronger heavy-board finalists.\n        // Reward only simultaneous access to both independent families.\n        if(irregularA>0 && irregularB>0)\n            quality+=90*(irregularA<irregularB?irregularA:irregularB);
     }
     for(int i=0;i<*count;++i) {
         // Research-only shifted-heavy hypothesis: a one- or two-cell
