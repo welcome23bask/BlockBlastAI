@@ -117,7 +117,10 @@
 // Research-only disjoint-3x3 escape-pocket rerank on crowded complete trays:
 // a board with many overlapping squares has only one fragile bulky-piece escape.
 // Enabled for this bounded fresh paired trial; unchanged v1.7 baseline.
-#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 1
+// Fresh ablation: previous disjoint-square rerank lost shifted-heavy p10 on holdout 678.
+// Test whether disabling that late rerank while retaining crowded hard-pair
+// admission improves lower-tail survival; no hidden RNG or baseline changes.
+#define BL_RESEARCH_DISJOINT_SQUARE_PAIR 0
 // Iteration 51: mobility coverage of free cells by diverse exact legal bulky footprints.
 #define BL_RESEARCH_FREE_CELL_MOBILITY 0
 // Iteration 52: reward accessible nearly-complete row/column repair lines, not bulky-footprint coverage.
