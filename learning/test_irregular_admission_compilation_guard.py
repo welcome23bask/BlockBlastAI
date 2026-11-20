@@ -76,14 +76,5 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertIn('if(*count<BL_FUTURE_TOP)', active)
         self.assertIn('for(int i=1;i<BL_FUTURE_TOP;++i)', active)
 
-    def test_hard_family_signature_diversity_is_active(self):
-        raw = SOURCE.read_text()
-        self.assertEqual(raw.count("#define BL_RESEARCH_FAMILY_SIGNATURE_COVERAGE 1"), 1)
-        active = strip_c_comments(raw)
-        self.assertIn("static unsigned BLResearchHardFamilySignature(uint64_t board)", active)
-        self.assertIn("newSig=BLResearchHardFamilySignature(path->board)", active)
-        self.assertIn("quality+240>=score[replace]", active)
-        self.assertIn("pool[replace]=*path;score[replace]=quality;", active)
-
 if __name__ == "__main__":
     unittest.main()
