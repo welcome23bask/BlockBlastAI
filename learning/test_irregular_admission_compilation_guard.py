@@ -44,6 +44,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         raw = SOURCE.read_text()
         needle = "if(irregularA>=2 && irregularB>=2 && shiftedCross>=2 &&"
         self.assertIn(needle, raw)
+        self.assertIn("shiftedCross>=2", raw, "Third irregular family must remain required")
         sabotaged = raw.replace(needle, "// " + needle, 1)
         executable = strip_c_comments(sabotaged)
         self.assertNotRegex(executable, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*\)")
