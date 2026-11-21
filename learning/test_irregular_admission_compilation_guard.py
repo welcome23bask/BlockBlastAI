@@ -58,6 +58,8 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertRegex(body, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*\)")
         self.assertRegex(body, r"quality\s*\+=\s*90\s*\*")
         self.assertRegex(body, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
+        self.assertIn("irregularA<shiftedCross?irregularA:shiftedCross", body)
+        self.assertIn("irregularB<shiftedCross?irregularB:shiftedCross", body)
         self.assertNotIn(r"\n", raw[raw.index("record_afterstate("):raw.index("#if BL_RESEARCH_DUAL_POOL")])
 
     def test_disjoint_square_rerank_is_disabled_for_current_ablation(self):
