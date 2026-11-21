@@ -70,10 +70,10 @@ class AdmissionCompilationGuard(unittest.TestCase):
             self.assertIn(f"if(64-bits(ctx->{pool}[i].board)<32)", active)
             self.assertIn(f"utility+=BLResearchDisjointSquarePair(ctx->{pool}[i].board);", active)
 
-    def test_sixteen_distinct_legal_finalists_are_configured(self):
+    def test_twenty_distinct_legal_finalists_are_configured(self):
         raw = SOURCE.read_text()
         defines = [line.strip() for line in raw.splitlines() if line.startswith("#define BL_FUTURE_TOP ")]
-        self.assertEqual(defines, ["#define BL_FUTURE_TOP 16"])
+        self.assertEqual(defines, ["#define BL_FUTURE_TOP 20"])
         active = strip_c_comments(raw)
         self.assertIn('if(*count<BL_FUTURE_TOP)', active)
         self.assertIn('for(int i=1;i<BL_FUTURE_TOP;++i)', active)
