@@ -63,7 +63,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertNotIn("shiftedCross>=3 && 64-bits(path->board)<32", body)
         self.assertIn("path->broken==0", body)
         self.assertIn("irregularB<shiftedCross?irregularB:shiftedCross", body)
-        self.assertRegex(body, r"\+\s*75\s*\*\s*\(\s*shiftedCross\s*>=\s*3\s*&&\s*irregularA\s*>=\s*3\s*&&\s*irregularB\s*>=\s*3\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->streak\s*>\s*0\s*&&\s*path->misses\s*==\s*0\s*&&\s*64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*20\s*\)")
+        self.assertRegex(body, r"\+\s*75\s*\*\s*\(\s*shiftedCross\s*>=\s*3\s*&&\s*irregularA\s*>=\s*3\s*&&\s*irregularB\s*>=\s*3\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->streak\s*>\s*0\s*&&\s*path->misses\s*==\s*0\s*&&\s*path->lines\s*>=\s*2\s*&&\s*64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*20\s*\)")
         self.assertNotIn(r"\n", raw[raw.index("record_afterstate("):raw.index("#if BL_RESEARCH_DUAL_POOL")])
 
     def test_disjoint_square_rerank_is_disabled_for_current_ablation(self):
