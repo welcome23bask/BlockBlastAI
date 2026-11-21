@@ -1,0 +1,12 @@
+# 2026-11-21 research: active-streak third-landing admission ablation
+
+Branch: `feature/v2.2-10x-research-gate` only. No production/iPhone/main/checkpoint changes.
+
+## Evidence and bottleneck
+Fetched exact workflow `.github/workflows/v22-tenx.yml`, runner `learning/run_tenx_reproducible.sh`, cross-role ledger `learning/tenx_used_epochs.txt`, iteration-44 log, frontier, and learned-hazard protocol. Re-read completed Actions run [44837049501](https://github.com/welcome23bask/BlockBlastAI/actions/runs/44837049501) job 136635994329. On holdout 797, heavy p10=0.8500x, normal mean=1.7656x, heavy mean=1.2320x, shifted-heavy mean=1.3275x. On holdout 798, normal p10=0.9737x, normal mean=1.5871x, heavy mean=1.3939x, shifted-heavy mean=1.1484x. Both strict verdicts NOT REACHED. These are synthetic simulator metrics, not actual game points.
+
+## New bounded targeted hypothesis
+In `learning/BLTrainableStrategy.c`, require `path->streak>0` in addition to the existing unbroken path, all-three-irregular-families-three-landings, disjoint-square and crowded occupancy requirements for the +75 third-landing finalist admission bonus. This prevents inactive combo routes from displacing active combo-preserving finalists solely due to an irregular landing surplus. Exact legal move generation, baseline v1.7, final search budgets, and other admission gates are unchanged. Research source commit `e959a10a`; regression assertion commit `22da61f9`.
+
+## Limitations / next bounded execution
+**Uncompiled and untested**: no gameplay or simulation improvement is claimed. The exact workflow still uses reserved hazard 794/795, policy 796, holdouts 797/798, which MUST NOT be reused. The GitHub connector exposes jobs/logs for known run IDs but not a repository-wide active Actions listing, so overlapping runs cannot currently be ruled out. Do not trigger workflow-only push or reserve new epochs without confirming non-overlap and auditing five new role epochs against the ledger and accessible run history. Historical local/external seed use may be incomplete. Before training, run five-role raw-start collision audit and strict preflight; then compare fresh independent paired normal/heavy/shifted-heavy 8x8 three-piece holdouts with unchanged v1.7, preserving all failed metrics/artifacts and never promoting checkpoint without independently replicated strict 10x mean, synthetic score and p10 on every generator, zero illegal/censored and nonworsening combo/deadline metrics.
