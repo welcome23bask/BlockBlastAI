@@ -60,6 +60,23 @@ if [[ -n "$hazard_train" || -n "$hazard_validation" ]]; then
   if [[ ! "$hazard_train" =~ ^[0-9]+$ || ! "$hazard_validation" =~ ^[0-9]+$ ]]; then
     echo "ERROR: both hazard epoch IDs must be numeric" >&2; exit 2
   fi
+  # Fail closed across all five roles, not only the policy train/holdout trio.
+  # A raw-start collision audit does not replace exact cross-role epoch exclusion.
+  for e in "$hazard_train" "$hazard_validation"; do
+    if ((e < 17 || e > 2000)); then
+      echo "ERROR: hazard epoch $e outside 17..2000" >&2; exit 2
+    fi
+    for used in "${known_used[@]}"; do
+      if ((e == used)); then
+        echo "ERROR: hazard epoch $e already reserved in cross-role ledger" >&2; exit 2
+      fi
+    done
+  done
+  if ((hazard_train == hazard_validation || hazard_train == train_epoch ||
+       hazard_train == a || hazard_train == b || hazard_validation == train_epoch ||
+       hazard_validation == a || hazard_validation == b)); then
+    echo "ERROR: all five hazard/policy/holdout epochs must be distinct" >&2; exit 2
+  fi
   python3 learning/audit_raw_seed_aliases.py "$hazard_train" "$hazard_validation" "$train_epoch" "$a" "$b"
 else
   python3 learning/audit_raw_seed_aliases.py "$train_epoch" "$a" "$b"
