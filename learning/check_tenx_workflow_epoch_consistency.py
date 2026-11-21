@@ -8,6 +8,24 @@ import pathlib
 import re
 import sys
 
+LEDGER = pathlib.Path(__file__).with_name('tenx_used_epochs.txt')
+
+def reserved_epochs() -> set[int]:
+    if not LEDGER.is_file():
+        raise ValueError(f'Missing required seed ledger: {LEDGER}')
+    used = set()
+    for line_no, raw in enumerate(LEDGER.read_text().splitlines(), 1):
+        row = raw.strip()
+        if not row or row.startswith('#'):
+            continue
+        if not re.fullmatch(r'[0-9]+', row):
+            raise ValueError(f'Malformed ledger epoch at line {line_no}')
+        epoch = int(row)
+        if epoch in used:
+            raise ValueError(f'Duplicate ledger epoch {epoch}')
+        used.add(epoch)
+    return used
+
 def check(text: str) -> tuple[int, int, int, int, int]:
     pre = re.search(r'TENX_HAZARD_TRAIN_EPOCH=(\d+) TENX_HAZARD_VALIDATION_EPOCH=(\d+) TENX_TRAIN_SEED_EPOCH=(\d+) bash learning/run_tenx_reproducible.sh (\d+) (\d+)', text)
     if not pre:
@@ -15,6 +33,9 @@ def check(text: str) -> tuple[int, int, int, int, int]:
     ids = tuple(map(int, pre.groups()))
     if len(set(ids)) != 5 or any(not 17 <= n <= 2000 for n in ids):
         raise ValueError("Invalid five-role epochs")
+    collisions = sorted(set(ids) & reserved_epochs())
+    if collisions:
+        raise ValueError(f'Workflow uses already-reserved epochs: {collisions}')
     hazard, validation, train, a, b = ids
     required = [
         rf'audit_raw_seed_aliases.py {hazard} {validation} {train} {a} {b}',
