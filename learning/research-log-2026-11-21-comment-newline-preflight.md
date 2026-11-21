@@ -1,0 +1,9 @@
+# Research-only preflight repair — 2026-11-21
+
+Branch `feature/v2.2-10x-research-gate` only. Fetched exact workflow `.github/workflows/v22-tenx.yml`, runner `learning/run_tenx_reproducible.sh`, cross-role ledger `learning/tenx_used_epochs.txt`, iteration-44 results, frontier, hazard protocol, current strategy and regression guard.
+
+Identified a literal backslash-n (`\\n`) embedded in the crowded three-family finalist bonus comment in `learning/BLTrainableStrategy.c`. The existing `test_irregular_admission_compilation_guard.py` explicitly rejects this text within `record_afterstate`, so this defect could block preflight before training. Replaced the literal escape with an actual source newline in commit `4d6ead272a79300d9e8ed9e682bd66b96f13ba1a`. No scoring expression, legality, search budget, v1.7 baseline, or strict gate changed. This is a source/test repair, not a demonstrated gameplay improvement.
+
+Actions run 44837049501 was fetched and its bounded-research job completed with failure in the strict paired-holdout stage; its regression and hazard stage passed at that earlier source revision. The current workflow still embeds reserved epochs 794/795/796/797/798. Repository-wide current Actions concurrency could not be certified with the available connector, so no workflow trigger or seed-consuming simulation was attempted. The new repair is not compiled or CI-tested. Historical external/local seed use remains unverified. No new seeds were reserved.
+
+Next: verify non-overlap, audit five fresh role epochs in 17..2000 against historical runs and raw PRNG aliases, update every matching workflow epoch reference, run preflight before bounded training, and compare unchanged v1.7 against independent paired normal/heavy/shifted-heavy holdouts. Preserve failures and require every strict 10x gate twice. Synthetic estimated score is not official game score. No changes to main, live v3.4, deployments, or validated checkpoints.
