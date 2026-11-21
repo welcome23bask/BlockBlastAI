@@ -70,6 +70,13 @@ class AdmissionCompilationGuard(unittest.TestCase):
             self.assertIn(f"if(64-bits(ctx->{pool}[i].board)<32)", active)
             self.assertIn(f"utility+=BLResearchDisjointSquarePair(ctx->{pool}[i].board);", active)
 
+    def test_exact_afterstate_dedup_preserves_small_legal_differences(self):
+        raw = SOURCE.read_text()
+        active = strip_c_comments(raw)
+        self.assertIn("if(pool[i].board==path->board)", active)
+        self.assertNotIn("bits(pool[i].board^path->board)<=", active)
+        self.assertIn("if(*count<BL_FUTURE_TOP)", active)
+
     def test_twenty_distinct_legal_finalists_are_configured(self):
         raw = SOURCE.read_text()
         defines = [line.strip() for line in raw.splitlines() if line.startswith("#define BL_FUTURE_TOP ")]
