@@ -167,10 +167,10 @@
 // Fixed deterministic observable geometry only; no hidden future RNG.
 // No baseline, validated checkpoint, or live iPhone changes.
 // New bounded survival hypothesis: widen the existing legal complete-tray
-// shortlist from 8 to 16 distinct afterstates; a fresh bounded test of rare hard-piece escape routes. Crowded heavy-piece trays
+// shortlist from 16 to 20 distinct afterstates; a fresh bounded test of rare hard-piece escape routes. Crowded heavy-piece trays
 // often need a lower-immediate-score escape path to remain available through
 // final reranking. No new search nodes, hidden RNG, or baseline changes.
-#define BL_FUTURE_TOP 16
+#define BL_FUTURE_TOP 20
 // v2.2 RESEARCH-ONLY global trainable board-utility features. No iPhone
 // source changed. Set to all-zero coefficients for the v1.7 baseline.
 static int blTrainWeights[4]={0};
