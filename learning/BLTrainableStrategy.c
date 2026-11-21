@@ -1100,7 +1100,9 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // Require at least one pair of non-overlapping legal 3x3 placements.
         if(irregularA>=2 && irregularB>=2 && shiftedCross>=2 &&
            BLResearchDisjointSquarePair(path->board)>0)
-            quality+=90*(irregularA<irregularB?irregularA:irregularB);
+            // Three-family maximin admission: a weak shifted-cross escape must not
+            // inherit a high bonus solely from the other two families.
+            quality+=90*(irregularA<irregularB ? (irregularA<shiftedCross?irregularA:shiftedCross) : (irregularB<shiftedCross?irregularB:shiftedCross));
     }
     for(int i=0;i<*count;++i) {
         // Research-only shifted-heavy hypothesis: a one- or two-cell
