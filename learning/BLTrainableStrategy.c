@@ -1111,7 +1111,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
             // only to a live combo streak, so inactive-combo routes cannot
             // displace scarce combo-preserving finalists. Unverified until CI.
             quality+=90*(irregularA<irregularB ? (irregularA<shiftedCross?irregularA:shiftedCross) : (irregularB<shiftedCross?irregularB:shiftedCross))
-                    +75*(shiftedCross>=3 && irregularA>=3 && irregularB>=3 && path->broken==0 && path->streak>0 && 64-bits(path->board)<20);
+                    +75*(shiftedCross>=3 && irregularA>=3 && irregularB>=3 && path->broken==0 && path->streak>0 && path->misses==0 && 64-bits(path->board)<20);
     }
     for(int i=0;i<*count;++i) {
         // Research-only shifted-heavy hypothesis: a one- or two-cell
