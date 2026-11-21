@@ -1102,8 +1102,9 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
            BLResearchDisjointSquarePair(path->board)>0)
             // Three-family maximin admission: a weak shifted-cross escape must not
             // inherit a high bonus solely from the other two families.
-            quality+=90*(irregularA<irregularB ? (irregularA<shiftedCross?irregularA:shiftedCross) : (irregularB<shiftedCross?irregularB:shiftedCross))
-                    +75*(shiftedCross>=3 && 64-bits(path->board)<20);
+            // Tail-risk hypothesis: grant the third-landing bonus only when ALL 
+            // three irregular families have three exact landings, not when\n            // shifted-cross alone has three. Avoid crowding out balanced\n            // heavy-piece finalists with a single-family surplus.\n            quality+=90*(irregularA<irregularB ? (irregularA<shiftedCross?irregularA:shiftedCross) : (irregularB<shiftedCross?irregularB:shiftedCross))
+                    +75*(shiftedCross>=3 && irregularA>=3 && irregularB>=3 && 64-bits(path->board)<20);
     }
     for(int i=0;i<*count;++i) {
         // Research-only shifted-heavy hypothesis: a one- or two-cell
