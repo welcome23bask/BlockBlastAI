@@ -56,6 +56,12 @@ done
 # A three-role-only preflight cannot certify independence of the five-role run.
 hazard_train="${TENX_HAZARD_TRAIN_EPOCH:-}"
 hazard_validation="${TENX_HAZARD_VALIDATION_EPOCH:-}"
+# Require five-role auditing on every official research run; otherwise callers
+# could omit both hazard roles and accidentally bypass their ledger exclusion.
+if [[ -z "$hazard_train" || -z "$hazard_validation" ]]; then
+  echo "ERROR: both TENX_HAZARD_TRAIN_EPOCH and TENX_HAZARD_VALIDATION_EPOCH are required for five-role research preflight" >&2
+  exit 2
+fi
 if [[ -n "$hazard_train" || -n "$hazard_validation" ]]; then
   if [[ ! "$hazard_train" =~ ^[0-9]+$ || ! "$hazard_validation" =~ ^[0-9]+$ ]]; then
     echo "ERROR: both hazard epoch IDs must be numeric" >&2; exit 2
