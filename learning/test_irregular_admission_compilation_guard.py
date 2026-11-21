@@ -64,7 +64,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         # Keep admission's exact geometric predicate executable, but do not
         # accidentally enable the late utility bonus during this ablation.
         raw = SOURCE.read_text()
-        defines = re.findall(r"(?m)^\\s*#define\\s+BL_RESEARCH_DISJOINT_SQUARE_PAIR\\s+(\\d+)\\s*$", raw)
+        defines = re.findall(r"(?m)^\s*#define\s+BL_RESEARCH_DISJOINT_SQUARE_PAIR\s+(\d+)\s*$", raw)
         self.assertEqual(defines, ["0"], "Current research ablation must remain OFF")
         active = strip_c_comments(raw)
         for pool in ("topAll", "topCombo"):
