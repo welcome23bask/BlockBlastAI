@@ -73,7 +73,9 @@ class AdmissionCompilationGuard(unittest.TestCase):
     def test_exact_afterstate_dedup_preserves_small_legal_differences(self):
         raw = SOURCE.read_text()
         active = strip_c_comments(raw)
-        self.assertIn("if(pool[i].board==path->board)", active)
+        self.assertIn("if(pool[i].board==path->board &&", active)
+        for field in ("misses", "streak", "broken"):
+            self.assertIn(f"pool[i].{field}==path->{field}", active)
         self.assertNotIn("bits(pool[i].board^path->board)<=", active)
         self.assertIn("if(*count<BL_FUTURE_TOP)", active)
 
