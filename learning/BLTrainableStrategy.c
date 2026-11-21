@@ -1077,8 +1077,14 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
     if (64-bits(path->board)<24) {
         int irregularA=fit(path->board,UINT64_C(0x40603),3,3);
         int irregularB=fit(path->board,UINT64_C(0x20303),3,3);
+        // Research-only three-family bottleneck hypothesis: the shifted-heavy
+        // cross shape may have no legal landing even when two other irregular
+        // shapes fit. Admit a crowded finalist only if ALL THREE families
+        // retain at least two exact landing sites; no hidden next-tray RNG.
+        int shiftedCross=fit(path->board,UINT64_C(0x20702),3,3);
         if(irregularA>3)irregularA=3;
         if(irregularB>3)irregularB=3;
+        if(shiftedCross>3)shiftedCross=3;
         // Research ablation: avoid paying for one isolated irregular landing
         // family, which can crowd out stronger heavy-board finalists.
         // Reward only simultaneous access to both independent families.
@@ -1092,7 +1098,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // escape, before an irregular finalist receives admission bonus.
         // New hypothesis after failed 488/589: overlapping 3x3 fits are one fragile pocket.
         // Require at least one pair of non-overlapping legal 3x3 placements.
-        if(irregularA>=2 && irregularB>=2 &&
+        if(irregularA>=2 && irregularB>=2 && shiftedCross>=2 &&
            BLResearchDisjointSquarePair(path->board)>0)
             quality+=90*(irregularA<irregularB?irregularA:irregularB);
     }
