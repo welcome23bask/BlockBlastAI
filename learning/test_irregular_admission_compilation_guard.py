@@ -42,7 +42,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
     def test_negative_control_catches_commented_out_bonus(self):
         # Reproduce the historical failure mode without changing repository source.
         raw = SOURCE.read_text()
-        needle = "if(irregularA>=2 && irregularB>=2 &&"
+        needle = "if(irregularA>=2 && irregularB>=2 && shiftedCross>=2 &&"
         self.assertIn(needle, raw)
         sabotaged = raw.replace(needle, "// " + needle, 1)
         executable = strip_c_comments(sabotaged)
