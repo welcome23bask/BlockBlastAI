@@ -1103,8 +1103,11 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // afterstates for the late deterministic reranker; retain the
         // established near-duplicate collapse on spacious boards.
         // No future RNG, baseline, checkpoint, or iPhone source change.
-        const int crowded=(64-bits(path->board)<32);
-        if(bits(pool[i].board^path->board)<=(crowded?0:2)) {
+        // Research-only hypothesis: a one- or two-cell difference can be
+        // the sole legal landing for a later irregular piece even when the
+        // board is not yet crowded. Preserve distinct exact board states
+        // within the bounded 20-finalist pool; no extra search nodes or RNG.
+        if(pool[i].board==path->board) {
             if(quality>score[i]){pool[i]=*path;score[i]=quality;}
             return;
         }
