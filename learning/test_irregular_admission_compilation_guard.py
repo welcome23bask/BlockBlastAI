@@ -35,7 +35,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
             cwd=root, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         active = result.stdout
-        self.assertRegex(active, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*\)")
+        self.assertRegex(active, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->misses\s*==\s*0\s*\)")
         self.assertRegex(active, r"quality\s*\+=\s*90\s*\*")
         self.assertRegex(active, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
 
@@ -47,7 +47,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertIn("shiftedCross>=2", raw, "Third irregular family must remain required")
         sabotaged = raw.replace(needle, "// " + needle, 1)
         executable = strip_c_comments(sabotaged)
-        self.assertNotRegex(executable, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*\)")
+        self.assertNotRegex(executable, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->misses\s*==\s*0\s*\)")
 
     def test_both_family_condition_is_executable(self):
         raw = SOURCE.read_text()
@@ -55,7 +55,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         start = executable.index("record_afterstate(")
         end = executable.index("#if BL_RESEARCH_DUAL_POOL", start)
         body = executable[start:end]
-        self.assertRegex(body, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*\)")
+        self.assertRegex(body, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->misses\s*==\s*0\s*\)")
         self.assertRegex(body, r"quality\s*\+=\s*90\s*\*")
         self.assertRegex(body, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
         self.assertIn("irregularA<shiftedCross?irregularA:shiftedCross", body)
