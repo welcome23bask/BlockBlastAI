@@ -59,10 +59,12 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertRegex(body, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
         self.assertNotIn(r"\n", raw[raw.index("record_afterstate("):raw.index("#if BL_RESEARCH_DUAL_POOL")])
 
-    def test_disjoint_square_rerank_is_enabled_exactly_once(self):
+    def test_disjoint_square_rerank_is_disabled_for_current_ablation(self):
+        # Keep admission's exact geometric predicate executable, but do not
+        # accidentally enable the late utility bonus during this ablation.
         raw = SOURCE.read_text()
-        defines = re.findall(r"(?m)^\s*#define\s+BL_RESEARCH_DISJOINT_SQUARE_PAIR\s+(\d+)\s*$", raw)
-        self.assertEqual(defines, ["1"], "Disjoint-square research flag must not be overridden")
+        defines = re.findall(r"(?m)^\\s*#define\\s+BL_RESEARCH_DISJOINT_SQUARE_PAIR\\s+(\\d+)\\s*$", raw)
+        self.assertEqual(defines, ["0"], "Current research ablation must remain OFF")
         active = strip_c_comments(raw)
         for pool in ("topAll", "topCombo"):
             self.assertIn(f"if(64-bits(ctx->{pool}[i].board)<32)", active)
