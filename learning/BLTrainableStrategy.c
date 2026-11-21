@@ -1100,7 +1100,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // Require at least one pair of non-overlapping legal 3x3 placements.
         if(irregularA>=2 && irregularB>=2 && shiftedCross>=2 &&
            BLResearchDisjointSquarePair(path->board)>0 &&
-           path->broken==0 && path->misses==0)
+           path->broken==0 && path->misses==0 && path->lines>0)
             // Three-family maximin admission: a weak shifted-cross escape must not
             // inherit a high bonus solely from the other two families.
             // Tail-risk hypothesis: grant the third-landing bonus only when ALL 
