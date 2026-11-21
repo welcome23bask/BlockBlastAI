@@ -1107,7 +1107,10 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // the sole legal landing for a later irregular piece even when the
         // board is not yet crowded. Preserve distinct exact board states
         // within the bounded 20-finalist pool; no extra search nodes or RNG.
-        if(pool[i].board==path->board) {
+        if(pool[i].board==path->board &&
+           pool[i].misses==path->misses &&
+           pool[i].streak==path->streak &&
+           pool[i].broken==path->broken) {
             if(quality>score[i]){pool[i]=*path;score[i]=quality;}
             return;
         }
