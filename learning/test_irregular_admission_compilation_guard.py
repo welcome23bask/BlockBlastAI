@@ -19,7 +19,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         # The hypothesis must be executable within the guarded fair-root path.
         raw = strip_c_comments(SOURCE.read_text())
         start = raw.index("static void search_fair_first(")
-        end = raw.index("#endif // BL_RESEARCH_FAIR_ROOT", start)
+        end = raw.index("#endif", start)  # comments were stripped above
         body = raw[start:end]
         self.assertIn("int order[3]={0,1,2},legal[3]={0,0,0};", body)
         self.assertIn("legal[order[j]]<legal[order[i]]", body)
