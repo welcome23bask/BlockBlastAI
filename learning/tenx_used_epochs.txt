@@ -468,3 +468,10 @@
 360
 362
 363
+
+# 2026-11-22 bounded signed-fragmentation experiment, reserved AFTER immutable workflow snapshot f0476e22 / Actions 45046198256; accessible-history audit only, external/local history incomplete
+146
+147
+148
+149
+183
