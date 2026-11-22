@@ -67,6 +67,22 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertRegex(body, r"\+\s*75\s*\*\s*\(\s*shiftedCross\s*>=\s*3\s*&&\s*irregularA\s*>=\s*3\s*&&\s*irregularB\s*>=\s*3\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->streak\s*>=\s*2\s*&&\s*path->misses\s*==\s*0\s*&&\s*path->lines\s*>=\s*2\s*&&\s*64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*20\s*\)")
         self.assertNotIn(r"\n", raw[raw.index("record_afterstate("):raw.index("#if BL_RESEARCH_DUAL_POOL")])
 
+    def test_signed_fragmentation_gate_has_real_rejecting_cases(self):
+        # Numeric boundary regression: -100 per stranded cell, with the
+        # admission predicate >= -400. The old <= 4 accepted every case.
+        raw = strip_c_comments(SOURCE.read_text())
+        fn = raw[raw.index("int BLResearchFreeFragmentationPenalty("):
+                 raw.index("int BLResearchFutureClearAccess(")]
+        self.assertRegex(fn, r"int\\s+fragmented\\s*=\\s*total\\s*-\\s*largest")
+        self.assertRegex(fn, r"return\\s+-100\\s*\\*\\s*fragmented\\s*;")
+        self.assertRegex(raw, r"BLResearchFreeFragmentationPenalty\\s*\\(\\s*path->board\\s*\\)\\s*>=\\s*-400")
+        for stranded in (0, 1, 4):
+            self.assertGreaterEqual(-100 * stranded, -400)
+        for stranded in (5, 8, 16):
+            self.assertLess(-100 * stranded, -400)
+        self.assertTrue(all(-100 * n <= 4 for n in range(17)),
+                        "Historical <=4 check was a no-op")
+
     def test_disjoint_square_rerank_is_disabled_for_current_ablation(self):
         # Keep admission's exact geometric predicate executable, but do not
         # accidentally enable the late utility bonus during this ablation.
