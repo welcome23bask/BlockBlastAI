@@ -475,3 +475,10 @@
 148
 149
 183
+
+# 2026-11-22 compile-corrected fragmentation experiment, reserved AFTER workflow snapshot 96eb7913 / Actions 45046268459; external/local history incomplete
+195
+196
+197
+198
+199
