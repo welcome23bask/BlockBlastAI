@@ -489,3 +489,10 @@
 209
 224
 228
+
+# 2026-11-22 scarcity-first crowded-root bounded attempt; workflow snapshot 675aead7; hazard 253/254, policy 255, paired holdouts 256/257. Audited against 362 documented epochs and 570 unique proposed raw starts; external/local history incomplete. Reserved after workflow snapshot; no checkpoint promotion.
+253
+254
+255
+256
+257
