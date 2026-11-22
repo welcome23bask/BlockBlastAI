@@ -54,6 +54,16 @@ def check(text: str) -> tuple[int, int, int, int, int]:
         rf"model\['validation_epochs'\]==\[{validation}\]",
         rf'TENX_HAZARD_TRAIN_EPOCH={hazard} TENX_HAZARD_VALIDATION_EPOCH={validation} TENX_TRAIN_SEED_EPOCH={train} TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh {a} {b}',
     ]
+    # Fail closed when preserved artifacts advertise a different seed set.
+    # Otherwise a failed run can upload plausible-looking evidence with
+    # misleading epoch provenance even if its executable steps are correct.
+    artifact_seed = (
+        f'Provisional training seed {train} and holdouts {a},{b};'
+    )
+    if artifact_seed not in text:
+        raise ValueError('Artifact seed provenance does not match executing roles')
+    if text.count('seed-audit-warning.txt') != 1:
+        raise ValueError('Expected exactly one seed-audit artifact writer')
     for i, item in enumerate(required):
         if i in (2, 3):
             if not re.search(item, text):
