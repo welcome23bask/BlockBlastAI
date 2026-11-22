@@ -1,0 +1,9 @@
+# Near-full irregular admission tail-risk experiment — 2026-11-22
+
+Research branch only. Source commit 6e9ae7c7 changes the executable crowded-board irregular-family admission predicate to require at least 12 free cells, preventing a bonus from displacing safer finalist routes on nearly full boards. Regression guard commit 0c8e5fdf checks the new active predicate. This is a genuinely different occupancy-tail hypothesis following heavy mean survival 0.9744x and normal p10 0.8929x on prior holdout 199; neither was acceptable.
+
+Fresh workflow snapshot c0d65237 triggered Actions run https://github.com/welcome23bask/BlockBlastAI/actions/runs/45054914237 after checking repository-wide runs showed no active jobs. Five distinct epochs: hazard train 206, validation 207, policy train 209, paired holdouts 224/228. Conservatively audited 570 proposed legacy raw PRNG starts against accessible documented ledger and generator offsets, with no observed collisions. Unrecorded external/local runs cannot be excluded. The epochs were reserved only AFTER the immutable workflow was confirmed queued, in commit 60e6e42f, so the executing checkout retains pre-reservation ledger.
+
+Preflight, compilation, hazard calibration, synthetic training and two fresh independent paired normal/heavy/shifted-heavy holdouts must complete before any conclusion. All strict 10x per-generator survival, p10, synthetic estimated-score, legality, combo-break, deadline and censoring gates remain unchanged. The synthetic estimated score is NOT actual game score. No candidate weights or checkpoint may be promoted. Live v3.4 iPhone, main, deployment and unchanged v1.7 comparator remain untouched.
+
+Status at log creation: run queued, no measured outcome or improvement claimed. Preserve CI artifacts and update this log after final results.
