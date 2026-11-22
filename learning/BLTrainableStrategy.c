@@ -1613,7 +1613,23 @@ static void search_fair_first(BLSearch *ctx,const BLPath *start) {
     }
     const uint32_t fullBudget=ctx->budget;
     int remaining=roots,anyTruncated=0;
+    // Scarcity-first root fairness: test the visible piece with the fewest
+    // legal landings first. Deterministic, current-tray-only, same node budget.
+    // This is a new research hypothesis for crowded heavy-piece bottlenecks.
+    int order[3]={0,1,2},legal[3]={0,0,0};
     for(int p=0;p<3;++p) {
+        if(ctx->pieces[p].count<=0)continue;
+        for(int j=0;j<ctx->counts[p];++j)
+            if(!(start->board&ctx->placements[p][j].mask))++legal[p];
+    }
+    for(int i=0;i<3;++i)
+        for(int j=i+1;j<3;++j)
+            if((legal[order[j]]>0 && legal[order[i]]==0) ||
+               (legal[order[j]]>0 && legal[order[j]]<legal[order[i]])) {
+                int t=order[i];order[i]=order[j];order[j]=t;
+            }
+    for(int oi=0;oi<3;++oi) {
+        int p=order[oi];
         if(ctx->pieces[p].count<=0)continue;
         for(int j=0;j<ctx->counts[p];++j) {
             const BLPlace *pos=&ctx->placements[p][j];
