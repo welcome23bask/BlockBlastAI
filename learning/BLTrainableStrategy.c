@@ -1098,7 +1098,9 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // escape, before an irregular finalist receives admission bonus.
         // New hypothesis after failed 488/589: overlapping 3x3 fits are one fragile pocket.
         // Require at least one pair of non-overlapping legal 3x3 placements.
-        // Penalty is -100 per stranded cell, so >= -400 enforces <=4.\n        // The previous <=4 predicate was always true for nonpositive penalties.\n        if(irregularA>=3 && irregularB>=3 && shiftedCross>=3 &&
+        // Penalty is -100 per stranded cell, so >= -400 enforces <=4.
+        // The previous <=4 predicate was always true for nonpositive penalties.
+        if(irregularA>=3 && irregularB>=3 && shiftedCross>=3 &&
            BLResearchDisjointSquarePair(path->board)>0 &&
            BLResearchFreeFragmentationPenalty(path->board)>=-400 &&
            path->broken==0 && path->misses==0 && path->lines>=2)
