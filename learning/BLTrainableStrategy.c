@@ -8,7 +8,7 @@
 // Keep it available for controlled A/B studies but default to the better
 // characterized original research traversal; never alter src/ v1.7 baseline.
 #ifndef BL_RESEARCH_FAIR_ROOT
-#define BL_RESEARCH_FAIR_ROOT 0
+#define BL_RESEARCH_FAIR_ROOT 1
 #endif
 // Explore how two *unknown future* large shapes could coexist after a tray.
 // This is a conservative geometric proxy, not knowledge of the next tray.
@@ -1787,7 +1787,11 @@ BLTwoStrategies BLFindTwoStrategies(uint64_t board,const BLPiece pieces[3],
         start.misses=(combo.misses>=0&&combo.misses<3)?combo.misses:0;
     }
 #if BL_RESEARCH_FAIR_ROOT
-    search_fair_first(&ctx,&start);
+    // Research-only conditional root fairness: unlike the previously rejected
+    // global fair-root ablation, allocate root quotas only below 20 free cells.
+    // Preserve original depth-first traversal on less crowded boards.
+    if(64-bits(board)<20)search_fair_first(&ctx,&start);
+    else search(&ctx,&start);
 #else
     search(&ctx,&start);
 #endif
