@@ -496,3 +496,10 @@
 255
 256
 257
+
+# 2026-11-22 repaired scarcity-first guard bounded attempt; workflow snapshot 601baec2; hazard 283/284, policy 285, paired holdouts 288/289. Reserved after workflow snapshot, external/local history incomplete; do not replay even if preflight fails.
+283
+284
+285
+288
+289
