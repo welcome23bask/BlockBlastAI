@@ -1099,11 +1099,16 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // New hypothesis after failed 488/589: overlapping 3x3 fits are one fragile pocket.
         // Require at least one pair of non-overlapping legal 3x3 placements.
         // Penalty is -100 per stranded cell, so >= -400 enforces <=4.
+        // Fresh research hypothesis after heavy survival <1x on holdout 199:
+        // with fewer than 12 free cells, suppress admission bonuses that
+        // could crowd out safer completed-tray finalists. Legal search,
+        // actual score and unchanged v1.7 comparator are unaffected.
         // The previous <=4 predicate was always true for nonpositive penalties.
         if(irregularA>=3 && irregularB>=3 && shiftedCross>=3 &&
            BLResearchDisjointSquarePair(path->board)>0 &&
            BLResearchFreeFragmentationPenalty(path->board)>=-400 &&
-           path->broken==0 && path->misses==0 && path->lines>=2)
+           path->broken==0 && path->misses==0 && path->lines>=2 &&
+           64-bits(path->board)>=12)
             // Three-family maximin admission: a weak shifted-cross escape must not
             // inherit a high bonus solely from the other two families.
             // Tail-risk hypothesis: grant the third-landing bonus only when ALL 
