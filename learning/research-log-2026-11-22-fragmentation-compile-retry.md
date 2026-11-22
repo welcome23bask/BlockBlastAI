@@ -1,0 +1,9 @@
+# 2026-11-22 fragmentation compile-preflight failure and fresh rerun
+
+First experiment Actions 45046198256, immutable workflow snapshot f0476e22, failed before training during the executable-C compilation guard. The C source had literal backslash-n text inside a // comment immediately preceding the irregular admission if condition, so the intended predicate was commented out. The new guard correctly rejected this error. No benchmark evidence was generated; artifact 14763358774 preserves the failed preflight. Five attempted epochs 146/147/148/149/183 remain reserved, not reusable.
+
+Research-only source correction ce754c18 replaced the two literal backslash-n sequences with actual newlines, restoring the intended executable conditional. No main, iPhone, deployment, checkpoint, or v1.7 baseline edits.
+
+After checking repository Actions had no active run, audited the 352 reserved epochs and selected five distinct unused and conservatively nonaliasing raw-start epochs: hazard train 195, hazard validation 196, policy train 197, paired holdouts 198/199. Across 3 generators and 38 game indices per epoch, the 570 proposed raw starts had no collision against documented reserved history or each other. Unrecorded local/external seed history is not certified. Workflow snapshot 96eb7913 triggered Actions 45046268459. Epochs reserved afterward in commit 1bb4f27a without changing the running snapshot.
+
+This is a new bounded run of the compiled signed-fragmentation admission hypothesis against unchanged v1.7 on normal/heavy/shifted-heavy, with strict unchanged mean, p10, synthetic score, legality, combo and censor gates. At writing, results were pending. Synthetic estimated score is not actual game score. Do not promote checkpoints or claim a 10x gain without two independent strict full passes.
