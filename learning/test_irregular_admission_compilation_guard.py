@@ -42,9 +42,9 @@ class AdmissionCompilationGuard(unittest.TestCase):
     def test_negative_control_catches_commented_out_bonus(self):
         # Reproduce the historical failure mode without changing repository source.
         raw = SOURCE.read_text()
-        needle = "if(irregularA>=2 && irregularB>=2 && shiftedCross>=2 &&"
+        needle = "if(irregularA>=3 && irregularB>=3 && shiftedCross>=3 &&"
         self.assertIn(needle, raw)
-        self.assertIn("shiftedCross>=2", raw, "Third irregular family must remain required")
+        self.assertIn("shiftedCross>=3", raw, "Third irregular family must remain required")
         sabotaged = raw.replace(needle, "// " + needle, 1)
         executable = strip_c_comments(sabotaged)
         self.assertNotRegex(executable, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->misses\s*==\s*0\s*&&\s*path->lines\s*>=\s*2\s*\)")
