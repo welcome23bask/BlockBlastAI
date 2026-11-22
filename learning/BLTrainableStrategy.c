@@ -1098,7 +1098,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // escape, before an irregular finalist receives admission bonus.
         // New hypothesis after failed 488/589: overlapping 3x3 fits are one fragile pocket.
         // Require at least one pair of non-overlapping legal 3x3 placements.
-        if(irregularA>=2 && irregularB>=2 && shiftedCross>=2 &&
+        if(irregularA>=3 && irregularB>=3 && shiftedCross>=3 &&
            BLResearchDisjointSquarePair(path->board)>0 &&
            path->broken==0 && path->misses==0 && path->lines>=2)
             // Three-family maximin admission: a weak shifted-cross escape must not
