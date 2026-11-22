@@ -104,6 +104,15 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertNotIn("bits(pool[i].board^path->board)<=", active)
         self.assertIn("if(*count<BL_FUTURE_TOP)", active)
 
+    def test_crowded_only_fair_root_experiment_is_active(self):
+        raw = SOURCE.read_text()
+        active = strip_c_comments(raw)
+        self.assertRegex(raw, r"(?m)^#define BL_RESEARCH_FAIR_ROOT 1$")
+        self.assertIn("if(64-bits(board)<20)search_fair_first(&ctx,&start);", active)
+        self.assertIn("else search(&ctx,&start);", active)
+        self.assertIn("if(ctx->visited>=fullBudget)", active)
+        self.assertIn("ctx->budget=fullBudget;", active)
+
     def test_twenty_distinct_legal_finalists_are_configured(self):
         raw = SOURCE.read_text()
         defines = [line.strip() for line in raw.splitlines() if line.startswith("#define BL_FUTURE_TOP ")]
