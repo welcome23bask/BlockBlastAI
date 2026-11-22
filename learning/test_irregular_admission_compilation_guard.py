@@ -73,9 +73,9 @@ class AdmissionCompilationGuard(unittest.TestCase):
         raw = strip_c_comments(SOURCE.read_text())
         fn = raw[raw.index("int BLResearchFreeFragmentationPenalty("):
                  raw.index("int BLResearchFutureClearAccess(")]
-        self.assertRegex(fn, r"int\\s+fragmented\\s*=\\s*total\\s*-\\s*largest")
-        self.assertRegex(fn, r"return\\s+-100\\s*\\*\\s*fragmented\\s*;")
-        self.assertRegex(raw, r"BLResearchFreeFragmentationPenalty\\s*\\(\\s*path->board\\s*\\)\\s*>=\\s*-400")
+        self.assertRegex(fn, r"int\s+fragmented\s*=\s*total\s*-\s*largest")
+        self.assertRegex(fn, r"return\s+-100\s*\*\s*fragmented\s*;")
+        self.assertRegex(raw, r"BLResearchFreeFragmentationPenalty\s*\(\s*path->board\s*\)\s*>=\s*-400")
         for stranded in (0, 1, 4):
             self.assertGreaterEqual(-100 * stranded, -400)
         for stranded in (5, 8, 16):
