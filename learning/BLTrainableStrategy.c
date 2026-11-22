@@ -1107,10 +1107,11 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
             // three irregular families have three exact landings, not when
             // shifted-cross alone has three. Avoid crowding out balanced
             // heavy-piece finalists with a single-family surplus.
-            // New bounded tail-risk ablation: third-landing surplus applies
-            // only to a live combo streak, so inactive-combo routes cannot
-            // displace scarce combo-preserving finalists. Unverified until CI.
-            quality+=90*(path->streak>0)*(irregularA<irregularB ? (irregularA<shiftedCross?irregularA:shiftedCross) : (irregularB<shiftedCross?irregularB:shiftedCross))
+            // Fresh bounded tail-risk hypothesis after failed 1010/1011:
+            // require at least two consecutive combo clears before paying
+            // the base hard-family admission bonus. A single new clear no
+            // longer displaces a proven multi-clear survivor. Unverified.
+            quality+=90*(path->streak>=2)*(irregularA<irregularB ? (irregularA<shiftedCross?irregularA:shiftedCross) : (irregularB<shiftedCross?irregularB:shiftedCross))
                     +75*(shiftedCross>=3 && irregularA>=3 && irregularB>=3 && path->broken==0 && path->streak>0 && path->misses==0 && path->lines>=2 && 64-bits(path->board)<20);
     }
     for(int i=0;i<*count;++i) {
