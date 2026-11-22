@@ -1,0 +1,11 @@
+# 2026-11-22 — free-fragmentation-gated crowded irregular admission
+
+Research branch only: feature/v2.2-10x-research-gate. No live v3.4, main, checkpoint, deployment, or iPhone changes.
+
+## Evidence and hypothesis
+Fetched the exact .github/workflows/v22-tenx.yml, learning/run_tenx_reproducible.sh, and learning/tenx_used_epochs.txt from the research branch, plus previous three-landing log and strategy/compilation guard. Most recent completed paired holdouts 1010/1011 in Actions 45001339434 failed strict 10x; shifted-heavy 1011 mean survival 1.1435x and synthetic estimated score 1.2465x. Synthetic score is not the actual game score.
+
+New bounded hypothesis: an afterstate can retain three exact landing sites for each hard family and a disjoint square pair while still stranding empty cells in disconnected pockets. Restrict crowded hard-family admission bonus to states with BLResearchFreeFragmentationPenalty(board)<=4, leaving the normal strategy evaluation, exact legal search, v1.7 comparator, candidate weights and all strict gates unchanged. Source commit 4419edfbe2b1b2fcc775ad60a4021e19ca86faca; compilation regression update 2699fcaf70eea0af4d09b114b64839a687102275.
+
+## Execution limits
+This is an untested hypothesis, not a gameplay improvement. Workflow currently uses reserved hazard epochs 1000/1001, training 1002, holdouts 1010/1011. No experiment was launched because available GitHub connector can inspect known runs/jobs/logs but does not expose repository-wide Actions enumeration needed to establish non-overlap. No epochs were reused. External/local seed history is incomplete. Next safe bounded experiment: verify non-overlap; audit five unused role epochs (including all raw PRNG starts), update all workflow references and provenance, pass preflight, then compare unchanged v1.7 against the candidate on fresh independent normal, heavy, shifted-heavy 8x8 three-piece paired holdouts. Preserve all failed evidence and reserve epochs after execution snapshot. Require >=10x mean survival, >=10x p10 survival and synthetic estimated score for every generator in both independent replications, zero illegal/censored, and no worse combo breaks or avoidable deadlines. No checkpoint promotion before fully replicated success.
