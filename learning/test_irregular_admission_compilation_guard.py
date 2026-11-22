@@ -57,6 +57,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         body = executable[start:end]
         self.assertRegex(body, r"if\s*\(\s*irregularA\s*>=\s*2\s*&&\s*irregularB\s*>=\s*2\s*&&\s*shiftedCross\s*>=\s*2\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->misses\s*==\s*0\s*&&\s*path->lines\s*>=\s*2\s*\)")
         self.assertRegex(body, r"quality\s*\+=\s*90\s*\*")
+        self.assertRegex(body, r"quality\s*\+=\s*90\s*\*\s*\(\s*path->streak\s*>\s*0\s*\)")
         self.assertRegex(body, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
         self.assertIn("irregularA<shiftedCross?irregularA:shiftedCross", body)
         self.assertIn("if (64-bits(path->board)<24)", body)
