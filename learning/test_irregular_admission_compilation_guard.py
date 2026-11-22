@@ -15,6 +15,18 @@ def strip_c_comments(source):
     return re.sub(r"/\*.*?\*/|//[^\n]*", "", source, flags=re.S)
 
 class AdmissionCompilationGuard(unittest.TestCase):
+    def test_crowded_root_scarcity_order_is_active(self):
+        # The hypothesis must be executable within the guarded fair-root path.
+        raw = strip_c_comments(SOURCE.read_text())
+        start = raw.index("static void search_fair_first(")
+        end = raw.index("#endif // BL_RESEARCH_FAIR_ROOT", start)
+        body = raw[start:end]
+        self.assertIn("int order[3]={0,1,2},legal[3]={0,0,0};", body)
+        self.assertIn("legal[order[j]]<legal[order[i]]", body)
+        self.assertIn("int p=order[oi];", body)
+        self.assertIn("ctx->budget=ctx->visited+quota;", body)
+        self.assertIn("ctx->budget=fullBudget;", body)
+
     def test_research_source_compiles_with_warnings_as_errors(self):
         compiler = shutil.which('cc')
         self.assertIsNotNone(compiler, 'C compiler required; do not silently skip research gate')
