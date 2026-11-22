@@ -461,3 +461,10 @@
 1002
 1010
 1011
+
+# Actions 45029378139, immutable workflow snapshot 04f9b0aa; fragmentation-gated irregular admission; hazard 353/354, policy 360, paired holdouts 362/363. Reserved AFTER queued snapshot; 570 proposed raw starts distinct vs 342 documented epochs; external/local history incomplete. No checkpoint promotion.
+353
+354
+360
+362
+363
