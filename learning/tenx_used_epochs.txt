@@ -454,3 +454,10 @@
 1656
 1657
 1658
+
+# Actions 45001339434, immutable workflow d052f9e4; hazard 1000/1001, policy 1002, paired holdouts 1010/1011. Reserved AFTER verified queued source snapshot; 570 distinct proposed raw starts against 337 documented reserved epochs; external/local history incomplete. No checkpoint promotion.
+1000
+1001
+1002
+1010
+1011
