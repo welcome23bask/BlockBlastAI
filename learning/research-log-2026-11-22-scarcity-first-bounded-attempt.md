@@ -1,0 +1,14 @@
+# Scarcity-first crowded-root bounded attempt — 2026-11-22
+
+Research branch only. No production/main/iPhone modifications or checkpoint promotion.
+
+## Hypothesis
+Test the existing unbenchmarked research-only scarcity-first visible-piece root ordering when the board is crowded, combined with the existing conditional root fairness and near-full irregular-admission guard. Candidate remains compared against unchanged v1.7 SMART SURVIVAL. The bottleneck is heavy survival (previous run 45054914237: 1.0296x mean and 1.1536x synthetic estimated score on holdout 228; strict 10x failed).
+
+## Audit and attempted execution
+Fetched exact .github/workflows/v22-tenx.yml, learning/run_tenx_reproducible.sh, learning/tenx_used_epochs.txt, and learning/audit_raw_seed_aliases.py from research branch. Repository Actions listing returned 550 runs; latest 100 showed no active run before workflow edit, latest known 45054914237 completed. Cross-role ledger held 362 reserved epochs. Audited five fresh roles: hazard training 253, hazard validation 254, policy training 255, independent holdouts 256 and 257. All distinct, in 17..2000, absent from ledger, with 570 unique proposed raw PRNG starts disjoint from the documented ledger across all three generator offsets and 38 game indices. External/local history is incomplete. The audit is an analytical reproduction of the source seed formula; the actual runner's preflight has not yet been observed.
+
+Changed only the research workflow YAML in immutable source commit 675aead7eaa6314144a9cd201d41490fdf8b4873 to use the new five epochs. Its path-specific push trigger should request the bounded research run. The Actions API did not yet expose a run for that head SHA at the time of this log; **do not claim the job queued, preflight passed, trained, or produced metrics**. Reserved all five IDs in the cross-role ledger afterward in separate commit 532a180cbc122bf805a94209380feea71b8f527c. This later ledger update must not be used as the executing snapshot for the prior workflow commit.
+
+## Required follow-up
+Inspect Actions run listing, jobs and logs for workflow commit 675aead7. If no run materializes, diagnose push trigger/permissions before further edits; do not rerun the reserved epoch/settings combination. If run materializes, preserve its artifacts, report normal/heavy/shifted-heavy mean survival, p10, synthetic estimated score, illegal moves, combo breaks per move, avoidable deadlines and censoring for each independent holdout. Require strict >=10x mean survival, synthetic estimated score and p10 for every generator, zero illegal/censored, nonworse combo/deadline, and independent replication before any success claim. On failure, target the worst measured failure with a different research-only hypothesis and fresh audited seeds. No 10x success or real-game improvement established.
