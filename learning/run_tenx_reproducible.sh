@@ -2,6 +2,9 @@
 # v2.2 reproducible offline challenge. Run from a clean checkout of the
 # research branch; no production files, GitHub Actions, or iPhone builds.
 set -euo pipefail
+# Python preflight imports must never dirty the checked-out research tree.
+# This must apply to workflow consistency checks and all downstream Python tools.
+export PYTHONDONTWRITEBYTECODE=1
 cd "$(dirname "$0")/.."
 branch="$(git branch --show-current)"
 if [[ "$branch" != "feature/v2.2-10x-research-gate" ]]; then
