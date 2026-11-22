@@ -1,0 +1,9 @@
+# Research-only artifact seed provenance guard — 2026-11-22 UTC
+
+Scope: `feature/v2.2-10x-research-gate` only. No main, live v3.4, release, checkpoint or deployment changes.
+
+Fetched the exact `.github/workflows/v22-tenx.yml`, `learning/run_tenx_reproducible.sh`, and `learning/tenx_used_epochs.txt` on the research branch. Read iteration 44, provisional frontier, hazard protocol, raw seed auditor, and compilation guard. Inspected completed failed Actions run 44837049501 via the available run-jobs endpoint. No repository-wide list of active/queued Actions runs was available through this connector, so non-overlap could not be certified.
+
+New bounded methodology fix: `learning/check_tenx_workflow_epoch_consistency.py` now checks that the seed-audit artifact warning names the same policy train and two holdout epochs as the executable five-role preflight and that there is exactly one seed-audit artifact writer. Previously the checker could accept a workflow with executable epochs updated but stale artifact provenance, making failed evidence misleading. Research-only commit `e02392091f9adc78eb1fcd0fdd3a86c8f34ad5fc`.
+
+The workflow still uses reserved epochs 794..798. This checker correction was not run in CI and is not a gameplay gain. No workflow edit/dispatch or seed-consuming training was attempted because current repository-wide Actions non-overlap and fresh historical uniqueness cannot be established with available run listings. Historical external/local use remains incomplete. No epochs were reserved or reused. The next run must audit five fresh role epochs, check raw PRNG aliases and no overlapping Actions, update *all* workflow references including artifact provenance, pass preflight, then run two independent paired 30-game normal/heavy/shifted-heavy holdouts against unchanged v1.7. Strict 10x gates remain unchanged; synthetic estimated score is not actual game score. No candidate promoted.
