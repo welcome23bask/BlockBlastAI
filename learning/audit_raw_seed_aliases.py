@@ -62,8 +62,8 @@ def check(*epochs):
     """Audit all role epochs together, including hazard train/validation."""
     verify_source_formula()
     used = set(reserved())
-    if len(epochs) < 3:
-        raise ValueError("At least three role epochs are required")
+    if len(epochs) != 5:
+        raise ValueError("Exactly five role epochs are required: hazard train, hazard validation, policy train, holdout A, holdout B")
     if (len(set(epochs)) != len(epochs) or
         any(e < 17 or e > 2000 or e in used for e in epochs)):
         raise ValueError("Epochs must be distinct, unused and in 17..2000")
@@ -96,6 +96,13 @@ def selftest():
     assert len(set((400, 421, 440, 461, 480))) == 5
     assert len(set((400, 421, 440, 461, 461))) != 5
     verify_source_formula()
+    for invalid in ((400, 421, 440), (400, 421, 440, 461, 480, 500)):
+        try:
+            check(*invalid)
+        except ValueError as exc:
+            assert "Exactly five role epochs" in str(exc)
+        else:
+            raise AssertionError("Incomplete or excessive seed-role audit accepted")
     print("RAW_SEED_ALIAS_SELFTEST=PASS")
 
 
@@ -107,8 +114,8 @@ def main():
     if args.selftest:
         selftest()
         return
-    if len(args.epochs) < 3:
-        parser.error("Specify at least three role epochs, or --selftest")
+    if len(args.epochs) != 5:
+        parser.error("Specify exactly five role epochs, or --selftest")
     n = check(*args.epochs)
     print(
         f"RAW_SEED_ALIAS_AUDIT=PASS epochs={','.join(map(str, args.epochs))} "
