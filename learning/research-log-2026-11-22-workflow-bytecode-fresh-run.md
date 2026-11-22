@@ -1,0 +1,11 @@
+# 2026-11-22 — workflow bytecode preflight repair and fresh five-role bounded experiment
+
+Scope: research branch `feature/v2.2-10x-research-gate` only. No main, live v3.4 iPhone/Automatic Play, deployments, or validated checkpoints touched.
+
+Prior bounded Actions run 44989421787 failed before training in the clean-checkout preflight. The runner was subsequently patched to export `PYTHONDONTWRITEBYTECODE=1`, but the workflow's preceding `python3 learning/check_tenx_workflow_epoch_consistency.py` could still create a tracked/untracked `__pycache__` directory. Targeted workflow-level fix: export `PYTHONDONTWRITEBYTECODE=1` before the first Python consistency check.
+
+Before triggering, queried repository-wide GitHub Actions in_progress, queued, waiting: each total_count=0. Fetched the exact workflow, runner, cross-role ledger and raw-seed audit source from research branch. The ledger contained 337 documented used epochs. New five-role epochs: hazard train 1000, hazard validation 1001, policy train 1002, independent holdouts 1010 and 1011. Audited all 570 proposed raw RNG starts (three scenarios, 38 indexed games, five roles) against documented history with the source formula; no collisions in this audit. Historical external/local use cannot be excluded. Accessible workflow run history reviewed; historical completeness remains uncertain.
+
+Workflow-only commit d052f9e4 changed the preflight environment and all five epoch references, preserving exact unchanged-v1.7 paired normal/heavy/shifted-heavy strict gates, synthetic-score distinction and artifact preservation. Push triggered immutable Actions run 45001339434, verified queued and subsequently in progress; fail-fast seed-policy check completed successfully. Cross-role ledger reservation commit d65ebf37 followed the queued snapshot and did not modify the executing seed set.
+
+The bounded training/simulation and independent holdouts had not finished when this log was written. No claim of measured gameplay gain or replicated 10x; no checkpoint promotion. On failure, inspect job logs and preserved artifacts, diagnose worst generator or preflight, and try a distinct targeted research-only hypothesis with new audited epochs next time. Never reuse 1000/1001/1002/1010/1011.
