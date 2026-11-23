@@ -580,3 +580,10 @@
 714
 725
 726
+
+# Actions 45230796658, immutable workflow 3b56f8af queued BEFORE reservation: hazard 803/805, policy 813, independent holdouts 819/827; 570 raw starts distinct vs 427 documented epochs. External/local history incomplete; no promotion.
+803
+805
+813
+819
+827
