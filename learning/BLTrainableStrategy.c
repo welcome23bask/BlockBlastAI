@@ -1110,8 +1110,8 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
            // Heavy-tail hypothesis after holdouts 288/289: preserve an exact
            // horizontal OR vertical five-cell bar landing before rewarding
            // irregular finalists. Uses public afterstate geometry only.
-           (fit(path->board,UINT64_C(0x1f),5,1)>0 ||
-            fit(path->board,UINT64_C(0x0101010101),1,5)>0) &&
+           (fit(path->board,UINT64_C(0x1f),5,1)>=2 ||
+            fit(path->board,UINT64_C(0x0101010101),1,5)>=2) &&
            path->broken==0 && path->misses==0 && path->lines>=2 &&
            64-bits(path->board)>=12)
             // Three-family maximin admission: a weak shifted-cross escape must not
