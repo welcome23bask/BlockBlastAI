@@ -1111,6 +1111,12 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
            // Exact visible-board placements and line clears only.
            pair_fits_now(path->board,UINT64_C(0x20303),3,3,
                          UINT64_C(0x20702),3,3) &&
+           // Research-only symmetric escape test: avoid a fragile ordered
+           // sequence that dies if the shifted-cross arrives first.
+           // Both orders use exact legal placements and actual line clears;
+           // no future tray prediction or hidden RNG is consulted.
+           pair_fits_now(path->board,UINT64_C(0x20702),3,3,
+                         UINT64_C(0x20303),3,3) &&
            BLResearchDisjointSquarePair(path->board)>=3 &&
            BLResearchFreeFragmentationPenalty(path->board)>=-400 &&
            // Heavy-tail hypothesis after holdouts 288/289: preserve an exact
