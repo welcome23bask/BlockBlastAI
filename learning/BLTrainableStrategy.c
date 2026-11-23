@@ -1105,6 +1105,12 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // actual score and unchanged v1.7 comparator are unaffected.
         // The previous <=4 predicate was always true for nonpositive penalties.
         if(irregularA>=3 && irregularB>=3 && shiftedCross>=3 &&
+           // New shifted-heavy lower-tail hypothesis after failed 521/522:
+           // independent single-piece fits are insufficient; retain a
+           // proven legal sequential pair of shifted irregular pieces.
+           // Exact visible-board placements and line clears only.
+           pair_fits_now(path->board,UINT64_C(0x20303),3,3,
+                         UINT64_C(0x20702),3,3) &&
            BLResearchDisjointSquarePair(path->board)>=3 &&
            BLResearchFreeFragmentationPenalty(path->board)>=-400 &&
            // Heavy-tail hypothesis after holdouts 288/289: preserve an exact
