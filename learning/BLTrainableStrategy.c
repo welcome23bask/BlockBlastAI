@@ -1138,11 +1138,11 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
             // longer displaces a proven multi-clear survivor. Unverified.
             quality+=90*(path->streak>=3)*(irregularA<irregularB ? (irregularA<shiftedCross?irregularA:shiftedCross) : (irregularB<shiftedCross?irregularB:shiftedCross))
                     +75*(shiftedCross>=3 && irregularA>=3 && irregularB>=3 && path->broken==0 && path->streak>=3 &&
-                         // Heavy-tail ablation: bonus only if BOTH 5-cell bar axes retain
+                         // Heavy p10 hypothesis after holdout 827 regression: secondary bonus\n                         // requires four actual line clears (not just streak 3).\n                         // Bonus only if BOTH 5-cell bar axes retain
                          // two legal placements; outer gate still accepts either axis.
                          fit(path->board,UINT64_C(0x1f),5,1)>=2 &&
                          fit(path->board,UINT64_C(0x0101010101),1,5)>=2 &&
-                         path->misses==0 && path->lines>=3 && 64-bits(path->board)<20);
+                         path->misses==0 && path->lines>=4 && 64-bits(path->board)<20);
     }
     for(int i=0;i<*count;++i) {
         // Research-only shifted-heavy hypothesis: a one- or two-cell
