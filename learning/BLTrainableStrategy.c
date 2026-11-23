@@ -1105,7 +1105,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
         // actual score and unchanged v1.7 comparator are unaffected.
         // The previous <=4 predicate was always true for nonpositive penalties.
         if(irregularA>=3 && irregularB>=3 && shiftedCross>=3 &&
-           BLResearchDisjointSquarePair(path->board)>0 &&
+           BLResearchDisjointSquarePair(path->board)>=2 &&
            BLResearchFreeFragmentationPenalty(path->board)>=-400 &&
            // Heavy-tail hypothesis after holdouts 288/289: preserve an exact
            // horizontal OR vertical five-cell bar landing before rewarding
