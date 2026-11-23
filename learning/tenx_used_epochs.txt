@@ -594,3 +594,10 @@
 855
 856
 857
+
+# 2026-11-23 shifted-cross zero-fit both-finalist rerank bounded attempt; immutable workflow snapshot 7970f738. Hazard 873/878, policy 879, paired holdouts 885/886. 570 distinct raw starts against 437 documented epochs; external/local history incomplete. Reserved AFTER workflow snapshot; do not replay or promote without independent strict gates.
+873
+878
+879
+885
+886
