@@ -61,6 +61,21 @@ class AdmissionCompilationGuard(unittest.TestCase):
         self.assertRegex(active, r"quality\s*\+=\s*90\s*\*")
         self.assertRegex(active, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
 
+    def test_shifted_cross_zero_fit_penalty_covers_both_finalist_pools(self):
+        # A combo-preserving choice must not bypass the same observable
+        # crowded-board risk penalty used by the ordinary smart finalist.
+        raw = strip_c_comments(SOURCE.read_text())
+        for pool in ("topAll", "topCombo"):
+            predicate = (
+                f"64-bits(ctx->{pool}[i].board)<24 &&"
+                f"fit(ctx->{pool}[i].board,UINT64_C(0x20702),3,3)==0"
+            )
+            self.assertIn(predicate, re.sub(r"\\s+", "", raw))
+            self.assertRegex(
+                raw,
+                rf"fit\\(ctx->{pool}\\[i\\]\\.board,UINT64_C\\(0x20702\\),3,3\\)==0\\)\\s*\\?\\s*500\\s*:\\s*0"
+            )
+
     def test_two_bar_landings_are_required_in_active_source(self):
         active = strip_c_comments(SOURCE.read_text())
         self.assertIn("fit(path->board,UINT64_C(0x1f),5,1)>=2", active)
