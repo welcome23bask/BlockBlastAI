@@ -587,3 +587,10 @@
 813
 819
 827
+
+# 2026-11-23 four-line secondary crowded-bonus bounded attempt; immutable workflow snapshot f721a6b9. Hazard train/validation 850/851, policy train 855, paired holdouts 856/857; 570 raw starts unique vs 432 documented epochs. Reserved AFTER workflow snapshot; Actions trigger confirmation pending; external/local history incomplete. Never replay if preflight/build fails.
+850
+851
+855
+856
+857
