@@ -545,3 +545,10 @@
 520
 521
 522
+
+# 2026-11-23 shifted-heavy exact sequential-pair research; immutable workflow snapshot 655d1eef; hazard 258/259, policy 423, paired holdouts 524/526. 570 raw starts distinct from 402 documented reserved epochs; external/local history incomplete. Reserved AFTER workflow snapshot, never replay on failure.
+258
+259
+423
+524
+526
