@@ -70,10 +70,10 @@ class AdmissionCompilationGuard(unittest.TestCase):
                 f"64-bits(ctx->{pool}[i].board)<24&&"
                 f"fit(ctx->{pool}[i].board,UINT64_C(0x20702),3,3)==0"
             )
-            self.assertIn(predicate, re.sub(r"\\s+", "", raw))
+            self.assertIn(predicate, re.sub(r"\s+", "", raw))
             self.assertRegex(
                 raw,
-                rf"fit\\(ctx->{pool}\\[i\\]\\.board,UINT64_C\\(0x20702\\),3,3\\)==0\\)\\s*\\?\\s*500\\s*:\\s*0"
+                rf"fit\(ctx->{pool}\[i\]\.board,UINT64_C\(0x20702\),3,3\)==0\)\s*\?\s*500\s*:\s*0"
             )
 
     def test_two_bar_landings_are_required_in_active_source(self):
