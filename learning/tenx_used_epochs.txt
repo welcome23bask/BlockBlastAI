@@ -517,3 +517,10 @@
 377
 378
 379
+
+# 2026-11-22 guard-regex repair bounded bar-access retry; immutable workflow snapshot fa484332; hazard 404/405, policy 406, paired holdouts 408/409. 570 raw starts disjoint from 382 documented epochs; external/local history incomplete. Reserved AFTER workflow snapshot, even if Actions trigger delayed or fails; never replay.
+404
+405
+406
+408
+409
