@@ -67,7 +67,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         raw = strip_c_comments(SOURCE.read_text())
         for pool in ("topAll", "topCombo"):
             predicate = (
-                f"64-bits(ctx->{pool}[i].board)<24 &&"
+                f"64-bits(ctx->{pool}[i].board)<24&&"
                 f"fit(ctx->{pool}[i].board,UINT64_C(0x20702),3,3)==0"
             )
             self.assertIn(predicate, re.sub(r"\\s+", "", raw))
