@@ -84,7 +84,7 @@ class AdmissionCompilationGuard(unittest.TestCase):
         body = executable[start:end]
         self.assertRegex(body, r"if\s*\(\s*irregularA\s*>=\s*3\s*&&\s*irregularB\s*>=\s*3\s*&&\s*shiftedCross\s*>=\s*3\s*&&\s*pair_fits_now\s*\(\s*path->board\s*,\s*UINT64_C\s*\(\s*0x20303\s*\)\s*,\s*3\s*,\s*3\s*,\s*UINT64_C\s*\(\s*0x20702\s*\)\s*,\s*3\s*,\s*3\s*\)\s*&&\s*pair_fits_now\s*\(\s*path->board\s*,\s*UINT64_C\s*\(\s*0x20702\s*\)\s*,\s*3\s*,\s*3\s*,\s*UINT64_C\s*\(\s*0x20303\s*\)\s*,\s*3\s*,\s*3\s*\)\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>=\s*3\s*&&\s*BLResearchFreeFragmentationPenalty\s*\(\s*path->board\s*\)\s*>=\s*-400\s*&&\s*\(\s*fit\s*\(\s*path->board\s*,\s*UINT64_C\s*\(\s*0x1f\s*\)\s*,\s*5\s*,\s*1\s*\)\s*>=\s*2\s*\|\|\s*fit\s*\(\s*path->board\s*,\s*UINT64_C\s*\(\s*0x0101010101\s*\)\s*,\s*1\s*,\s*5\s*\)\s*>=\s*2\s*\)\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->misses\s*==\s*0\s*&&\s*path->lines\s*>=\s*2\s*&&\s*64\s*-\s*bits\s*\(\s*path->board\s*\)\s*>=\s*12\s*\)")
         self.assertRegex(body, r"quality\s*\+=\s*90\s*\*")
-        self.assertRegex(body, r"quality\s*\+=\s*90\s*\*\s*\(\s*path->streak\s*>=\s*2\s*\)")
+        self.assertRegex(body, r"quality\s*\+=\s*90\s*\*\s*\(\s*path->streak\s*>=\s*3\s*\)")
         self.assertRegex(body, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
         self.assertIn("irregularA<shiftedCross?irregularA:shiftedCross", body)
         self.assertIn("if (64-bits(path->board)<24)", body)
