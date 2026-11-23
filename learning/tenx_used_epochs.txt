@@ -503,3 +503,10 @@
 285
 288
 289
+
+# 2026-11-22 heavy-bar-access bounded research, workflow snapshot cb856dcf; hazard 344/345, policy 346, paired holdouts 348/349. 570 distinct raw starts vs 372 documented reserved epochs; external/local history incomplete. Reserved AFTER workflow snapshot; no checkpoint promotion.
+344
+345
+346
+348
+349
