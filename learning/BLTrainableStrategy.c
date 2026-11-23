@@ -1276,6 +1276,14 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
             +550*
             BLResearchPairCoverage(ctx->topAll[i].board)
+            // Research-only lower-tail hypothesis after paired 856/857:
+            // crowded shifted-heavy boards with ZERO exact shifted-cross
+            // landings can be deceptively attractive despite pair coverage.
+            // Penalize only this visible-board zero-fit bottleneck; do not
+            // predict future pieces, alter legality, or touch v1.7.
+            - ((64-bits(ctx->topAll[i].board)<24 &&
+                fit(ctx->topAll[i].board,UINT64_C(0x20702),3,3)==0)
+               ? 500 : 0)
             + ((bits(ctx->topAll[i].board)>36 &&
                 (fit(ctx->topAll[i].board,UINT64_C(0x70707),3,3)==0 ||
                  fit(ctx->topAll[i].board,UINT64_C(0x1f),5,1)==0 ||
