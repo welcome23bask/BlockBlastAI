@@ -1,0 +1,9 @@
+# 2026-11-23: shifted-cross crowded zero-fit penalty also for combo finalists
+
+Scope: feature/v2.2-10x-research-gate only. Exact workflow, runner, cross-role ledger and prior shifted-cross hypothesis log were fetched. Latest completed paired evidence remains Actions 45248510468, artifact 14856330345: strict gates failed, shifted-heavy holdout 857 p10 0.8947x; no checkpoint promoted.
+
+Source audit identified a concrete hypothesis-coverage defect: the newly introduced 500-point shifted-cross zero-fit penalty was applied only to topAll final reranking, while topCombo final reranking had no equivalent term. Thus a combo-preserving candidate could bypass the intended crowded lower-tail risk control. Research-only commit d8caab40750b6bb193843a3e605be5228165d473 applies the identical visible-board geometry condition (fewer than 24 free cells and zero legal 0x20702 placements) to the combo pool. Commit 1da4f4c7c4a1e9bf6f32303d7b00675789e22806 adds a source-level regression assertion covering both pools. This is a distinct, bounded strategy fix, not proof of a performance gain.
+
+No new training or simulation run was triggered: the available GitHub connector can read known Actions run jobs/logs but cannot list repository-wide active Actions runs, so non-overlap was not verifiable. The workflow still references reserved epochs 850/851/855/856/857 and must not be triggered unchanged. Next eligible run: verify no overlapping runs, audit five fresh epochs against ledger, accessible Actions history and raw PRNG aliases, update only .github/workflows/v22-tenx.yml to trigger its push workflow, preflight before training, then compare unchanged v1.7 in independent paired normal/heavy/shifted-heavy holdouts. Preserve failed artifacts and strict gates. Historical external/local seed use remains incomplete.
+
+No live v3.4, main, deployment, validated checkpoint, or v1.7 baseline edits. No independently reproduced 10x success and no real-game score claim.
