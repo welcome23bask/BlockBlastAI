@@ -552,3 +552,10 @@
 423
 524
 526
+
+# 2026-11-23 corrected shifted-heavy sequential-pair bounded attempt, immutable workflow snapshot 1e022152. Hazard 527/545, policy 548, paired holdouts 563/580. 570 distinct raw starts vs 407 documented reservations; external history incomplete. Reserved AFTER trigger; never replay.
+527
+545
+548
+563
+580
