@@ -1391,6 +1391,12 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
             +550*
             BLResearchPairCoverage(ctx->topCombo[i].board)
+            // Apply the same observable shifted-cross zero-fit penalty to the
+            // combo-preserving finalist pool; otherwise combo selection bypasses
+            // the crowded lower-tail hypothesis entirely.
+            - ((64-bits(ctx->topCombo[i].board)<24 &&
+                fit(ctx->topCombo[i].board,UINT64_C(0x20702),3,3)==0)
+               ? 500 : 0)
             + ((bits(ctx->topCombo[i].board)>36 &&
                 (fit(ctx->topCombo[i].board,UINT64_C(0x70707),3,3)==0 ||
                  fit(ctx->topCombo[i].board,UINT64_C(0x1f),5,1)==0 ||
