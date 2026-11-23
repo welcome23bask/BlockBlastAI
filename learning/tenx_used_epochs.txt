@@ -559,3 +559,10 @@
 548
 563
 580
+
+# 2026-11-23 bidirectional shifted-heavy exact sequential-pair bounded test; immutable workflow 1724c42e, Actions 45169148140 observed running BEFORE ledger update. Hazard 605/606, policy 607, paired holdouts 608/623; 570 distinct raw starts vs 412 documented epochs. External/local history incomplete; never replay or promote without strict independent replication.
+605
+606
+607
+608
+623
