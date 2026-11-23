@@ -50,11 +50,11 @@ class AdmissionCompilationGuard(unittest.TestCase):
         # The C preprocessor expands UINT64_C(0x...) to suffixed integer
         # literals. Check the active predicate in preprocessed code without
         # requiring the unexpanded macro spelling (source test below does).
-        compact = re.sub(r"\\s+", "", active)
+        compact = re.sub(r"\s+", "", active)
         self.assertIn("if(irregularA>=3&&irregularB>=3&&shiftedCross>=3&&", compact)
         self.assertIn("BLResearchFreeFragmentationPenalty(path->board)>=-400", compact)
-        self.assertRegex(active, r"fit\\s*\\(\\s*path->board\\s*,\\s*0x1f(?:UL|LU|U|L)?\\s*,\\s*5\\s*,\\s*1\\s*\\)")
-        self.assertRegex(active, r"fit\\s*\\(\\s*path->board\\s*,\\s*0x0101010101(?:UL|LU|U|L)?\\s*,\\s*1\\s*,\\s*5\\s*\\)")
+        self.assertRegex(active, r"fit\s*\(\s*path->board\s*,\s*0x1f(?:UL|LU|U|L)?\s*,\s*5\s*,\s*1\s*\)")
+        self.assertRegex(active, r"fit\s*\(\s*path->board\s*,\s*0x0101010101(?:UL|LU|U|L)?\s*,\s*1\s*,\s*5\s*\)")
         self.assertIn("path->broken==0&&path->misses==0&&path->lines>=2&&64-bits(path->board)>=12", compact)
         self.assertRegex(active, r"quality\s*\+=\s*90\s*\*")
         self.assertRegex(active, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
