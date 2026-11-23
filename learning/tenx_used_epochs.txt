@@ -510,3 +510,10 @@
 346
 348
 349
+
+# 2026-11-22 corrected preprocessor guard bar-access retry; workflow snapshot 394ab3f1; hazard 375/376, policy 377, holdouts 378/379. Audited 377 prior documented epochs, 570 distinct starts; external/local history incomplete. Reserved AFTER workflow snapshot.
+375
+376
+377
+378
+379
