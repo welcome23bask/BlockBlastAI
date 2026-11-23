@@ -566,3 +566,10 @@
 607
 608
 623
+
+# 2026-11-23 three-clear both-bonus research, workflow snapshot 7731f037, Actions 45211412495 queued BEFORE reservation. Hazard 660/661, policy 666, holdouts 667/668. 570 distinct raw starts against 417 documented reservations; external/local history incomplete.
+660
+661
+666
+667
+668
