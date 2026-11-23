@@ -538,3 +538,10 @@
 458
 459
 464
+
+# 2026-11-23 three-disjoint-square-pair heavy-tail bounded attempt; immutable workflow 29a39d63, Actions 45140079160 queued BEFORE reservation. Hazard 485/494, policy 520, paired holdouts 521/522; 570 raw starts unique against 397 documented epochs; external/local history incomplete. Never replay or promote unverified weights.
+485
+494
+520
+521
+522
