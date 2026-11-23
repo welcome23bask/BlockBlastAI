@@ -1142,7 +1142,7 @@ static void record_afterstate(BLPath pool[BL_FUTURE_TOP],
                          // two legal placements; outer gate still accepts either axis.
                          fit(path->board,UINT64_C(0x1f),5,1)>=2 &&
                          fit(path->board,UINT64_C(0x0101010101),1,5)>=2 &&
-                         path->misses==0 && path->lines>=2 && 64-bits(path->board)<20);
+                         path->misses==0 && path->lines>=3 && 64-bits(path->board)<20);
     }
     for(int i=0;i<*count;++i) {
         // Research-only shifted-heavy hypothesis: a one- or two-cell
