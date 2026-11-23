@@ -573,3 +573,10 @@
 666
 667
 668
+
+# 2026-11-23 bidirectional-bar secondary-bonus ablation; immutable workflow 50b2299e / Actions 45220974141 verified in progress BEFORE reservation. Hazard 704/709, policy 714, paired holdouts 725/726; 570 raw starts disjoint vs 422 documented epochs. External/local history incomplete. No promotion.
+704
+709
+714
+725
+726
