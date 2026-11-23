@@ -531,3 +531,10 @@
 433
 434
 435
+
+# 2026-11-23 disjoint-square >=2 + two-bar research attempt; workflow snapshot 5410c700; hazard 456/457, policy 458, paired holdouts 459/464. 570 distinct raw starts vs 392 documented epochs; external/local history incomplete. Reserved AFTER workflow commit; never replay on failure.
+456
+457
+458
+459
+464
