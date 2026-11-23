@@ -524,3 +524,10 @@
 406
 408
 409
+
+# 2026-11-23 two-bar escape-lane first bounded attempt; immutable workflow snapshot efb9abf; hazard 430/431, policy 433, paired holdouts 434/435. 570 distinct raw starts against 387 documented epochs; external/local history incomplete. Reserved AFTER workflow snapshot, no promotion.
+430
+431
+433
+434
+435
