@@ -601,3 +601,10 @@
 879
 885
 886
+
+# 2026-11-23 corrected shifted-cross preflight regex attempt; immutable workflow 8937f0bd. Hazard 887/888, policy 889, independent holdouts 892/910. 570 unique raw starts vs 442 documented epochs. Reserved AFTER workflow snapshot; external/local history incomplete. Never reuse on preflight failure.
+887
+888
+889
+892
+910
