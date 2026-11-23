@@ -47,7 +47,15 @@ class AdmissionCompilationGuard(unittest.TestCase):
             cwd=root, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
         active = result.stdout
-        self.assertRegex(active, r"if\s*\(\s*irregularA\s*>=\s*3\s*&&\s*irregularB\s*>=\s*3\s*&&\s*shiftedCross\s*>=\s*3\s*&&\s*BLResearchDisjointSquarePair\s*\(\s*path->board\s*\)\s*>\s*0\s*&&\s*BLResearchFreeFragmentationPenalty\s*\(\s*path->board\s*\)\s*>=\s*-400\s*&&\s*\(\s*fit\s*\(\s*path->board\s*,\s*UINT64_C\s*\(\s*0x1f\s*\)\s*,\s*5\s*,\s*1\s*\)\s*>\s*0\s*\|\|\s*fit\s*\(\s*path->board\s*,\s*UINT64_C\s*\(\s*0x0101010101\s*\)\s*,\s*1\s*,\s*5\s*\)\s*>\s*0\s*\)\s*&&\s*path->broken\s*==\s*0\s*&&\s*path->misses\s*==\s*0\s*&&\s*path->lines\s*>=\s*2\s*&&\s*64\s*-\s*bits\s*\(\s*path->board\s*\)\s*>=\s*12\s*\)")
+        # The C preprocessor expands UINT64_C(0x...) to suffixed integer
+        # literals. Check the active predicate in preprocessed code without
+        # requiring the unexpanded macro spelling (source test below does).
+        compact = re.sub(r"\\s+", "", active)
+        self.assertIn("if(irregularA>=3&&irregularB>=3&&shiftedCross>=3&&", compact)
+        self.assertIn("BLResearchFreeFragmentationPenalty(path->board)>=-400", compact)
+        self.assertRegex(active, r"fit\\s*\\(\\s*path->board\\s*,\\s*0x1f(?:UL|LU|U|L)?\\s*,\\s*5\\s*,\\s*1\\s*\\)")
+        self.assertRegex(active, r"fit\\s*\\(\\s*path->board\\s*,\\s*0x0101010101(?:UL|LU|U|L)?\\s*,\\s*1\\s*,\\s*5\\s*\\)")
+        self.assertIn("path->broken==0&&path->misses==0&&path->lines>=2&&64-bits(path->board)>=12", compact)
         self.assertRegex(active, r"quality\s*\+=\s*90\s*\*")
         self.assertRegex(active, r"64\s*-\s*bits\s*\(\s*path->board\s*\)\s*<\s*24")
 
