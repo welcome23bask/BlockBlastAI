@@ -1269,13 +1269,22 @@ static int BLResearchCrowdedPairFailure(uint64_t board) {
 #endif
 #if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
 int BLResearchHazardPenalty(uint64_t board, int streak);
+// Local diagnostic: hazard reranking improved heavy survival, but introduced
+// extra immediate-clear deadline misses. Do not alter the incumbent finalist
+// ordering once an observed live streak has already spent one or more misses.
+// This guard is not a promise of global combo safety; holdout gates still apply.
+static int guarded_hazard_penalty(const BLSearch *ctx, const BLPath *path) {
+    if(ctx->initial.known && ctx->initial.streak>0 && ctx->initial.misses>=1)
+        return 0;
+    return BLResearchHazardPenalty(path->board,path->streak);
+}
 #endif
 static void rerank_afterstates(BLSearch *ctx) {
     int best=INT_MIN;
     for(int i=0;i<ctx->topAllN;++i) {
         int utility=ctx->topAllQ[i]
 #if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
-            -BLResearchHazardPenalty(ctx->topAll[i].board,ctx->topAll[i].streak)
+            -guarded_hazard_penalty(ctx,&ctx->topAll[i])
 #endif
             
 #if BL_RESEARCH_MIN_HARD_COVERAGE
@@ -1379,7 +1388,7 @@ static void rerank_afterstates(BLSearch *ctx) {
     for(int i=0;i<ctx->topRiskN;++i) {
         int utility=ctx->topRiskQ[i]
 #if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
-            -BLResearchHazardPenalty(ctx->topRisk[i].board,ctx->topRisk[i].streak)
+            -guarded_hazard_penalty(ctx,&ctx->topRisk[i])
 #endif
             +550*
             BLResearchPairCoverage(ctx->topRisk[i].board);
@@ -1398,7 +1407,7 @@ static void rerank_afterstates(BLSearch *ctx) {
     for(int i=0;i<ctx->topComboN;++i) {
         int utility=ctx->topComboQ[i]
 #if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
-            -BLResearchHazardPenalty(ctx->topCombo[i].board,ctx->topCombo[i].streak)
+            -guarded_hazard_penalty(ctx,&ctx->topCombo[i])
 #endif
             
 #if BL_RESEARCH_MIN_HARD_COVERAGE
@@ -1498,7 +1507,7 @@ static void rerank_afterstates(BLSearch *ctx) {
     for(int i=0;i<ctx->topComboRiskN;++i) {
         int utility=ctx->topComboRiskQ[i]
 #if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
-            -BLResearchHazardPenalty(ctx->topComboRisk[i].board,ctx->topComboRisk[i].streak)
+            -guarded_hazard_penalty(ctx,&ctx->topComboRisk[i])
 #endif
             +550*
             BLResearchPairCoverage(ctx->topComboRisk[i].board);
