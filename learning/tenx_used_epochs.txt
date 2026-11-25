@@ -615,3 +615,10 @@
 673
 772
 828
+
+# 2026-11-25 calibrated hazard-policy + imminent-combo guard; immutable workflow snapshot 5229fe2a / Actions 45692274362 observed running with successful preflight BEFORE reservation. Hazard 829/840, policy 842, independent holdouts 911/916. 570 unique raw RNG starts vs 452 documented epochs, external/local history incomplete. Conservatively reserve all roles; do not replay on failure. No promotion.
+829
+840
+842
+911
+916
