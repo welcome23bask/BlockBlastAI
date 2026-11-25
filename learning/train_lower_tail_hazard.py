@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Research-only, bounded, deterministic lower-tail hazard calibration.
 
-This is an OFFLINE training component, not wired into the gameplay policy.
+This is an OFFLINE training component; only separately validated models may feed the optional research policy.
 Input CSV columns: epoch,scenario,game,tray,finalist,split,dead_within_3,censored,
 occupied,square_fits,hbar_fits,vbar_fits,hard_zero,
 largest_free,pockets,combo_streak,future_clear.
@@ -78,33 +78,55 @@ def load(path):
 def sigmoid(z):
     return 1. / (1. + math.exp(-max(-35., min(35., z))))
 
-# Research-only hypothesis: weaker L2 shrinkage may resolve heavy-board hazard underfitting;
-# require independent per-generator Brier diagnostics before any policy integration.
-def fit(rows, epochs=300, rate=0.25, regularization=0.02):
+# Fit the same scenario-blind logistic model against the actual calibration
+# criterion, not just pooled cross-entropy. All weights, reference priors and
+# optimizer state come from training rows only. The fresh validation gate is
+# unchanged. Smooth worst-generator excess Brier gives struggling generators
+# more gradient mass without reading their identities at inference.
+def fit(rows, epochs=300, rate=0.25, regularization=0.001):
     data = [r for r in rows if r[2] == "train"]
-    w = [0.] * (len(FEATURES) + 1)
-    # Equalize generator contributions rather than fitting the easiest
-    # scenario. The generator identity is NEVER an inference feature.
-    counts = {s: sum(r[1] == s for r in data)
-              for s in ("normal", "heavy", "shifted-heavy")}
-    # Equalize independent source episodes, not the number of legal finalists
-    # exported from a board. Otherwise boards with many candidates dominate.
-    episode_counts = {}
-    for row in data:
-        episode_counts[row[5]] = episode_counts.get(row[5], 0) + 1
-    generator_episodes = {scenario: len({r[5] for r in data if r[1] == scenario})
-                          for scenario in counts}
-    for _ in range(epochs):
-        grad = [0.] * len(w)
-        for _, scenario, _, y, x, episode in data:
-            error = sigmoid(sum(a*b for a, b in zip(w, x))) - y
-            weight = 1. / (3. * generator_episodes[scenario] * episode_counts[episode])
-            for j in range(len(w)):
-                grad[j] += weight * error * x[j]
+    scenarios = ("normal", "heavy", "shifted-heavy")
+    groups = {}
+    for scenario in scenarios:
+        group = [r for r in data if r[1] == scenario]
+        counts = {}
+        for r in group:
+            counts[r[5]] = counts.get(r[5], 0) + 1
+        if not counts:
+            raise ValueError("Missing training generator: " + scenario)
+        weighted = [(r[3], r[4], 1. / (len(counts)*counts[r[5]])) for r in group]
+        prior = sum(y*mass for y,x,mass in weighted)
+        reference = sum(mass*(prior-y)**2 for y,x,mass in weighted)
+        groups[scenario] = (weighted, reference, prior)
+    prior = max(.001, min(.999, sum(groups[s][2] for s in scenarios)/3.))
+    w = [math.log(prior/(1.-prior))] + [0.] * len(FEATURES)
+    m, v = [0.]*len(w), [0.]*len(w)
+    # Fixed optimizer and smooth-max temperature: no validation-driven search.
+    temperature = .025
+    for step in range(1, epochs+1):
+        excess, gradients = [], []
+        for scenario in scenarios:
+            group, reference, _ = groups[scenario]
+            loss = 0.
+            grad = [0.]*len(w)
+            for y,x,mass in group:
+                p = sigmoid(sum(a*b for a,b in zip(w,x)))
+                loss += mass*(p-y)**2
+                d = 2.*mass*(p-y)*p*(1.-p)
+                for j in range(len(w)):
+                    grad[j] += d*x[j]
+            excess.append(loss-reference)
+            gradients.append(grad)
+        top = max(excess)
+        importance = [math.exp((e-top)/temperature) for e in excess]
+        denom = sum(importance)
         for j in range(len(w)):
+            g = sum(q*grad[j] for q,grad in zip(importance,gradients))/denom
             if j:
-                grad[j] += regularization * w[j]
-            w[j] -= rate * grad[j]
+                g += regularization*w[j]
+            m[j] = .9*m[j]+.1*g
+            v[j] = .999*v[j]+.001*g*g
+            w[j] -= (rate/10.)*(m[j]/(1.-.9**step))/(math.sqrt(v[j]/(1.-.999**step))+1e-8)
     return w
 
 def metrics(rows, w, split):
@@ -189,7 +211,8 @@ def main():
               "validation":validation,
               "per_epoch_validation":epoch_validation,
               "all_generator_brier_not_worse_than_constant":safe,
-              "limitations":"No game policy integration, no holdout tests, no 10x claim"}
+              "fit_objective":"training-only smooth worst-generator excess Brier, episode-balanced Adam",
+              "limitations":"Model calibration only; no holdout gameplay evidence or 10x claim"}
     a.output.write_text(json.dumps(result, indent=2)+"\n", encoding="utf-8")
     print(json.dumps(result, sort_keys=True))
 
