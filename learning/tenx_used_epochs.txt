@@ -608,3 +608,10 @@
 889
 892
 910
+
+# 2026-11-25 isolated local beam-search hazard diagnostic (not v1.7); fit 642, validation 649, development 673, paired diagnostic holdouts 772/828. 570 raw starts audited vs 447 documented epochs. Failed policy gates; no workflow trigger or promotion. Conservative cross-role reservation, external/local history incomplete.
+642
+649
+673
+772
+828
