@@ -1267,10 +1267,17 @@ static int BLResearchCrowdedPairFailure(uint64_t board) {
            -((shiftedDeadEnd && feasible==0 && !hasShiftedRescue)?650:0);
 }
 #endif
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+int BLResearchHazardPenalty(uint64_t board, int streak);
+#endif
 static void rerank_afterstates(BLSearch *ctx) {
     int best=INT_MIN;
     for(int i=0;i<ctx->topAllN;++i) {
         int utility=ctx->topAllQ[i]
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+            -BLResearchHazardPenalty(ctx->topAll[i].board,ctx->topAll[i].streak)
+#endif
+            
 #if BL_RESEARCH_MIN_HARD_COVERAGE
             + 450*worst_hard_coverage(ctx->topAll[i].board)
 #endif
@@ -1370,7 +1377,11 @@ static void rerank_afterstates(BLSearch *ctx) {
     // Crucial difference from iteration 36: rare-shape-aware finalists
     // compete with ordinary finalists, not only AFTER quality truncation.
     for(int i=0;i<ctx->topRiskN;++i) {
-        int utility=ctx->topRiskQ[i]+550*
+        int utility=ctx->topRiskQ[i]
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+            -BLResearchHazardPenalty(ctx->topRisk[i].board,ctx->topRisk[i].streak)
+#endif
+            +550*
             BLResearchPairCoverage(ctx->topRisk[i].board);
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topRisk[i].board);
@@ -1386,6 +1397,10 @@ static void rerank_afterstates(BLSearch *ctx) {
     best=INT_MIN;
     for(int i=0;i<ctx->topComboN;++i) {
         int utility=ctx->topComboQ[i]
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+            -BLResearchHazardPenalty(ctx->topCombo[i].board,ctx->topCombo[i].streak)
+#endif
+            
 #if BL_RESEARCH_MIN_HARD_COVERAGE
             + 450*worst_hard_coverage(ctx->topCombo[i].board)
 #endif
@@ -1481,7 +1496,11 @@ static void rerank_afterstates(BLSearch *ctx) {
     }
 #if BL_RESEARCH_DUAL_POOL && BL_RESEARCH_MIN_HARD_COVERAGE
     for(int i=0;i<ctx->topComboRiskN;++i) {
-        int utility=ctx->topComboRiskQ[i]+550*
+        int utility=ctx->topComboRiskQ[i]
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+            -BLResearchHazardPenalty(ctx->topComboRisk[i].board,ctx->topComboRisk[i].streak)
+#endif
+            +550*
             BLResearchPairCoverage(ctx->topComboRisk[i].board);
 #if BL_RESEARCH_NEXT_TRAY_ROLLOUT
         utility+=BLResearchSampledFutureBonus(ctx->topComboRisk[i].board);
