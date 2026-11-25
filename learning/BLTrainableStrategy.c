@@ -1279,7 +1279,50 @@ static int guarded_hazard_penalty(const BLSearch *ctx, const BLPath *path) {
     return BLResearchHazardPenalty(path->board,path->streak);
 }
 #endif
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+// Crowded-board hazard frontier: a second decision stage, not a larger
+// additive coefficient. Compare only already legal, complete tray paths.
+// Do not sacrifice an existing hard-family landing or combo state.
+static unsigned hazard_hard_mask(uint64_t b) {
+    static const struct {uint64_t m; int w,h;} shapes[]={
+        {0x70707,3,3},{0x1f,5,1},{0x0101010101,1,5},{0x30303,2,3},
+        {0x40603,3,3},{0x507,3,2},{0x705,3,2},{0x701,3,2},
+        {0x704,3,2},{0x20303,3,3},{0x20702,3,3}
+    };
+    unsigned mask=0;
+    for(unsigned i=0;i<sizeof(shapes)/sizeof(shapes[0]);++i)
+        if(fit(b,shapes[i].m,shapes[i].w,shapes[i].h)>0)mask|=1u<<i;
+    return mask;
+}
+static void hazard_frontier(const BLSearch *ctx,const BLPath *pool,
+                            const int *utilities,int n,BLPath *chosen,int *quality) {
+    if(chosen->depth!=ctx->total || bits(chosen->board)<28 ||
+       (ctx->initial.known && ctx->initial.streak>0 && ctx->initial.misses>=1))
+        return;
+    const BLPath incumbent=*chosen;
+    const int incumbentQ=*quality;
+    const unsigned available=hazard_hard_mask(incumbent.board);
+    int bestRisk=BLResearchHazardPenalty(incumbent.board,incumbent.streak);
+    for(int i=0;i<n;++i) {
+        const BLPath *p=&pool[i];
+        if(p->depth!=ctx->total || p->broken>incumbent.broken ||
+           p->seenClear<incumbent.seenClear || p->streak<incumbent.streak ||
+           p->misses>incumbent.misses || utilities[i]<incumbentQ-1600)
+            continue;
+        if((hazard_hard_mask(p->board)&available)!=available)continue;
+        const int risk=BLResearchHazardPenalty(p->board,p->streak);
+        if(risk<bestRisk) {
+            bestRisk=risk;
+            *chosen=*p;
+            *quality=utilities[i];
+        }
+    }
+}
+#endif
 static void rerank_afterstates(BLSearch *ctx) {
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+    int allUtilities[BL_FUTURE_TOP]={0},comboUtilities[BL_FUTURE_TOP]={0};
+#endif
     int best=INT_MIN;
     for(int i=0;i<ctx->topAllN;++i) {
         int utility=ctx->topAllQ[i]
@@ -1374,6 +1417,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #endif
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topAll[i].board);
+#endif
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+        allUtilities[i]=utility;
 #endif
         if(utility>best) {
             best=utility;
@@ -1496,6 +1542,9 @@ static void rerank_afterstates(BLSearch *ctx) {
 #if BL_RESEARCH_HARD_RESCUE_CHAIN
         utility+=BLResearchHardRescueChain(ctx->topCombo[i].board);
 #endif
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+        comboUtilities[i]=utility;
+#endif
         if(utility>best) {
             best=utility;
             ctx->smartComboPath=ctx->topCombo[i];
@@ -1521,6 +1570,12 @@ static void rerank_afterstates(BLSearch *ctx) {
             ctx->haveSmartCombo=1;
         }
     }
+#endif
+#if defined(BL_RESEARCH_LEARNED_HAZARD) && BL_RESEARCH_LEARNED_HAZARD
+    if(ctx->topAllN && ctx->haveSmart)
+        hazard_frontier(ctx,ctx->topAll,allUtilities,ctx->topAllN,&ctx->smartPath,&ctx->smartQuality);
+    if(ctx->topComboN && ctx->haveSmartCombo)
+        hazard_frontier(ctx,ctx->topCombo,comboUtilities,ctx->topComboN,&ctx->smartComboPath,&ctx->smartComboQuality);
 #endif
 }
 #endif // BL_RESEARCH_PAIR_LOOKAHEAD
