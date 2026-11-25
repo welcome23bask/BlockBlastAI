@@ -629,3 +629,10 @@
 934
 938
 939
+
+# 2026-11-25 crowded constrained learned hazard frontier; immutable workflow 729a4294 / Actions 45695313745 confirmed in_progress before reservation. Hazard 945/946, policy 947, holdouts 948/975; 570 raw starts audited vs 462 documented epochs, external/local history incomplete. No replay or promotion.
+945
+946
+947
+948
+975
