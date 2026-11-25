@@ -121,12 +121,30 @@ cp src/BLDualStrategy.c src/BLDualStrategy.h src/BlockBlastSolver.c src/BlockBla
 cp learning/BLTrainableStrategy.c learning/train_tenx.c learning/learn_combo_guarded.c learning/tenx_checkpoint.txt "$work/learning/"
 # Included legacy trainer may use further includes from learning.
 cp learning/*.c "$work/learning/"
+# Opt-in only: use a calibrated model from the separate hazard epochs, not
+# holdout labels. Existing runs remain unchanged without TENX_HAZARD_MODEL_PATH.
+hazard_flags=()
+hazard_objects=()
+if [[ -n "${TENX_HAZARD_MODEL_PATH:-}" ]]; then
+  python3 -m unittest discover -s learning -p 'test_export_hazard_policy_header.py' -v
+  python3 learning/export_hazard_policy_header.py "$TENX_HAZARD_MODEL_PATH" \
+    "$work/learning/hazard_policy_model.generated.h" "$hazard_train" "$hazard_validation"
+  cp "$TENX_HAZARD_MODEL_PATH" "$evidence_dir/hazard-policy-model.json"
+  hazard_flags=(-DBL_RESEARCH_LEARNED_HAZARD=1)
+  hazard_objects=(hazard_bridge.o)
+fi
 cd "$work"
+if (( ${#hazard_objects[@]} )); then
+  cc -O3 -std=c11 -Wall -Wextra -Isrc -c learning/hazard_policy_bridge.c -o hazard_bridge.o
+  echo "HAZARD_POLICY=ENABLED calibrated independent model"
+else
+  echo "HAZARD_POLICY=DISABLED"
+fi
 cc -O3 -std=c11 -Wall -Wextra -Isrc -DBLFindTwoStrategies=BLV17FindTwoStrategies -c src/BLDualStrategy.c -o v17.o
-cc -O3 -std=c11 -Wall -Wextra -Isrc -c learning/BLTrainableStrategy.c -o trained.o
+cc -O3 -std=c11 -Wall -Wextra -Isrc "${hazard_flags[@]}" -c learning/BLTrainableStrategy.c -o trained.o
 cc -O3 -std=c11 -Wall -Wextra -Isrc -c src/BlockBlastSolver.c -o solver.o
-cc -O3 -std=c11 -Wall -Wextra -Isrc learning/train_tenx.c v17.o trained.o solver.o -lm -o tenx_lab
-cc -O2 -std=c11 -Wall -Wextra -Isrc learning/tenx_rules_selftest.c v17.o trained.o solver.o -lm -o tenx_rules_selftest
+cc -O3 -std=c11 -Wall -Wextra -Isrc learning/train_tenx.c v17.o trained.o solver.o "${hazard_objects[@]}" -lm -o tenx_lab
+cc -O2 -std=c11 -Wall -Wextra -Isrc learning/tenx_rules_selftest.c v17.o trained.o solver.o "${hazard_objects[@]}" -lm -o tenx_rules_selftest
 ./tenx_rules_selftest
 cp learning/tenx_checkpoint.txt tenx_checkpoint.txt
 echo "SOURCE_REVISION=$rev"
