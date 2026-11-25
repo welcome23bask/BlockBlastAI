@@ -1294,6 +1294,21 @@ static unsigned hazard_hard_mask(uint64_t b) {
         if(fit(b,shapes[i].m,shapes[i].w,shapes[i].h)>0)mask|=1u<<i;
     return mask;
 }
+// Exact visible-board two-copy rescue for the shifted cross: count first
+// landings that leave another legal cross after automatic line clearing.
+// This measures redundancy, not a prediction of the next hidden tray.
+static int hazard_cross_redundancy(uint64_t board) {
+    int count=0;
+    for(int row=0;row<=5;++row)
+        for(int col=0;col<=5;++col) {
+            uint64_t m=UINT64_C(0x20702)<<(8*row+col);
+            if(board&m)continue;
+            int lines=0;
+            uint64_t after=clear_full(board|m,&lines);
+            if(fit(after,UINT64_C(0x20702),3,3)>0)++count;
+        }
+    return count;
+}
 static void hazard_frontier(const BLSearch *ctx,const BLPath *pool,
                             const int *utilities,int n,BLPath *chosen,int *quality) {
     if(chosen->depth!=ctx->total || bits(chosen->board)<28 ||
@@ -1303,6 +1318,8 @@ static void hazard_frontier(const BLSearch *ctx,const BLPath *pool,
     const int incumbentQ=*quality;
     const unsigned available=hazard_hard_mask(incumbent.board);
     int bestRisk=BLResearchHazardPenalty(incumbent.board,incumbent.streak);
+    const int crossFloor=hazard_cross_redundancy(incumbent.board);
+    int bestCross=crossFloor;
     for(int i=0;i<n;++i) {
         const BLPath *p=&pool[i];
         if(p->depth!=ctx->total || p->broken>incumbent.broken ||
@@ -1311,7 +1328,13 @@ static void hazard_frontier(const BLSearch *ctx,const BLPath *pool,
             continue;
         if((hazard_hard_mask(p->board)&available)!=available)continue;
         const int risk=BLResearchHazardPenalty(p->board,p->streak);
-        if(risk<bestRisk) {
+        const int cross=hazard_cross_redundancy(p->board);
+        if(cross<crossFloor)continue;
+        // Prefer escaping a single fragile cross route, but never accept
+        // higher calibrated death risk than the original incumbent.
+        if(risk<=BLResearchHazardPenalty(incumbent.board,incumbent.streak) &&
+           (cross>bestCross || (cross==bestCross && risk<bestRisk))) {
+            bestCross=cross;
             bestRisk=risk;
             *chosen=*p;
             *quality=utilities[i];
