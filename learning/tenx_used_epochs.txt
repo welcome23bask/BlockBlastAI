@@ -622,3 +622,10 @@
 842
 911
 916
+
+# 2026-11-25 robust worst-generator Brier fit, bridge compile fixture and larger trace sample; immutable workflow 5957ca27 / Actions 45693527914 confirmed queued before reservation. Hazard 917/933, policy 934, independent holdouts 938/939; 570 raw starts audited vs 457 documented epochs. External/local history incomplete. Conservative reservation, never replay; no promotion.
+917
+933
+934
+938
+939
