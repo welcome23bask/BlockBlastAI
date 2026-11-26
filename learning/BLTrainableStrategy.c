@@ -1327,7 +1327,26 @@ static int hazard_cross_redundancy(uint64_t board) {
     }
     // Prefer coverage of shifted-cross transitions before redundant counts.
     // A zero worst pair previously erased distinctions among stranded families.
-    return 4096*shifted+256*covered+16*worst+total;
+    // Prioritize the least-covered first-piece family, rather than the
+    // shifted-cross count alone: a single stranded family can end a game.
+    // Count exact ordered pair feasibility per first family in a second pass.
+    int weakest=4;
+    for(unsigned i=0;i<4;++i) {
+        unsigned reachable=0;
+        for(int row=0;row<=8-shapes[i].h && reachable!=15;++row)
+            for(int col=0;col<=8-shapes[i].w && reachable!=15;++col) {
+                uint64_t m=shapes[i].m<<(8*row+col);
+                if(board&m)continue;
+                int lines=0;
+                uint64_t after=clear_full(board|m,&lines);
+                for(unsigned j=0;j<4;++j)
+                    if(fit(after,shapes[j].m,shapes[j].w,shapes[j].h)>0)
+                        reachable|=1u<<j;
+            }
+        int count=bits((uint64_t)reachable);
+        if(count<weakest)weakest=count;
+    }
+    return 8192*weakest+256*covered+32*shifted+16*worst+total;
 }
 static void hazard_frontier(const BLSearch *ctx,const BLPath *pool,
                             const int *utilities,int n,BLPath *chosen,int *quality) {
