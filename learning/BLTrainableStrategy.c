@@ -1299,26 +1299,29 @@ static unsigned hazard_hard_mask(uint64_t b) {
 // This measures redundancy, not a prediction of the next hidden tray.
 // Mixed-family two-piece feasibility: count first placements that leave
 // every other hard family playable after a clear. No hidden tray access.
+// Count ordered hard-family pairs that can actually be placed, including
+// line clears. Unlike the previous all-or-nothing continuation count,
+// retain information when one family is already blocked.
 static int hazard_cross_redundancy(uint64_t board) {
     static const struct {uint64_t m; int w,h;} shapes[]={
         {0x20702,3,3},{0x70707,3,3},{0x1f,5,1},{0x0101010101,1,5}
     };
     int worst=64,total=0;
     for(unsigned i=0;i<4;++i) {
-        int count=0;
+        int pair[4]={0};
         for(int row=0;row<=8-shapes[i].h;++row)
             for(int col=0;col<=8-shapes[i].w;++col) {
                 uint64_t m=shapes[i].m<<(8*row+col);
                 if(board&m)continue;
                 int lines=0;
                 uint64_t after=clear_full(board|m,&lines);
-                int viable=1;
                 for(unsigned j=0;j<4;++j)
-                    if(!fit(after,shapes[j].m,shapes[j].w,shapes[j].h)) {viable=0;break;}
-                count+=viable;
+                    pair[j]+=fit(after,shapes[j].m,shapes[j].w,shapes[j].h)>0;
             }
-        if(count<worst)worst=count;
-        total+=count;
+        for(unsigned j=0;j<4;++j) {
+            if(pair[j]<worst)worst=pair[j];
+            total+=pair[j]>8?8:pair[j];
+        }
     }
     return 256*worst+total;
 }
