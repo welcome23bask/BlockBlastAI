@@ -1306,7 +1306,7 @@ static int hazard_cross_redundancy(uint64_t board) {
     static const struct {uint64_t m; int w,h;} shapes[]={
         {0x20702,3,3},{0x70707,3,3},{0x1f,5,1},{0x0101010101,1,5}
     };
-    int worst=64,total=0;
+    int worst=64,total=0,covered=0,shifted=0;
     for(unsigned i=0;i<4;++i) {
         int pair[4]={0};
         for(int row=0;row<=8-shapes[i].h;++row)
@@ -1321,9 +1321,13 @@ static int hazard_cross_redundancy(uint64_t board) {
         for(unsigned j=0;j<4;++j) {
             if(pair[j]<worst)worst=pair[j];
             total+=pair[j]>8?8:pair[j];
+            covered+=pair[j]>0;
+            if(i==0 || j==0)shifted+=pair[j]>0;
         }
     }
-    return 256*worst+total;
+    // Prefer coverage of shifted-cross transitions before redundant counts.
+    // A zero worst pair previously erased distinctions among stranded families.
+    return 4096*shifted+256*covered+16*worst+total;
 }
 static void hazard_frontier(const BLSearch *ctx,const BLPath *pool,
                             const int *utilities,int n,BLPath *chosen,int *quality) {
