@@ -1297,13 +1297,14 @@ static unsigned hazard_hard_mask(uint64_t b) {
 // Exact visible-board two-copy rescue for the shifted cross: count first
 // landings that leave another legal cross after automatic line clearing.
 // This measures redundancy, not a prediction of the next hidden tray.
+// Mixed-family two-piece feasibility: count first placements that leave
+// every other hard family playable after a clear. No hidden tray access.
 static int hazard_cross_redundancy(uint64_t board) {
-    // Worst-family repeat feasibility, rather than optimizing cross alone.
     static const struct {uint64_t m; int w,h;} shapes[]={
         {0x20702,3,3},{0x70707,3,3},{0x1f,5,1},{0x0101010101,1,5}
     };
     int worst=64,total=0;
-    for(unsigned i=0;i<sizeof(shapes)/sizeof(shapes[0]);++i) {
+    for(unsigned i=0;i<4;++i) {
         int count=0;
         for(int row=0;row<=8-shapes[i].h;++row)
             for(int col=0;col<=8-shapes[i].w;++col) {
@@ -1311,7 +1312,10 @@ static int hazard_cross_redundancy(uint64_t board) {
                 if(board&m)continue;
                 int lines=0;
                 uint64_t after=clear_full(board|m,&lines);
-                if(fit(after,shapes[i].m,shapes[i].w,shapes[i].h)>0)++count;
+                int viable=1;
+                for(unsigned j=0;j<4;++j)
+                    if(!fit(after,shapes[j].m,shapes[j].w,shapes[j].h)) {viable=0;break;}
+                count+=viable;
             }
         if(count<worst)worst=count;
         total+=count;
