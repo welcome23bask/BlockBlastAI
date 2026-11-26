@@ -1298,16 +1298,25 @@ static unsigned hazard_hard_mask(uint64_t b) {
 // landings that leave another legal cross after automatic line clearing.
 // This measures redundancy, not a prediction of the next hidden tray.
 static int hazard_cross_redundancy(uint64_t board) {
-    int count=0;
-    for(int row=0;row<=5;++row)
-        for(int col=0;col<=5;++col) {
-            uint64_t m=UINT64_C(0x20702)<<(8*row+col);
-            if(board&m)continue;
-            int lines=0;
-            uint64_t after=clear_full(board|m,&lines);
-            if(fit(after,UINT64_C(0x20702),3,3)>0)++count;
-        }
-    return count;
+    // Worst-family repeat feasibility, rather than optimizing cross alone.
+    static const struct {uint64_t m; int w,h;} shapes[]={
+        {0x20702,3,3},{0x70707,3,3},{0x1f,5,1},{0x0101010101,1,5}
+    };
+    int worst=64,total=0;
+    for(unsigned i=0;i<sizeof(shapes)/sizeof(shapes[0]);++i) {
+        int count=0;
+        for(int row=0;row<=8-shapes[i].h;++row)
+            for(int col=0;col<=8-shapes[i].w;++col) {
+                uint64_t m=shapes[i].m<<(8*row+col);
+                if(board&m)continue;
+                int lines=0;
+                uint64_t after=clear_full(board|m,&lines);
+                if(fit(after,shapes[i].m,shapes[i].w,shapes[i].h)>0)++count;
+            }
+        if(count<worst)worst=count;
+        total+=count;
+    }
+    return 256*worst+total;
 }
 static void hazard_frontier(const BLSearch *ctx,const BLPath *pool,
                             const int *utilities,int n,BLPath *chosen,int *quality) {
