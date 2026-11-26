@@ -34,7 +34,7 @@ jobs:
           set -euo pipefail
           export PYTHONDONTWRITEBYTECODE=1
           python3 learning/check_tenx_workflow_epoch_consistency.py
-          TENX_PREFLIGHT_ONLY=1 TENX_HAZARD_TRAIN_EPOCH=999 TENX_HAZARD_VALIDATION_EPOCH=1012 TENX_TRAIN_SEED_EPOCH=1035 bash learning/run_tenx_reproducible.sh 1036 1037
+          TENX_PREFLIGHT_ONLY=1 TENX_HAZARD_TRAIN_EPOCH=1049 TENX_HAZARD_VALIDATION_EPOCH=1053 TENX_TRAIN_SEED_EPOCH=1058 bash learning/run_tenx_reproducible.sh 1059 1064
       - name: Research-only Python regressions and simulator-derived hazard learning
         shell: bash
         run: |
@@ -46,12 +46,12 @@ jobs:
           python3 learning/test_lower_tail_hazard_smoke.py
           python3 learning/test_hazard_robust_fit.py
           bash learning/test_hazard_bridge_compile.sh
-          # New bounded research: crowded hazard frontier with worst-family repeat landing redundancy; retain robust Brier fit.
+          # New bounded research: crowded hazard frontier with mixed-family continuation feasibility; retain robust Brier fit.
           # Train and validation are independent of downstream policy training
-          # (1035) and BOTH official holdouts (1036/1037).
+          # (1058) and BOTH official holdouts (1059/1064).
           # Use the unchanged v1.7 policy to label genuine synthetic continuations.
           python3 learning/audit_raw_seed_aliases.py --selftest
-          python3 learning/audit_raw_seed_aliases.py 999 1012 1035 1036 1037
+          python3 learning/audit_raw_seed_aliases.py 1049 1053 1058 1059 1064
           tmp="$(mktemp -d)"
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              -DBLFindTwoStrategies=BLV17FindTwoStrategies \
@@ -61,7 +61,7 @@ jobs:
           cc -O2 -std=c11 -Wall -Wextra -Isrc \
              learning/hazard_trace_sim.c "$tmp/v17.o" "$tmp/solver.o" -lm \
              -o "$tmp/hazard_trace_sim"
-          "$tmp/hazard_trace_sim" 999 1012 20 /tmp/tenx-hazard-traces.jsonl \
+          "$tmp/hazard_trace_sim" 1049 1053 20 /tmp/tenx-hazard-traces.jsonl \
              | tee /tmp/tenx-hazard-sim.log
           python3 learning/export_hazard_afterstates.py /tmp/tenx-hazard-traces.jsonl \
              --output /tmp/tenx-hazard-data.csv | tee /tmp/tenx-hazard-export.log
@@ -75,8 +75,8 @@ jobs:
           assert len(rows)>0
           assert {x['split'] for x in rows}=={'train','validation'}
           assert {x['scenario'] for x in rows}=={'normal','heavy','shifted-heavy'}
-          assert model['train_epochs']==[999]
-          assert model['validation_epochs']==[1012]
+          assert model['train_epochs']==[1049]
+          assert model['validation_epochs']==[1053]
           assert any(int(r['finalist'])>0 for r in rows), 'No alternative legal finalists were generated'
           assert len({(r['epoch'],r['scenario'],r['game'],r['tray'],r['finalist']) for r in rows})==len(rows)
           from collections import Counter
@@ -91,11 +91,11 @@ jobs:
         shell: bash
         run: |
           set -o pipefail
-          # Epochs audited against 472 ledger entries and accessible recent Actions; external/local history incomplete; 999/1012 hazard, 1035 policy, 1036/1037 holdouts.
-          # Bounded test of balanced square/bar/cross repeat landing redundancy with calibrated risk ceiling and combo constraints; unchanged v1.7 and strict gates.
+          # Epochs audited against 477 ledger entries and accessible recent Actions; external/local history incomplete; 1049/1053 hazard, 1058 policy, 1059/1064 holdouts.
+          # Bounded test of mixed square/bar/cross continuation feasibility with calibrated risk ceiling and combo constraints; unchanged v1.7 and strict gates.
           # Five paired training games/generator, up to 4 weight candidates on 8 independent training games, 12 legal afterstate finalists with crowded hard-family signature diversity and disjoint-square late rerank; two 30-game/generator fresh paired holdouts. Strict 10x gates unchanged.
           # The runner preflights ledger and raw RNG starts before compiling; rejects failing verdicts. Never promote a candidate from this job.
-          TENX_HAZARD_MODEL_PATH=/tmp/tenx-hazard-model.json TENX_HAZARD_TRAIN_EPOCH=999 TENX_HAZARD_VALIDATION_EPOCH=1012 TENX_TRAIN_SEED_EPOCH=1035 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1036 1037 2>&1 | tee /tmp/tenx-research-console.txt
+          TENX_HAZARD_MODEL_PATH=/tmp/tenx-hazard-model.json TENX_HAZARD_TRAIN_EPOCH=1049 TENX_HAZARD_VALIDATION_EPOCH=1053 TENX_TRAIN_SEED_EPOCH=1058 TENX_TRAIN_GAMES=5 bash learning/run_tenx_reproducible.sh 1059 1064 2>&1 | tee /tmp/tenx-research-console.txt
       - name: Preserve all available research evidence even on failed gates
         if: always()
         shell: bash
@@ -108,7 +108,7 @@ jobs:
             cp -a "$evidence"/. /tmp/tenx-upload/
           fi
           git rev-parse HEAD > /tmp/tenx-upload/source-revision.txt
-          printf '%s\n' 'Provisional training seed 1035 and holdouts 1036,1037; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
+          printf '%s\n' 'Provisional training seed 1058 and holdouts 1059,1064; checked against exact cross-role ledger and accessible historical Actions; unrecorded external/local historical use cannot be ruled out.' > /tmp/tenx-upload/seed-audit-warning.txt
           printf '%s\n' 'Synthetic simulator estimates only; not actual Block Blast scores. No checkpoint promotion.' > /tmp/tenx-upload/interpretation.txt
       - uses: actions/upload-artifact@v4
         if: always()
