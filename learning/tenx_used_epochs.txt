@@ -636,3 +636,10 @@
 947
 948
 975
+
+# Run 45713215416 completed both holdouts; calibration passed, strict gates failed. No promotion.
+976
+977
+993
+994
+998
