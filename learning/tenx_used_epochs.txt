@@ -664,3 +664,10 @@
 1072
 1096
 1097
+
+# Run 45756257908 completed, calibration passed, strict gates failed; normal p10 0.8636, heavy p10 0.9545 on second holdout. Artifact 15088466062. External/local history incomplete. No promotion.
+1109
+1118
+1119
+1121
+1130
